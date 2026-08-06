@@ -263,6 +263,16 @@ docker exec radius_laravel_app php artisan view:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan route:clear 2>/dev/null || true
 docker exec radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
+# Set proper password hashes for admin users via artisan tinker
+echo -e "${GREEN}[INFO] Setting up admin user credentials...${NC}"
+sleep 5
+docker exec radius_laravel_app php artisan tinker --no-interaction <<'TINKER_EOF' 2>/dev/null || true
+$admin = App\Models\User::where('email', 'admin@radius.local')->first();
+if ($admin) { $admin->password = bcrypt('Admin@2026!'); $admin->save(); }
+$op = App\Models\User::where('email', 'operator@radius.local')->first();
+if ($op) { $op->password = bcrypt('Operator@2026!'); $op->save(); }
+TINKER_EOF
+
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output
 # ------------------------------------------------------------------------------
@@ -284,3 +294,12 @@ echo -e " - SSH Allowed Segment : ${YELLOW}Allowed from ${SSH_SUBNET}${NC}"
 echo -e " - Admin IP Restriction: ${YELLOW}Allowed from ${ADMIN_SUBNET}${NC}"
 echo -e " - Installation Path   : ${YELLOW}${PROJECT_DIR}${NC}"
 echo -e "${BLUE}=================================================================${NC}"
+echo -e "${GREEN} 🔐 DEFAULT LOGIN CREDENTIALS${NC}"
+echo -e " - Super Admin Email   : ${YELLOW}admin@radius.local${NC}"
+echo -e " - Super Admin Password: ${YELLOW}Admin@2026!${NC}"
+echo -e " - Operator Email      : ${YELLOW}operator@radius.local${NC}"
+echo -e " - Operator Password   : ${YELLOW}Operator@2026!${NC}"
+echo -e "${RED} ⚠️  CHANGE PASSWORDS IMMEDIATELY after first login!${NC}"
+echo -e "${BLUE}=================================================================${NC}"
+echo -e "${YELLOW} 💡 TIP: Run 'bash ${SCRIPT_DIR}/reset_admin_password.sh' to set custom passwords${NC}"
+echo ""

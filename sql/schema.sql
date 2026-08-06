@@ -173,11 +173,14 @@ CREATE TABLE `nas` (
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ------------------------------------------------------------------------------
--- Seed Initial Admin Credentials (Password: Admin@123456)
+-- Seed Initial Admin Credentials
+-- Default password hash = 'password' (Laravel default test hash)
+-- IMPORTANT: Run scripts/reset_admin_password.sh after install to set a secure password!
 -- ------------------------------------------------------------------------------
 INSERT INTO `users` (`name`, `email`, `password`, `role`) VALUES
-('Super Administrator', 'admin@radius.local', '$2y$12$K8JdM0gD1E8X7gL4J0N8u.R6J8L0gD1E8X7gL4J0N8u.R6J8L0gD1', 'Super Admin'),
-('Operator User', 'operator@radius.local', '$2y$12$K8JdM0gD1E8X7gL4J0N8u.R6J8L0gD1E8X7gL4J0N8u.R6J8L0gD1', 'Operator');
+('Super Administrator', 'admin@radius.local', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Super Admin'),
+('Operator User', 'operator@radius.local', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Operator');
+
 
 -- ------------------------------------------------------------------------------
 -- Seed Initial Master SSIDs with Dynamic VLAN Tags

@@ -76,11 +76,45 @@
                 <span class="badge bg-primary text-white fs-6 fw-normal ms-1">v1.0.0</span>
             </a>
             <div class="d-flex align-items-center gap-3 ms-auto">
-                <span class="badge bg-success-subtle text-success border border-success px-3 py-2 rounded-pill">
+                <span class="badge bg-success-subtle text-success border border-success px-3 py-2 rounded-pill d-none d-md-inline-flex">
                     <i class="fa-solid fa-circle text-success me-1 fs-6"></i> System Operational
                 </span>
-                <span class="text-secondary">|</span>
-                <span class="small text-light"><i class="fa-solid fa-user me-1 text-info"></i> Admin</span>
+                <span class="text-secondary d-none d-md-inline">|</span>
+
+                @auth
+                {{-- User Dropdown --}}
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2 px-3 py-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span style="width:28px;height:28px;background:linear-gradient(135deg,#0ea5e9,#6366f1);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;">
+                            {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                        </span>
+                        <span class="d-none d-md-inline small fw-semibold text-light">{{ auth()->user()->name }}</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-secondary" style="background:#1e293b;min-width:220px;">
+                        <li class="px-3 py-2">
+                            <div class="text-light fw-semibold small">{{ auth()->user()->name }}</div>
+                            <div class="text-secondary" style="font-size:12px;">{{ auth()->user()->email }}</div>
+                        </li>
+                        <li><hr class="dropdown-divider border-secondary"></li>
+                        <li class="px-3 pb-1">
+                            @if(auth()->user()->role === 'Super Admin')
+                                <span class="badge" style="background:linear-gradient(135deg,#f59e0b,#ef4444);font-size:11px;"><i class="fa-solid fa-crown me-1"></i>{{ auth()->user()->role }}</span>
+                            @else
+                                <span class="badge bg-info text-dark" style="font-size:11px;"><i class="fa-solid fa-user-gear me-1"></i>{{ auth()->user()->role }}</span>
+                            @endif
+                        </li>
+                        <li><hr class="dropdown-divider border-secondary"></li>
+                        <li>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="dropdown-item text-danger d-flex align-items-center gap-2 py-2">
+                                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+                @endauth
             </div>
         </div>
     </nav>

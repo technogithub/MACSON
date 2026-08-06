@@ -1,0 +1,43 @@
+# =============================================================================
+# MACSON - Git Attributes
+# Ensures proper line endings across Windows & Linux development environments
+# =============================================================================
+
+# Default: auto-convert line endings
+* text=auto
+
+# Shell scripts MUST keep LF (Unix line endings) to run on Linux/Ubuntu server
+*.sh text eol=lf
+
+# PHP files: auto
+*.php text eol=lf
+
+# Blade templates: auto
+*.blade.php text eol=lf
+
+# Config & structured files: LF
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.sql text eol=lf
+*.conf text eol=lf
+*.env text eol=lf
+*.env.example text eol=lf
+*.md text eol=lf
+
+# Windows/DOS batch files: CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files: no conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.pem binary
+*.crt binary
+*.key binary

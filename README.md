@@ -142,6 +142,25 @@ To connect your **Ubiquiti UniFi Controller** to **MACSON**:
 
 ---
 
+## 🔐 Admin Authentication & Login
+
+MACSON now includes a **secure login system** protecting all dashboard and management pages.
+
+### Default Login Credentials (after installation)
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| **Super Admin** | `admin@radius.local` | `Admin@2026!` |
+| **Operator** | `operator@radius.local` | `Operator@2026!` |
+
+> ⚠️ **Change these passwords immediately after first login!**
+
+### Resetting Admin Password
+```bash
+bash scripts/reset_admin_password.sh
+```
+
+---
+
 ## 📁 Project Directory Structure
 
 ```
