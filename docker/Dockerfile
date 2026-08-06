@@ -42,15 +42,12 @@ COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 # Pre-install Composer Dependencies during image build phase
-COPY backend-laravel/composer.json /var/www/html/
+COPY --chown=www-data:www-data backend-laravel/composer.json /var/www/html/
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts 2>/dev/null || true
 
-# Copy full backend application code
-COPY backend-laravel/ /var/www/html/
+# Copy full backend application code with instant chown
+COPY --chown=www-data:www-data backend-laravel/ /var/www/html/
 RUN composer dump-autoload --optimize 2>/dev/null || true
-
-# Set Permissions
-RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 9000
 CMD ["php-fpm"]

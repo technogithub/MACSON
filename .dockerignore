@@ -1,0 +1,9 @@
+.git
+.github
+*.log
+docker/mariadb_data
+docker/redis_data
+backend-laravel/vendor
+backend-laravel/node_modules
+backend-laravel/storage/logs/*
+!backend-laravel/storage/logs/.gitkeep
