@@ -248,6 +248,10 @@ echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack.
 cd "${PROJECT_DIR}/docker"
 docker compose up -d --build
 
+echo -e "${GREEN}[INFO] Configuring Laravel application & directory permissions...${NC}"
+docker exec -i radius_laravel_app composer install --no-dev --optimize-autoloader --no-interaction 2>/dev/null || true
+docker exec -i radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
+
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output
 # ------------------------------------------------------------------------------
