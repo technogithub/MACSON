@@ -15,7 +15,11 @@
 ## 📋 Table of Contents
 1. [Overview & Key Features](#-overview--key-features)
 2. [Ubiquiti UniFi RADIUS & Multi-SSID Architecture](#-ubiquiti-unifi-radius--multi-ssid-architecture)
-3. [Step-by-Step Ubuntu Automatic Installation](#-step-by-step-ubuntu-automatic-installation)
+3. [Step-by-Step Ubuntu Installation Modes](#-step-by-step-ubuntu-installation-modes)
+   - [Mode 1: Interactive Installation (Terminal Keyboard Prompts)](#mode-1-interactive-installation-terminal-keyboard-prompts)
+   - [Mode 2: One-Liner Automatic Silent Mode](#mode-2-one-liner-automatic-silent-mode)
+   - [Mode 3: Parameterized One-Liner Custom Mode](#mode-3-parameterized-one-liner-custom-mode)
+   - [Mode 4: Local Git Clone & Custom Execution](#mode-4-local-git-clone--custom-execution)
 4. [Ubiquiti UniFi Controller Setup Guide](#-ubiquiti-unifi-controller-setup-guide)
 5. [Project Directory Structure](#-project-directory-structure)
 6. [Database Schema (MariaDB `radius`)](#-database-schema-mariadb-radius)
@@ -28,12 +32,13 @@
 
 ## ✨ Overview & Key Features
 
-**MACSON** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density **Ubiquiti UniFi Access Points**, UniFi Dream Machines (UDM), and enterprise Wireless Access Points. It handles central MAC address authentication, Multi-SSID filtering, dynamic IEEE 802.1Q VLAN assignment, and comprehensive access logging.
+**MACSON** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density **Ubiquiti UniFi Access Points**, UniFi Dream Machines (UDM), and enterprise Wireless Access Points. It handles central MAC address authentication, Multi-SSID filtering, dynamic IEEE 802.1Q VLAN assignment, strict SSH IP restrictions, and comprehensive access logging.
 
 * 📶 **Multi-SSID MAC Address Filtering**: Grant or restrict specific device MAC addresses to one or multiple UniFi SSIDs (e.g. `SSID-Staff`, `SSID-IoT`, `SSID-VIP`, `SSID-Guest`).
 * 🏷️ **UniFi Dynamic VLAN Assignment**: Automatically returns RADIUS `Tunnel-Private-Group-Id` to place connected devices into designated UniFi VLANs (e.g., VLAN 10, 20, 30).
+* 🔒 **Strict SSH & Network Firewall Restrictions**: Enforces UFW Firewall rules separating **Port 22 SSH** (`$SSH_SUBNET`), **Web Admin UI** (`$ADMIN_SUBNET`), and **RADIUS 1812/1813 UDP** (`$NAS_SUBNET`).
 * 🧹 **Unlang MAC Address Sanitization**: Standardizes any incoming MAC delimiter format from UniFi APs (`AA-BB-CC-DD-EE-FF`, `aabbccddeeff`, `AA:BB:CC:DD:EE:FF`) to normalized `AA:BB:CC:DD:EE:FF`.
-* ⚡ **One-Liner Automated Installer**: Zero-touch installation for **Ubuntu Server 26.04 / 24.04 / 22.04 LTS**.
+* ⚡ **Flexible Installation Modes**: Supports Interactive Keyboard Prompts, Automated Silent Mode, and One-Liner Parameterized Setup for **Ubuntu Server 26.04 / 24.04 / 22.04 LTS**.
 * 🐳 **Docker Microservices Architecture**: Isolated container stack featuring Nginx (HTTPS SSL), PHP 8.3 FPM, MariaDB 10.11, FreeRADIUS v3, and Redis.
 * 💻 **Laravel 12 Dashboard & REST API**: Responsive Bootstrap 5 dark-mode management portal and Sanctum-secured REST API.
 
@@ -64,38 +69,53 @@
 
 ---
 
-## 🛠️ Step-by-Step Ubuntu Automatic Installation
+## 🛠️ Step-by-Step Ubuntu Installation Modes
 
-Follow these steps to deploy **MACSON** on an Ubuntu Server:
+Deploy **MACSON** on your fresh **Ubuntu Server 26.04 / 24.04 / 22.04 LTS** using any of the following modes:
 
-### Step 1: Connect to Ubuntu Server
-SSH into your fresh **Ubuntu Server 26.04 / 24.04 / 22.04 LTS** instance:
+### Mode 1: Interactive Installation (Terminal Keyboard Prompts)
+*Recommended if you want the installer to ask you on-screen for custom subnets and secrets:*
+
 ```bash
-ssh username@your-ubuntu-server-ip
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh)
 ```
 
-### Step 2: Execute One-Liner Automatic Installer
-Run the official automated installation script as `root` or `sudo`:
+**Interactive Prompts Displayed on Screen:**
+1. `Enter NAS Network Subnet for RADIUS (e.g., 192.168.1.0/24) [192.168.1.0/24]:`
+2. `Enter SSH Allowed Subnet for Port 22 (e.g., 192.168.1.50/32) [192.168.1.0/24]:`
+3. `Enter Admin Web UI Allowed Subnet (e.g., 192.168.1.0/24) [192.168.1.0/24]:`
+4. `Enter RADIUS Shared Secret Key [RadiusSecretKey2026!]:`
+
+---
+
+### Mode 2: One-Liner Automatic Silent Mode
+*Zero-touch installation using secure default parameters:*
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto
 ```
 
-### Alternative Step 2: Custom Parameterized Installation
-If you prefer to specify your UniFi NAS subnet, Admin IP segment, and RADIUS Shared Secret manually:
+---
+
+### Mode 3: Parameterized One-Liner Custom Mode
+*Pass custom subnets and RADIUS secret in 1 line without interactive prompts:*
+
 ```bash
-git clone https://github.com/technogithub/MACSON.git /opt/macson
-cd /opt/macson
-sudo bash scripts/install.sh \
+curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto \
   --nas-subnet 192.168.1.0/24 \
+  --ssh-subnet 192.168.1.50/32 \
   --admin-subnet 192.168.1.0/24 \
   --secret UniFiRadiusSecret2026!
 ```
 
-### Step 3: Access Web Management Dashboard
-Once installed, open your browser and access the secure Web Interface:
-* **Dashboard URL**: `https://<YOUR-UBUNTU-SERVER-IP>`
-* **Default Admin**: `admin@radius.local`
-* **Default Password**: `Admin@123456`
+---
+
+### Mode 4: Local Git Clone & Custom Execution
+```bash
+git clone https://github.com/technogithub/MACSON.git /opt/macson
+cd /opt/macson
+sudo bash scripts/install.sh
+```
 
 ---
 
