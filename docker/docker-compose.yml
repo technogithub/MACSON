@@ -14,17 +14,18 @@ services:
       MYSQL_USER: radius_user
       MYSQL_PASSWORD: radius_password
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
       - ../sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     networks:
       - radius_net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pRootPassword2026!"]
-      interval: 10s
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 --silent || exit 1"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 35s
 
   # ----------------------------------------------------------------------------
   # 2. Redis Cache & Queue Broker
@@ -34,7 +35,7 @@ services:
     container_name: radius_redis
     restart: always
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - radius_net
 
@@ -48,7 +49,7 @@ services:
     container_name: radius_laravel_app
     restart: always
     environment:
-      APP_NAME: "OmniRadius"
+      APP_NAME: "MACSON"
       APP_ENV: production
       APP_KEY: "base64:c3VwZXJzZWNyZXRrZXkyMDI2b21uaXJhZGl1czEyMw=="
       APP_DEBUG: "false"
