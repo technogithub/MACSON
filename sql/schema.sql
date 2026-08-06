@@ -6,10 +6,24 @@
 CREATE DATABASE IF NOT EXISTS `radius` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `radius`;
 
+-- Disable FK checks during table creation / drop
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ------------------------------------------------------------------------------
+-- Drop tables in correct dependency order (children first)
+-- ------------------------------------------------------------------------------
+DROP TABLE IF EXISTS `device_ssids`;
+DROP TABLE IF EXISTS `audit_logs`;
+DROP TABLE IF EXISTS `radius_log`;
+DROP TABLE IF EXISTS `radacct`;
+DROP TABLE IF EXISTS `nas`;
+DROP TABLE IF EXISTS `devices`;
+DROP TABLE IF EXISTS `ssids`;
+DROP TABLE IF EXISTS `users`;
+
 -- ------------------------------------------------------------------------------
 -- 1. Table: ssids (Master Multi-SSID Inventory & Dynamic VLAN Definitions)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `ssids`;
 CREATE TABLE `ssids` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `ssid_name` VARCHAR(64) NOT NULL UNIQUE COMMENT 'SSID Name broadcasted by Access Points',
@@ -25,7 +39,6 @@ CREATE TABLE `ssids` (
 -- ------------------------------------------------------------------------------
 -- 2. Table: devices (MAC Address Device Inventory)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `devices`;
 CREATE TABLE `devices` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `mac_address` VARCHAR(17) NOT NULL COMMENT 'Sanitized MAC: AA:BB:CC:DD:EE:FF',
@@ -46,21 +59,21 @@ CREATE TABLE `devices` (
 -- ------------------------------------------------------------------------------
 -- 3. Table: device_ssids (Multi-SSID Pivot Table for Device Authorizations)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `device_ssids`;
 CREATE TABLE `device_ssids` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `device_id` BIGINT UNSIGNED NOT NULL,
   `ssid_id` BIGINT UNSIGNED NULL COMMENT 'FK to ssids.id. NULL means authorized for ALL SSIDs',
+  `is_all` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = authorized for ALL SSIDs',
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`ssid_id`) REFERENCES `ssids` (`id`) ON DELETE CASCADE,
-  UNIQUE KEY `unique_device_ssid_pivot` (`device_id`, `ssid_id`)
+  INDEX `idx_device_id` (`device_id`),
+  INDEX `idx_ssid_id` (`ssid_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
 -- 4. Table: radius_log (FreeRADIUS Authentication & Accounting Logs)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `radius_log`;
 CREATE TABLE `radius_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `log_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -71,7 +84,6 @@ CREATE TABLE `radius_log` (
   `nas_port` VARCHAR(30) NULL,
   `auth_result` ENUM('ACCEPT', 'REJECT') NOT NULL,
   `reason` VARCHAR(255) NULL,
-  `auth_date` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_log_date` (`log_date`),
   INDEX `idx_mac` (`mac_address`),
   INDEX `idx_ssid` (`ssid`),
@@ -82,7 +94,6 @@ CREATE TABLE `radius_log` (
 -- ------------------------------------------------------------------------------
 -- 5. Table: users (Laravel Authentication & Role Management)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
@@ -97,7 +108,6 @@ CREATE TABLE `users` (
 -- ------------------------------------------------------------------------------
 -- 6. Table: audit_logs (Security & Admin Activity Tracking)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `audit_logs`;
 CREATE TABLE `audit_logs` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` BIGINT UNSIGNED NULL,
@@ -115,7 +125,6 @@ CREATE TABLE `audit_logs` (
 -- ------------------------------------------------------------------------------
 -- 7. Standard FreeRADIUS SQL Integration Tables (radacct, nas)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS `radacct`;
 CREATE TABLE `radacct` (
   `radacctid` BIGINT(21) NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `acctsessionid` VARCHAR(64) NOT NULL DEFAULT '',
@@ -145,7 +154,6 @@ CREATE TABLE `radacct` (
   INDEX `nasipaddress` (`nasipaddress`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS `nas`;
 CREATE TABLE `nas` (
   `id` INT(10) NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `nasname` VARCHAR(128) NOT NULL,
@@ -158,6 +166,9 @@ CREATE TABLE `nas` (
   `description` VARCHAR(200) DEFAULT 'RADIUS Client NAS',
   INDEX `nasname` (`nasname`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Re-enable FK checks
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- ------------------------------------------------------------------------------
 -- Seed Initial Admin Credentials (Password: Admin@123456)
@@ -184,8 +195,9 @@ INSERT INTO `devices` (`id`, `mac_address`, `raw_mac`, `ssid`, `device_name`, `l
 (3, 'AA:BB:CC:DD:EE:03', 'AA:BB:CC:DD:EE:03', 'SSID-Guest', 'Guest Tablet iPad Pro', 'Lobby Reception', 'Guest Network Only Device', 'inactive');
 
 -- Seed Pivot Authorization Mappings
-INSERT INTO `device_ssids` (`device_id`, `ssid_id`) VALUES
-(1, 1), -- Device 1 -> SSID-Staff (VLAN 10)
-(1, 3), -- Device 1 -> SSID-VIP (VLAN 30)
-(2, NULL), -- Device 2 -> ALL SSIDs
-(3, 4); -- Device 3 -> SSID-Guest (VLAN 40)
+-- Device 1 -> SSID-Staff (VLAN 10) and SSID-VIP (VLAN 30)
+INSERT INTO `device_ssids` (`device_id`, `ssid_id`, `is_all`) VALUES
+(1, 1, 0),
+(1, 3, 0),
+(2, NULL, 1),
+(3, 4, 0);
