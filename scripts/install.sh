@@ -253,9 +253,8 @@ echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack.
 cd "${PROJECT_DIR}/docker"
 docker compose up -d --build
 
-echo -e "${GREEN}[INFO] Configuring Laravel application, APP_KEY, & directory permissions...${NC}"
+echo -e "${GREEN}[INFO] Finalizing Laravel APP_KEY & directory permissions...${NC}"
 docker exec -i radius_laravel_app cp -n .env.example .env 2>/dev/null || true
-docker exec -i radius_laravel_app composer install --no-dev --optimize-autoloader --no-interaction 2>/dev/null || true
 docker exec -i radius_laravel_app php artisan key:generate --force 2>/dev/null || true
 docker exec -i radius_laravel_app php artisan config:clear 2>/dev/null || true
 docker exec -i radius_laravel_app php artisan view:clear 2>/dev/null || true
@@ -265,7 +264,7 @@ docker exec -i radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/nu
 # 6. Service Health Check & Final Output
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[6/6] Verifying System Health & Startup Status...${NC}"
-sleep 5
+sleep 3
 if [ -f "${SCRIPT_DIR}/health_check.sh" ]; then
     bash "${SCRIPT_DIR}/health_check.sh" || true
 fi
