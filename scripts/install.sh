@@ -89,6 +89,16 @@ if [ -f /etc/os-release ]; then
     fi
 fi
 
+# Handle piped execution STDIN redirection for interactive read
+if [ ! -t 0 ] && [ "$NON_INTERACTIVE" = false ]; then
+    if [ -c /dev/tty ]; then
+        exec 3<&0
+        exec 0</dev/tty
+    else
+        NON_INTERACTIVE=true
+    fi
+fi
+
 # Interactive Prompts if not running in auto mode
 if [ "$NON_INTERACTIVE" = false ]; then
     read -p "Enter NAS Network Subnet (e.g., 192.168.1.0/24) [$NAS_SUBNET]: " INPUT_NAS
@@ -112,6 +122,12 @@ if [ "$NON_INTERACTIVE" = false ]; then
         echo -e "${RED}[CANCELLED] Installation aborted by user.${NC}"
         exit 0
     fi
+fi
+
+# Restore STDIN if redirected
+if [ -n "${3+x}" ]; then
+    exec 0<&3
+    exec 3<&-
 fi
 
 # ------------------------------------------------------------------------------
