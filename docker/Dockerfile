@@ -61,6 +61,9 @@ RUN mkdir -p storage/framework/sessions \
              storage/app/public \
              storage/logs \
              bootstrap/cache \
+    && touch storage/logs/laravel.log \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 /var/www/html \
     && chmod -R 777 storage bootstrap/cache
 
 EXPOSE 9000
