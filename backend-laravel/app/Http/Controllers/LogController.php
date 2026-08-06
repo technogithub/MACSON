@@ -45,6 +45,15 @@ class LogController extends Controller
     }
 
     /**
+     * Clear all audit logs
+     */
+    public function clear()
+    {
+        RadiusLog::truncate();
+        return redirect()->route('logs.index')->with('success', 'All RADIUS audit logs cleared successfully.');
+    }
+
+    /**
      * Export Radius Logs to CSV/Excel
      */
     public function exportExcel(Request $request)
