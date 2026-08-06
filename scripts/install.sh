@@ -261,6 +261,7 @@ docker exec radius_laravel_app php artisan key:generate --force 2>/dev/null || t
 docker exec radius_laravel_app php artisan config:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan view:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan route:clear 2>/dev/null || true
+docker exec radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output

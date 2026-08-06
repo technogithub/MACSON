@@ -64,7 +64,9 @@ RUN mkdir -p storage/framework/sessions \
     && touch storage/logs/laravel.log \
     && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html \
-    && chmod -R 777 storage bootstrap/cache
+    && chmod -R 777 storage bootstrap/cache \
+    && sed -i 's/user = .*/user = www-data/' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/group = .*/group = www-data/' /usr/local/etc/php-fpm.d/www.conf
 
 EXPOSE 9000
 CMD ["php-fpm"]
