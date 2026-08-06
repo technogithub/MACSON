@@ -7,6 +7,9 @@
 
 set -eo pipefail
 
+# Ensure shell process working directory is valid
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+
 # Color Codes for Output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -132,6 +135,8 @@ apt-get install -y --no-install-recommends \
 # If running via piped stdin (curl), ensure repository is cloned to PROJECT_DIR
 if [ ! -d "${PROJECT_DIR}/docker" ]; then
     echo -e "${GREEN}[INFO] Cloning MACSON repository to ${PROJECT_DIR}...${NC}"
+    cd /tmp 2>/dev/null || cd /
+    rm -rf "${PROJECT_DIR}" 2>/dev/null || true
     mkdir -p "${PROJECT_DIR}"
     git clone https://github.com/technogithub/MACSON.git "${PROJECT_DIR}"
 fi
