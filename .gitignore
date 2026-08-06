@@ -1,0 +1,41 @@
+# ==============================================================================
+# OmniRadius Enterprise RADIUS & MAC Management - Git Ignore Rules
+# ==============================================================================
+
+# Laravel / PHP Dependencies & Logs
+/backend-laravel/vendor/
+/backend-laravel/node_modules/
+/backend-laravel/.env
+/backend-laravel/.env.backup
+/backend-laravel/.env.production
+/backend-laravel/storage/*.key
+/backend-laravel/storage/logs/*
+!/backend-laravel/storage/logs/.gitkeep
+/backend-laravel/bootstrap/cache/*
+!/backend-laravel/bootstrap/cache/.gitkeep
+/backend-laravel/public/storage
+/backend-laravel/public/hot
+
+# Generated SSL Certificates & Secrets
+/docker/ssl/*.crt
+/docker/ssl/*.key
+/docker/ssl/*.csr
+/docker/ssl/*.pem
+!/docker/ssl/.gitkeep
+
+# Local Container Persistent Storage
+/docker/mariadb_data/
+/docker/redis_data/
+
+# IDE & OS System Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment & Temp Files
+*.env
+*.log
+scratch/

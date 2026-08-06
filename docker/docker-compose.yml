@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Database: MariaDB 10.11
+  # ----------------------------------------------------------------------------
+  mariadb:
+    image: mariadb:10.11
+    container_name: radius_mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: RootPassword2026!
+      MYSQL_DATABASE: radius
+      MYSQL_USER: radius_user
+      MYSQL_PASSWORD: radius_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ../sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - radius_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pRootPassword2026!"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 2. Redis Cache & Queue Broker
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: radius_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - radius_net
+
+  # ----------------------------------------------------------------------------
+  # 3. Backend: PHP 8.3 Laravel App
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: radius_laravel_app
+    restart: always
+    environment:
+      APP_NAME: "OmniRadius"
+      APP_ENV: production
+      APP_KEY: "base64:c3VwZXJzZWNyZXRrZXkyMDI2b21uaXJhZGl1czEyMw=="
+      APP_DEBUG: "false"
+      APP_URL: "https://radius.local"
+      DB_CONNECTION: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: radius
+      DB_USERNAME: radius_user
+      DB_PASSWORD: radius_password
+      CACHE_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+    volumes:
+      - ../backend-laravel:/var/www/html
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - radius_net
+
+  # ----------------------------------------------------------------------------
+  # 4. Laravel Background Queue Worker
+  # ----------------------------------------------------------------------------
+  queue_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: radius_queue_worker
+    restart: always
+    command: php /var/www/html/artisan queue:work --sleep=3 --tries=3
+    volumes:
+      - ../backend-laravel:/var/www/html
+    depends_on:
+      - app
+      - redis
+    networks:
+      - radius_net
+
+  # ----------------------------------------------------------------------------
+  # 5. Web Server: Nginx
+  # ----------------------------------------------------------------------------
+  webserver:
+    image: nginx:alpine
+    container_name: radius_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../backend-laravel:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - radius_net
+
+  # ----------------------------------------------------------------------------
+  # 6. RADIUS Engine: FreeRADIUS 3.x
+  # ----------------------------------------------------------------------------
+  freeradius:
+    build:
+      context: ..
+      dockerfile: docker/freeradius.Dockerfile
+    container_name: radius_freeradius
+    restart: always
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - ../freeradius/clients.conf:/etc/freeradius/3.0/clients.conf:ro
+      - ../freeradius/mods-available/sql:/etc/freeradius/3.0/mods-available/sql:ro
+      - ../freeradius/queries.conf:/etc/freeradius/3.0/mods-config/sql/main/mysql/queries.conf:ro
+      - ../freeradius/sites-available/default:/etc/freeradius/3.0/sites-available/default:ro
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - radius_net
+
+networks:
+  radius_net:
+    driver: bridge
+
+volumes:
+  mariadb_data:

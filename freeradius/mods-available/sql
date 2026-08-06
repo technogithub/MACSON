@@ -1,0 +1,34 @@
+# ==============================================================================
+# FreeRADIUS MySQL/MariaDB Module Configuration - mods-available/sql
+# ==============================================================================
+
+sql {
+    driver = "rlm_sql_mysql"
+    dialect = "mysql"
+
+    # Database Server Connection Parameters
+    server = "mariadb"
+    port = 3306
+    login = "radius_user"
+    password = "radius_password"
+    radius_db = "radius"
+
+    # Connection Pool Settings
+    pool {
+        start = 5
+        min = 4
+        max = 32
+        spare = 10
+        uses = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+    }
+
+    # Table names
+    acct_table1 = "radacct"
+    acct_table2 = "radacct"
+
+    # Read custom queries from external query file
+    $INCLUDE ${modconfdir}/${.:name}/main/mysql/queries.conf
+}

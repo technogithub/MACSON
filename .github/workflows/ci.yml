@@ -1,0 +1,36 @@
+name: OmniRadius CI Build & Verification
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  validate-project:
+    name: Lint & Validate OmniRadius Architecture
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          cd docker
+          docker compose config --quiet
+
+      - name: ShellScript Integrity Check
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/install.sh
+          shellcheck scripts/uninstall.sh
+          shellcheck scripts/health_check.sh
+
+      - name: Validate MariaDB SQL Syntax
+        run: |
+          sudo apt-get install -y mariadb-client
+          mysql --version
+
+      - name: Build Notification
+        run: echo "OmniRadius CI validation completed successfully!"

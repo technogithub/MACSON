@@ -1,0 +1,126 @@
+# ==============================================================================
+# FreeRADIUS Virtual Server Default - sites-available/default
+# Multi-SSID & Dynamic VLAN Unlang MAC Sanitization Engine
+# ==============================================================================
+
+server default {
+    listen {
+        type = auth
+        ipaddr = *
+        port = 1812
+    }
+
+    listen {
+        type = acct
+        ipaddr = *
+        port = 1813
+    }
+
+    # --------------------------------------------------------------------------
+    # AUTHORIZE SECTION: MAC & Multi-SSID Extraction and Verification
+    # --------------------------------------------------------------------------
+    authorize {
+        filter_username
+
+        # 1. Extract Calling-Station-Id (MAC Address)
+        if ("%{Calling-Station-Id}" != "") {
+            update request {
+                Tmp-String-0 := "%{Calling-Station-Id}"
+            }
+        } elsif ("%{User-Name}" != "") {
+            update request {
+                Tmp-String-0 := "%{User-Name}"
+            }
+        } else {
+            reject
+        }
+
+        # 2. Extract Target SSID from Called-Station-Id (Format: AP-MAC:SSID-Name or just SSID-Name)
+        if ("%{Called-Station-Id}" =~ /^.*:(.*)$/) {
+            update control {
+                Target-SSID := "%{1}"
+            }
+        } elsif ("%{Called-Station-Id}" != "") {
+            update control {
+                Target-SSID := "%{Called-Station-Id}"
+            }
+        } else {
+            update control {
+                Target-SSID := "ALL"
+            }
+        }
+
+        # 3. Unlang MAC Normalization to AA:BB:CC:DD:EE:FF format
+        update control {
+            Tmp-Raw-MAC := "%{toupper:%{string:Tmp-String-0}}"
+        }
+
+        if ("%{control:Tmp-Raw-MAC}" =~ /^([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})$/) {
+            update control {
+                Clean-Calling-Station-Id := "%{1}:%{2}:%{3}:%{4}:%{5}:%{6}"
+            }
+        } else {
+            update control {
+                Auth-Reject-Reason := "Invalid MAC Address Format"
+            }
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Tmp-Raw-MAC}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Invalid MAC Address Format')}
+            reject
+        }
+
+        # 4. Query Database `devices` and `ssids` tables for Normalized MAC & SSID matching
+        update control {
+            Device-Status := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{control:Clean-Calling-Station-Id}' AND d.status = 'active' AND (s.ssid_name = '%{control:Target-SSID}' OR ds.ssid_id IS NULL OR d.ssid = '%{control:Target-SSID}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{control:Target-SSID}' THEN 1 WHEN d.ssid = '%{control:Target-SSID}' THEN 2 ELSE 3 END LIMIT 1}"
+            Assigned-VLAN-ID := "%{sql: SELECT COALESCE(s.vlan_id, 0) FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{control:Clean-Calling-Station-Id}' AND d.status = 'active' AND (s.ssid_name = '%{control:Target-SSID}' OR ds.ssid_id IS NULL OR d.ssid = '%{control:Target-SSID}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{control:Target-SSID}' THEN 1 WHEN d.ssid = '%{control:Target-SSID}' THEN 2 ELSE 3 END LIMIT 1}"
+        }
+
+        # 5. Enforce Access Policy & Dynamic VLAN Assignment
+        if ("%{control:Device-Status}" == "active") {
+            # Device Found & Active for Target SSID -> ACCEPT
+            update control {
+                Auth-Type := Accept
+            }
+
+            # Inject Dynamic IEEE 802.1Q VLAN reply attributes if VLAN ID > 0
+            if ("%{control:Assigned-VLAN-ID}" != "0" && "%{control:Assigned-VLAN-ID}" != "") {
+                update reply {
+                    Tunnel-Type := VLAN
+                    Tunnel-Medium-Type := IEEE-802
+                    Tunnel-Private-Group-Id := "%{control:Assigned-VLAN-ID}"
+                }
+            }
+
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Clean-Calling-Station-Id}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}
+        } elsif ("%{control:Device-Status}" == "inactive") {
+            # Device Found but Inactive -> REJECT
+            update control {
+                Auth-Reject-Reason := "Device Status Inactive"
+            }
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Clean-Calling-Station-Id}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Device Inactive for SSID')}
+            reject
+        } else {
+            # Device Not Authorized for this SSID -> REJECT
+            update control {
+                Auth-Reject-Reason := "MAC Not Authorized for SSID: %{control:Target-SSID}"
+            }
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Clean-Calling-Station-Id}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'MAC Not Authorized for SSID')}
+            reject
+        }
+    }
+
+    authenticate {
+        Auth-Type Accept {
+            accept
+        }
+    }
+
+    post-auth {
+        Post-Auth-Type REJECT {
+            attr_filter.post-auth
+        }
+    }
+
+    accounting {
+        detail
+        sql
+    }
+}
