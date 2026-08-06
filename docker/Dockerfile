@@ -61,8 +61,7 @@ RUN mkdir -p storage/framework/sessions \
              storage/app/public \
              storage/logs \
              bootstrap/cache \
-    && chmod -R 777 storage bootstrap/cache \
-    && chown -R www-data:www-data storage bootstrap/cache
+    && chmod -R 777 storage bootstrap/cache
 
 EXPOSE 9000
 CMD ["php-fpm"]

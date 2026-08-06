@@ -134,6 +134,18 @@ class DeviceController extends Controller
     }
 
     /**
+     * Toggle Device Status
+     */
+    public function toggleStatus(int $id)
+    {
+        $device = Device::findOrFail($id);
+        $device->status = $device->status === 'active' ? 'inactive' : 'active';
+        $device->save();
+
+        return redirect()->back()->with('success', "Device {$device->mac_address} status updated to {$device->status}.");
+    }
+
+    /**
      * Import CSV File with Multi-SSID Validation & Duplicate Skip
      * Format: MAC Address,SSID,Device Name,Location,Description,Status
      */

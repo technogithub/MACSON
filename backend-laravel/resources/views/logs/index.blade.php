@@ -35,7 +35,7 @@
                     <tr>
                         <td class="small text-secondary">{{ $log->log_date }}</td>
                         <td class="font-monospace fw-bold text-info">{{ $log->mac_address }}</td>
-                        <td><span class="badge bg-secondary">{{ $log->ssid ?? 'N/A' }}</span></td>
+                        <td><span class="badge bg-secondary">{{ $log?->ssid ?? 'N/A' }}</span></td>
                         <td class="font-monospace small text-muted">{{ $log->ap_mac ?? '-' }}</td>
                         <td>
                             @if($log->auth_result === 'ACCEPT')

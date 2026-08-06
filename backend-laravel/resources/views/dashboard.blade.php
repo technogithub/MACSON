@@ -90,7 +90,7 @@
                         @forelse($recentLogs as $log)
                             <tr>
                                 <td class="font-monospace small">{{ $log->mac_address }}</td>
-                                <td class="small">{{ $log->ssid ?? 'N/A' }}</td>
+                                <td class="small">{{ $log?->ssid ?? 'N/A' }}</td>
                                 <td>
                                     @if($log->auth_result === 'ACCEPT')
                                         <span class="badge bg-success">ACCEPT</span>

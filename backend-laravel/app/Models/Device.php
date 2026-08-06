@@ -56,7 +56,7 @@ class Device extends Model
     {
         $query = static::where('mac_address', $formattedMac)->where('ssid', $ssid);
         if ($excludeId) {
-            $query->where('where', '!=', $excludeId);
+            $query->where('id', '!=', $excludeId);
         }
         return $query->exists();
     }

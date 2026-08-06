@@ -20,8 +20,7 @@
                 <tr>
                     <th>Device Name</th>
                     <th>MAC Address</th>
-                    <th>Primary SSID</th>
-                    <th>Allowed SSIDs</th>
+                    <th>Target SSID</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -33,13 +32,6 @@
                         <td class="font-monospace text-info">{{ $device->mac_address }}</td>
                         <td><span class="badge bg-secondary">{{ $device->ssid }}</span></td>
                         <td>
-                            @forelse($device->ssids as $s)
-                                <span class="badge bg-info-subtle text-info border border-info me-1">{{ $s->ssid_name }} (VLAN {{ $s->vlan_id }})</span>
-                            @empty
-                                <span class="badge bg-success">ALL SSIDs</span>
-                            @endforelse
-                        </td>
-                        <td>
                             @if($device->status === 'active')
                                 <span class="badge bg-success">Active</span>
                             @else
@@ -47,8 +39,13 @@
                             @endif
                         </td>
                         <td>
-                            <form action="{{ route('devices.toggle', $device->id) }}" method="POST" class="d-inline">
+                            <form action="{{ route('devices.update', $device->id) }}" method="POST" class="d-inline">
                                 @csrf
+                                @method('PUT')
+                                <input type="hidden" name="device_name" value="{{ $device->device_name }}">
+                                <input type="hidden" name="mac_address" value="{{ $device->raw_mac ?? $device->mac_address }}">
+                                <input type="hidden" name="ssid" value="{{ $device->ssid }}">
+                                <input type="hidden" name="status" value="{{ $device->status === 'active' ? 'inactive' : 'active' }}">
                                 <button type="submit" class="btn btn-sm {{ $device->status === 'active' ? 'btn-warning' : 'btn-success' }}">
                                     <i class="fa-solid {{ $device->status === 'active' ? 'fa-power-off' : 'fa-check' }}"></i>
                                 </button>
@@ -82,6 +79,7 @@
             </div>
             <form action="{{ route('devices.store') }}" method="POST">
                 @csrf
+                <input type="hidden" name="status" value="active">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Device Name</label>
@@ -92,13 +90,9 @@
                         <input type="text" name="mac_address" class="form-control bg-secondary text-white font-monospace" placeholder="AA:BB:CC:DD:EE:FF" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Allowed SSIDs</label>
-                        <select name="ssid_ids[]" class="form-select bg-secondary text-white" multiple>
-                            @foreach($ssids as $ssid)
-                                <option value="{{ $ssid->id }}">{{ $ssid->ssid_name }} (VLAN {{ $ssid->vlan_id }})</option>
-                            @endforeach
-                        </select>
-                        <small class="text-muted">Hold Ctrl/Cmd to select multiple SSIDs. Leave blank for ALL SSIDs.</small>
+                        <label class="form-label">Target SSID</label>
+                        <input type="text" name="ssid" class="form-control bg-secondary text-white" placeholder="e.g. ALL or SSID Name" value="ALL" required>
+                        <small class="text-muted">Specify the target SSID or use ALL for any.</small>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">

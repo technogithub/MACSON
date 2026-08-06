@@ -12,8 +12,8 @@ use App\Http\Controllers\Api\DeviceApiController;
 Route::prefix('v1')->group(function () {
     Route::get('/devices', [DeviceApiController::class, 'index']);
     Route::post('/devices', [DeviceApiController::class, 'store']);
-    Route::get('/devices/{mac}', [DeviceApiController::class, 'show']);
-    Route::put('/devices/{mac}', [DeviceApiController::class, 'update']);
-    Route::delete('/devices/{mac}', [DeviceApiController::class, 'destroy']);
+    Route::get('/devices/{id}', [DeviceApiController::class, 'show']);
+    Route::put('/devices/{id}', [DeviceApiController::class, 'update']);
+    Route::delete('/devices/{id}', [DeviceApiController::class, 'destroy']);
     Route::post('/devices/{mac}/verify', [DeviceApiController::class, 'verify']);
 });

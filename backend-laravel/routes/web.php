@@ -16,7 +16,8 @@ Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
 // Device MAC Address Management Routes
 Route::resource('devices', DeviceController::class);
-Route::post('devices/{device}/toggle', [DeviceController::class, 'toggleStatus'])->name('devices.toggle');
+Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
+Route::get('devices/export', [DeviceController::class, 'exportCsv'])->name('devices.export');
 
 // Multi-SSID Management Routes
 Route::resource('ssids', SsidController::class)->except(['create', 'edit', 'show']);

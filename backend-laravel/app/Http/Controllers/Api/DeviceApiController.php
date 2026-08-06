@@ -113,7 +113,7 @@ class DeviceApiController extends Controller
             if (!$formattedMac) {
                 return response()->json(['status' => 'error', 'message' => 'Invalid MAC Address format'], 400);
             }
-            if (Device::isDuplicate($formattedMac, $id)) {
+            if (Device::isDuplicate($formattedMac, 'ALL', $id)) {
                 return response()->json(['status' => 'error', 'message' => "MAC Address {$formattedMac} already belongs to another device"], 409);
             }
             $device->mac_address = $formattedMac;
@@ -147,5 +147,45 @@ class DeviceApiController extends Controller
 
         $device->delete();
         return response()->json(['status' => 'success', 'message' => 'Device deleted successfully'], 200);
+    }
+
+    /**
+     * GET /api/device/{id}
+     * Show device via API
+     */
+    public function show(int $id)
+    {
+        $device = Device::find($id);
+        if (!$device) {
+            return response()->json(['status' => 'error', 'message' => 'Device not found'], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $device
+        ], 200);
+    }
+
+    /**
+     * POST /api/device/{mac}/verify
+     * Verify device by MAC
+     */
+    public function verify(Request $request, string $mac)
+    {
+        $formattedMac = Device::formatMacAddress($mac);
+        if (!$formattedMac) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid MAC Address format'], 400);
+        }
+
+        $device = Device::where('mac_address', $formattedMac)->first();
+        
+        if (!$device || $device->status !== 'active') {
+            return response()->json(['status' => 'error', 'message' => 'Device not found or inactive'], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $device
+        ], 200);
     }
 }
