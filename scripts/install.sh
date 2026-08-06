@@ -166,6 +166,11 @@ if [ ! -f "${PROJECT_DIR}/docker/docker-compose.yml" ]; then
     git clone https://github.com/technogithub/MACSON.git "${PROJECT_DIR}"
 fi
 
+# Ensure Laravel .env exists before container launch
+if [ ! -f "${PROJECT_DIR}/backend-laravel/.env" ]; then
+    cp "${PROJECT_DIR}/backend-laravel/.env.example" "${PROJECT_DIR}/backend-laravel/.env"
+fi
+
 # ------------------------------------------------------------------------------
 # 2. Check and Install Docker Engine & Compose Plugin
 # ------------------------------------------------------------------------------
@@ -186,7 +191,7 @@ fi
 systemctl enable --now docker
 
 # ------------------------------------------------------------------------------
-# 3. Configure Firewall (UFW) with Strict SSH & Admin Restrictions
+# 3. Configure Firewall (UFW) with Strict SSH, RADIUS, & Web UI Restrictions
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[3/6] Configuring UFW Firewall Segment Restrictions...${NC}"
 ufw --force reset
@@ -248,8 +253,12 @@ echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack.
 cd "${PROJECT_DIR}/docker"
 docker compose up -d --build
 
-echo -e "${GREEN}[INFO] Configuring Laravel application & directory permissions...${NC}"
+echo -e "${GREEN}[INFO] Configuring Laravel application, APP_KEY, & directory permissions...${NC}"
+docker exec -i radius_laravel_app cp -n .env.example .env 2>/dev/null || true
 docker exec -i radius_laravel_app composer install --no-dev --optimize-autoloader --no-interaction 2>/dev/null || true
+docker exec -i radius_laravel_app php artisan key:generate --force 2>/dev/null || true
+docker exec -i radius_laravel_app php artisan config:clear 2>/dev/null || true
+docker exec -i radius_laravel_app php artisan view:clear 2>/dev/null || true
 docker exec -i radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
