@@ -54,7 +54,7 @@ COPY --chown=www-data:www-data backend-laravel/ /var/www/html/
 # Run composer scripts now that full app code exists
 RUN composer dump-autoload --optimize --no-interaction
 
-# Create required Laravel storage directories & set permissions
+# Create required Laravel storage directories & set permissions (instant execution)
 RUN mkdir -p storage/framework/sessions \
              storage/framework/views \
              storage/framework/cache/data \
@@ -62,11 +62,7 @@ RUN mkdir -p storage/framework/sessions \
              storage/logs \
              bootstrap/cache \
     && touch storage/logs/laravel.log \
-    && chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 /var/www/html \
-    && chmod -R 777 storage bootstrap/cache \
-    && sed -i 's/user = .*/user = www-data/' /usr/local/etc/php-fpm.d/www.conf \
-    && sed -i 's/group = .*/group = www-data/' /usr/local/etc/php-fpm.d/www.conf
+    && chmod -R 777 storage bootstrap/cache
 
 EXPOSE 9000
 CMD ["php-fpm"]
