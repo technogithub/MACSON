@@ -89,10 +89,12 @@ if [ -f /etc/os-release ]; then
     fi
 fi
 
-# Piped execution detection: if STDIN is piped (not TTY), automatically enable non-interactive mode
-if [ ! -t 0 ]; then
-    echo -e "${GREEN}[INFO] Piped execution detected. Running in automated installation mode...${NC}"
-    NON_INTERACTIVE=true
+# Redirect STDIN to /dev/tty for interactive keyboard prompts when piped via curl
+if [ ! -t 0 ] && [ "$NON_INTERACTIVE" = false ]; then
+    if [ -c /dev/tty ]; then
+        exec 3<&0
+        exec 0</dev/tty
+    fi
 fi
 
 # Interactive Prompts if not running in auto mode
@@ -118,6 +120,12 @@ if [ "$NON_INTERACTIVE" = false ]; then
         echo -e "${RED}[CANCELLED] Installation aborted by user.${NC}"
         exit 0
     fi
+fi
+
+# Restore STDIN stream if it was redirected
+if [ -n "${3+x}" ]; then
+    exec 0<&3
+    exec 3<&-
 fi
 
 # ------------------------------------------------------------------------------
