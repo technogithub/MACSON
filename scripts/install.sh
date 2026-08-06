@@ -265,7 +265,8 @@ docker exec -i radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/nu
 # 6. Service Health Check & Final Output
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[6/6] Verifying System Health & Startup Status...${NC}"
-sleep 3
+echo -e "${GREEN}[INFO] Waiting 8 seconds for database connection pool handshake...${NC}"
+sleep 8
 if [ -f "${SCRIPT_DIR}/health_check.sh" ]; then
     bash "${SCRIPT_DIR}/health_check.sh" || true
 fi
