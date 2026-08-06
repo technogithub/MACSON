@@ -2,7 +2,7 @@
 # ==============================================================================
 # MACSON - MAC Authentication Centralized Santos Operations Network
 # Automated Ubuntu 26.04 / 24.04 / 22.04 Installer
-# Supports: Direct execution & Piped execution (curl -fsSL ... | sudo bash)
+# Supports: Interactive TTY prompts & Automated Non-Interactive (--auto)
 # ==============================================================================
 
 set -eo pipefail
@@ -36,6 +36,7 @@ fi
 # Default Configuration Parameters
 NON_INTERACTIVE=false
 NAS_SUBNET="192.168.1.0/24"
+SSH_SUBNET="192.168.1.0/24"
 ADMIN_SUBNET="192.168.1.0/24"
 RADIUS_SECRET="RadiusSecretKey2026!"
 
@@ -48,6 +49,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --nas-subnet)
       NAS_SUBNET="$2"
+      shift 2
+      ;;
+    --ssh-subnet)
+      SSH_SUBNET="$2"
       shift 2
       ;;
     --admin-subnet)
@@ -63,7 +68,8 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --auto, -y           Run non-interactively with default or passed values"
       echo "  --nas-subnet CIDR    Allowed NAS Network Subnet (default: 192.168.1.0/24)"
-      echo "  --admin-subnet CIDR  Allowed Admin Web UI & SSH Subnet (default: 192.168.1.0/24)"
+      echo "  --ssh-subnet CIDR    Allowed SSH Access Subnet (default: 192.168.1.0/24)"
+      echo "  --admin-subnet CIDR  Allowed Admin Web UI Subnet (default: 192.168.1.0/24)"
       echo "  --secret STRING      RADIUS Shared Secret Key"
       exit 0
       ;;
@@ -89,43 +95,46 @@ if [ -f /etc/os-release ]; then
     fi
 fi
 
-# Redirect STDIN to /dev/tty for interactive keyboard prompts when piped via curl
-if [ ! -t 0 ] && [ "$NON_INTERACTIVE" = false ]; then
+# Helper function for reading input from TTY keyboard
+prompt_read() {
+    local prompt_msg="$1"
+    local var_name="$2"
+    local input_val=""
     if [ -c /dev/tty ]; then
-        exec 3<&0
-        exec 0</dev/tty
+        read -p "$prompt_msg" input_val < /dev/tty || true
+    else
+        read -p "$prompt_msg" input_val || true
     fi
-fi
+    eval "$var_name=\"\$input_val\""
+}
 
 # Interactive Prompts if not running in auto mode
 if [ "$NON_INTERACTIVE" = false ]; then
-    read -p "Enter NAS Network Subnet (e.g., 192.168.1.0/24) [$NAS_SUBNET]: " INPUT_NAS
+    prompt_read "Enter NAS Network Subnet for RADIUS (e.g., 192.168.1.0/24) [$NAS_SUBNET]: " INPUT_NAS
     NAS_SUBNET=${INPUT_NAS:-$NAS_SUBNET}
 
-    read -p "Enter Admin Allowed IP/Subnet [$ADMIN_SUBNET]: " INPUT_ADMIN
+    prompt_read "Enter SSH Allowed Subnet for Port 22 (e.g., 192.168.1.50/32) [$SSH_SUBNET]: " INPUT_SSH
+    SSH_SUBNET=${INPUT_SSH:-$SSH_SUBNET}
+
+    prompt_read "Enter Admin Web UI Allowed Subnet (e.g., 192.168.1.0/24) [$ADMIN_SUBNET]: " INPUT_ADMIN
     ADMIN_SUBNET=${INPUT_ADMIN:-$ADMIN_SUBNET}
 
-    read -p "Enter RADIUS Shared Secret Key [$RADIUS_SECRET]: " INPUT_SECRET
+    prompt_read "Enter RADIUS Shared Secret Key [$RADIUS_SECRET]: " INPUT_SECRET
     RADIUS_SECRET=${INPUT_SECRET:-$RADIUS_SECRET}
 
     echo ""
     echo "-----------------------------------------------------------------"
     echo " Summary Configuration:"
-    echo " - NAS Network Subnet     : ${NAS_SUBNET}"
-    echo " - Admin Allowed Segment  : ${ADMIN_SUBNET}"
-    echo " - RADIUS Shared Secret   : ${RADIUS_SECRET}"
+    echo " - NAS Network Subnet (RADIUS 1812/1813): ${NAS_SUBNET}"
+    echo " - SSH Allowed Segment (Port 22 SSH)    : ${SSH_SUBNET}"
+    echo " - Admin Web UI Segment (Port 80/443)   : ${ADMIN_SUBNET}"
+    echo " - RADIUS Shared Secret                 : ${RADIUS_SECRET}"
     echo "-----------------------------------------------------------------"
-    read -p "Proceed with installation? (y/N): " CONFIRM
+    prompt_read "Proceed with installation? (y/N): " CONFIRM
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
         echo -e "${RED}[CANCELLED] Installation aborted by user.${NC}"
         exit 0
     fi
-fi
-
-# Restore STDIN stream if it was redirected
-if [ -n "${3+x}" ]; then
-    exec 0<&3
-    exec 3<&-
 fi
 
 # ------------------------------------------------------------------------------
@@ -175,15 +184,17 @@ fi
 systemctl enable --now docker
 
 # ------------------------------------------------------------------------------
-# 3. Configure Firewall (UFW)
+# 3. Configure Firewall (UFW) with Strict SSH & Admin Restrictions
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[3/6] Configuring UFW Firewall Segment Restrictions...${NC}"
 ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
 
-# Allow SSH & Web UI (80/443) strictly from Admin Segment
-ufw allow from "${ADMIN_SUBNET}" to any port 22 proto tcp comment "Admin SSH Access"
+# Allow SSH (Port 22) strictly from SSH Subnet
+ufw allow from "${SSH_SUBNET}" to any port 22 proto tcp comment "Admin SSH Access"
+
+# Allow Web UI (80/443) strictly from Admin Segment
 ufw allow from "${ADMIN_SUBNET}" to any port 80 proto tcp comment "Admin Web UI HTTP"
 ufw allow from "${ADMIN_SUBNET}" to any port 443 proto tcp comment "Admin Web UI HTTPS"
 
@@ -252,6 +263,7 @@ echo -e "${GREEN} 🚀 MACSON AUTOMATED INSTALLATION COMPLETED SUCCESSFULLY!${NC
 echo -e " - Admin Web Interface : ${YELLOW}https://${SERVER_IP}${NC}"
 echo -e " - RADIUS Auth Server  : ${YELLOW}UDP 1812 (Allowed from ${NAS_SUBNET})${NC}"
 echo -e " - RADIUS Shared Secret: ${YELLOW}${RADIUS_SECRET}${NC}"
+echo -e " - SSH Allowed Segment : ${YELLOW}Allowed from ${SSH_SUBNET}${NC}"
 echo -e " - Admin IP Restriction: ${YELLOW}Allowed from ${ADMIN_SUBNET}${NC}"
 echo -e " - Installation Path   : ${YELLOW}${PROJECT_DIR}${NC}"
 echo -e "${BLUE}=================================================================${NC}"
