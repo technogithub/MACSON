@@ -23,15 +23,17 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Safe script directory detection (handles piped stdin vs local file execution)
+# Safe script directory detection (handles standalone /tmp execution vs full cloned repo)
+DETECTED_DIR=""
 if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-else
-    # Executed via curl piped stdin
-    PROJECT_DIR="/opt/macson"
-    SCRIPT_DIR="${PROJECT_DIR}/scripts"
+    CANDIDATE_DIR="$(dirname "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)")"
+    if [ -f "${CANDIDATE_DIR}/docker/docker-compose.yml" ]; then
+        DETECTED_DIR="${CANDIDATE_DIR}"
+    fi
 fi
+
+PROJECT_DIR="${DETECTED_DIR:-/opt/macson}"
+SCRIPT_DIR="${PROJECT_DIR}/scripts"
 
 # Default Configuration Parameters
 NON_INTERACTIVE=false
@@ -155,8 +157,8 @@ apt-get install -y --no-install-recommends \
     openssl \
     netcat-openbsd
 
-# If running via piped stdin (curl), ensure repository is cloned to PROJECT_DIR
-if [ ! -d "${PROJECT_DIR}/docker" ]; then
+# If running via piped stdin or /tmp, ensure repository is cloned to PROJECT_DIR
+if [ ! -f "${PROJECT_DIR}/docker/docker-compose.yml" ]; then
     echo -e "${GREEN}[INFO] Cloning MACSON repository to ${PROJECT_DIR}...${NC}"
     cd /tmp 2>/dev/null || cd /
     rm -rf "${PROJECT_DIR}" 2>/dev/null || true
