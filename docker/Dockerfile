@@ -41,13 +41,28 @@ COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Pre-install Composer Dependencies during image build phase
-COPY --chown=www-data:www-data backend-laravel/composer.json /var/www/html/
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts 2>/dev/null || true
+# Copy composer files first (layer cache optimization)
+COPY --chown=www-data:www-data backend-laravel/composer.json backend-laravel/composer.lock* ./
 
-# Copy full backend application code with instant chown
+# Install ALL composer dependencies inside the image (vendor stays in image)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts \
+    && composer clear-cache
+
+# Copy full backend application code
 COPY --chown=www-data:www-data backend-laravel/ /var/www/html/
-RUN composer dump-autoload --optimize 2>/dev/null || true
+
+# Run composer scripts now that full app code exists
+RUN composer dump-autoload --optimize --no-interaction
+
+# Create required Laravel storage directories & set permissions
+RUN mkdir -p storage/framework/sessions \
+             storage/framework/views \
+             storage/framework/cache/data \
+             storage/app/public \
+             storage/logs \
+             bootstrap/cache \
+    && chmod -R 777 storage bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 9000
 CMD ["php-fpm"]

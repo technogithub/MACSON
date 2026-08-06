@@ -12,16 +12,15 @@ class RadiusLog extends Model
     protected $fillable = [
         'log_date',
         'mac_address',
+        'ssid',
         'username',
         'nas_ip',
         'nas_port',
         'auth_result',
         'reason',
-        'auth_date'
     ];
 
     protected $casts = [
         'log_date' => 'datetime',
-        'auth_date' => 'datetime',
     ];
 }

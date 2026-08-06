@@ -166,11 +166,6 @@ if [ ! -f "${PROJECT_DIR}/docker/docker-compose.yml" ]; then
     git clone https://github.com/technogithub/MACSON.git "${PROJECT_DIR}"
 fi
 
-# Ensure Laravel .env exists before container launch
-if [ ! -f "${PROJECT_DIR}/backend-laravel/.env" ]; then
-    cp "${PROJECT_DIR}/backend-laravel/.env.example" "${PROJECT_DIR}/backend-laravel/.env"
-fi
-
 # ------------------------------------------------------------------------------
 # 2. Check and Install Docker Engine & Compose Plugin
 # ------------------------------------------------------------------------------
@@ -248,25 +243,30 @@ EOF
 
 # ------------------------------------------------------------------------------
 # 5. Build and Launch Docker Microservices Stack
+# Note: vendor/ is baked INTO the Docker image (no host bind-mount needed)
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack...${NC}"
 cd "${PROJECT_DIR}/docker"
+
+# Remove any stale app_code volume so fresh image contents populate it
+docker compose down -v --remove-orphans 2>/dev/null || true
 docker compose up -d --build
 
-echo -e "${GREEN}[INFO] Finalizing Laravel APP_KEY, vendor packages, & directory permissions...${NC}"
-docker exec -i radius_laravel_app cp -n .env.example .env 2>/dev/null || true
-docker exec -i radius_laravel_app composer dump-autoload --optimize 2>/dev/null || true
-docker exec -i radius_laravel_app php artisan key:generate --force 2>/dev/null || true
-docker exec -i radius_laravel_app php artisan config:clear 2>/dev/null || true
-docker exec -i radius_laravel_app php artisan view:clear 2>/dev/null || true
-docker exec -i radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
+echo -e "${GREEN}[INFO] Waiting for MariaDB & Laravel to initialize...${NC}"
+sleep 10
+
+# Finalize Laravel: generate APP_KEY & clear caches
+echo -e "${GREEN}[INFO] Finalizing Laravel application setup...${NC}"
+docker exec radius_laravel_app php artisan key:generate --force 2>/dev/null || true
+docker exec radius_laravel_app php artisan config:clear 2>/dev/null || true
+docker exec radius_laravel_app php artisan view:clear 2>/dev/null || true
+docker exec radius_laravel_app php artisan route:clear 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[6/6] Verifying System Health & Startup Status...${NC}"
-echo -e "${GREEN}[INFO] Waiting 8 seconds for database connection pool handshake...${NC}"
-sleep 8
+sleep 5
 if [ -f "${SCRIPT_DIR}/health_check.sh" ]; then
     bash "${SCRIPT_DIR}/health_check.sh" || true
 fi
@@ -276,7 +276,7 @@ SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 echo ""
 echo -e "${BLUE}=================================================================${NC}"
 echo -e "${GREEN} 🚀 MACSON AUTOMATED INSTALLATION COMPLETED SUCCESSFULLY!${NC}"
-echo -e " - Admin Web Interface : ${YELLOW}https://${SERVER_IP}${NC}"
+echo -e " - Admin Web Interface : ${YELLOW}http://${SERVER_IP}${NC}  (or https://${SERVER_IP})"
 echo -e " - RADIUS Auth Server  : ${YELLOW}UDP 1812 (Allowed from ${NAS_SUBNET})${NC}"
 echo -e " - RADIUS Shared Secret: ${YELLOW}${RADIUS_SECRET}${NC}"
 echo -e " - SSH Allowed Segment : ${YELLOW}Allowed from ${SSH_SUBNET}${NC}"
