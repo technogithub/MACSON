@@ -2,9 +2,10 @@
 # ==============================================================================
 # MACSON - MAC Authentication Centralized Santos Operations Network
 # Automated Ubuntu 26.04 / 24.04 / 22.04 Installer
+# Supports: Direct execution & Piped execution (curl -fsSL ... | sudo bash)
 # ==============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 # Color Codes for Output
 RED='\033[0;31m'
@@ -19,8 +20,15 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# Safe script directory detection (handles piped stdin vs local file execution)
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+else
+    # Executed via curl piped stdin
+    PROJECT_DIR="/opt/macson"
+    SCRIPT_DIR="${PROJECT_DIR}/scripts"
+fi
 
 # Default Configuration Parameters
 NON_INTERACTIVE=false
@@ -73,7 +81,7 @@ echo ""
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     echo -e "${GREEN}[INFO] Detected OS: ${PRETTY_NAME}${NC}"
-    if [[ "$ID" != "ubuntu" && "$ID_LIKE" != *"ubuntu"* ]]; then
+    if [[ "${ID:-}" != "ubuntu" && "${ID_LIKE:-}" != *"ubuntu"* ]]; then
         echo -e "${YELLOW}[WARNING] System is not Ubuntu. Continuing at your own risk...${NC}"
     fi
 fi
@@ -120,6 +128,13 @@ apt-get install -y --no-install-recommends \
     git \
     openssl \
     netcat-openbsd
+
+# If running via piped stdin (curl), ensure repository is cloned to PROJECT_DIR
+if [ ! -d "${PROJECT_DIR}/docker" ]; then
+    echo -e "${GREEN}[INFO] Cloning MACSON repository to ${PROJECT_DIR}...${NC}"
+    mkdir -p "${PROJECT_DIR}"
+    git clone https://github.com/technogithub/MACSON.git "${PROJECT_DIR}"
+fi
 
 # ------------------------------------------------------------------------------
 # 2. Check and Install Docker Engine & Compose Plugin
@@ -171,7 +186,7 @@ if [ ! -f "${SSL_DIR}/server.crt" ]; then
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout "${SSL_DIR}/server.key" \
         -out "${SSL_DIR}/server.crt" \
-        -subj "/C=ID/ST=Jakarta/L=Jakarta/O=OmniRadius/CN=radius.local"
+        -subj "/C=ID/ST=Jakarta/L=Jakarta/O=MACSON/CN=radius.local"
 fi
 
 cat <<EOF > "${PROJECT_DIR}/freeradius/clients.conf"
@@ -197,7 +212,7 @@ EOF
 # ------------------------------------------------------------------------------
 # 5. Build and Launch Docker Microservices Stack
 # ------------------------------------------------------------------------------
-echo -e "\n${GREEN}[5/6] Building & Launching OmniRadius Docker Microservices Stack...${NC}"
+echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack...${NC}"
 cd "${PROJECT_DIR}/docker"
 docker compose up -d --build
 
@@ -206,15 +221,18 @@ docker compose up -d --build
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[6/6] Verifying System Health & Startup Status...${NC}"
 sleep 5
-bash "${SCRIPT_DIR}/health_check.sh" || true
+if [ -f "${SCRIPT_DIR}/health_check.sh" ]; then
+    bash "${SCRIPT_DIR}/health_check.sh" || true
+fi
 
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 
 echo ""
 echo -e "${BLUE}=================================================================${NC}"
-echo -e "${GREEN} 🚀 OMNIRADIUS AUTOMATED INSTALLATION COMPLETED SUCCESSFULLY!${NC}"
+echo -e "${GREEN} 🚀 MACSON AUTOMATED INSTALLATION COMPLETED SUCCESSFULLY!${NC}"
 echo -e " - Admin Web Interface : ${YELLOW}https://${SERVER_IP}${NC}"
 echo -e " - RADIUS Auth Server  : ${YELLOW}UDP 1812 (Allowed from ${NAS_SUBNET})${NC}"
 echo -e " - RADIUS Shared Secret: ${YELLOW}${RADIUS_SECRET}${NC}"
 echo -e " - Admin IP Restriction: ${YELLOW}Allowed from ${ADMIN_SUBNET}${NC}"
+echo -e " - Installation Path   : ${YELLOW}${PROJECT_DIR}${NC}"
 echo -e "${BLUE}=================================================================${NC}"
