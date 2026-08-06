@@ -257,7 +257,7 @@ sleep 10
 
 # Finalize Laravel: generate APP_KEY & clear caches
 echo -e "${GREEN}[INFO] Finalizing Laravel application setup...${NC}"
-docker exec radius_laravel_app php artisan key:generate --force 2>/dev/null || true
+docker exec radius_laravel_app cp -n .env.example .env 2>/dev/null || true
 docker exec radius_laravel_app php artisan config:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan view:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan route:clear 2>/dev/null || true

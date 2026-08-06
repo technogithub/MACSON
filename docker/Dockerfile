@@ -51,6 +51,9 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
 # Copy full backend application code
 COPY --chown=www-data:www-data backend-laravel/ /var/www/html/
 
+# Ensure default .env exists inside container
+RUN cp -n .env.example .env 2>/dev/null || true
+
 # Run composer scripts now that full app code exists
 RUN composer dump-autoload --optimize --no-interaction
 
