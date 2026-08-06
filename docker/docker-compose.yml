@@ -63,6 +63,7 @@ services:
       SESSION_DRIVER: redis
     volumes:
       - ../backend-laravel:/var/www/html
+      - /var/www/html/vendor
     depends_on:
       - mariadb
       - redis
@@ -81,6 +82,7 @@ services:
     command: php /var/www/html/artisan queue:work --sleep=3 --tries=3
     volumes:
       - ../backend-laravel:/var/www/html
+      - /var/www/html/vendor
     depends_on:
       - app
       - redis

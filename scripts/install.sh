@@ -253,8 +253,9 @@ echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack.
 cd "${PROJECT_DIR}/docker"
 docker compose up -d --build
 
-echo -e "${GREEN}[INFO] Finalizing Laravel APP_KEY & directory permissions...${NC}"
+echo -e "${GREEN}[INFO] Finalizing Laravel APP_KEY, vendor packages, & directory permissions...${NC}"
 docker exec -i radius_laravel_app cp -n .env.example .env 2>/dev/null || true
+docker exec -i radius_laravel_app composer dump-autoload --optimize 2>/dev/null || true
 docker exec -i radius_laravel_app php artisan key:generate --force 2>/dev/null || true
 docker exec -i radius_laravel_app php artisan config:clear 2>/dev/null || true
 docker exec -i radius_laravel_app php artisan view:clear 2>/dev/null || true
