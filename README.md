@@ -1,9 +1,10 @@
 # 🛡️ MACSON (MAC Authentication Centralized Santos Operations Network)
 
-> **Enterprise Multi-SSID RADIUS & Dynamic VLAN Management System**
+> **Enterprise Multi-SSID RADIUS & Dynamic VLAN Management System for Ubiquiti UniFi & Enterprise Access Points**
 
 ![Release](https://img.shields.io/github/v/release/technogithub/MACSON?color=green&label=Release)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-26.04%20%7C%2024.04%20LTS-orange?logo=ubuntu)
+![UniFi](https://img.shields.io/badge/UniFi-Network%20Integration-055BF6?logo=ubiquiti)
 ![FreeRADIUS](https://img.shields.io/badge/FreeRADIUS-v3.0-blue?logo=freeradius)
 ![Laravel](https://img.shields.io/badge/Laravel-12.x-red?logo=laravel)
 ![Docker](https://img.shields.io/badge/Docker-Microservices-2496ED?logo=docker)
@@ -13,69 +14,111 @@
 
 ## 📋 Table of Contents
 1. [Overview & Key Features](#-overview--key-features)
-2. [One-Liner Automatic Installation](#-one-liner-automatic-installation)
-3. [Architecture & Authentication Flow](#-architecture--authentication-flow)
-4. [Project Directory Structure](#-project-directory-structure)
-5. [Database Schema (MariaDB `radius`)](#-database-schema-mariadb-radius)
-6. [FreeRADIUS Unlang & Dynamic VLAN Tagging](#-freeradius-unlang--dynamic-vlan-tagging)
-7. [Testing RADIUS Authentication (`radtest`)](#-testing-radius-authentication-radtest)
-8. [Automated Uninstallation](#-automated-uninstallation)
-9. [Author & License](#-author--license)
+2. [Ubiquiti UniFi RADIUS & Multi-SSID Architecture](#-ubiquiti-unifi-radius--multi-ssid-architecture)
+3. [Step-by-Step Ubuntu Automatic Installation](#-step-by-step-ubuntu-automatic-installation)
+4. [Ubiquiti UniFi Controller Setup Guide](#-ubiquiti-unifi-controller-setup-guide)
+5. [Project Directory Structure](#-project-directory-structure)
+6. [Database Schema (MariaDB `radius`)](#-database-schema-mariadb-radius)
+7. [FreeRADIUS Unlang & Dynamic VLAN Tagging](#-freeradius-unlang--dynamic-vlan-tagging)
+8. [Testing RADIUS Authentication (`radtest`)](#-testing-radius-authentication-radtest)
+9. [Automated Uninstallation](#-automated-uninstallation)
+10. [Author & License](#-author--license)
 
 ---
 
 ## ✨ Overview & Key Features
 
-**MACSON** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density WiFi environments (MikroTik, UniFi, Cisco, Aruba, Ruckus). It handles MAC address authentication, Multi-SSID filtering, dynamic VLAN assignment, and comprehensive access logging.
+**MACSON** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density **Ubiquiti UniFi Access Points**, UniFi Dream Machines (UDM), and enterprise Wireless Access Points. It handles central MAC address authentication, Multi-SSID filtering, dynamic IEEE 802.1Q VLAN assignment, and comprehensive access logging.
 
-* 📶 **Multi-SSID MAC Address Filtering**: Grant or restrict specific device MAC addresses to one or multiple SSIDs (e.g. `SSID-Staff`, `SSID-IoT`, `SSID-VIP`, `SSID-Guest`).
-* 🏷️ **Dynamic IEEE 802.1Q VLAN Assignment**: Automatically returns RADIUS `Tunnel-Private-Group-Id` to place connected devices into their designated VLANs.
-* 🧹 **Unlang MAC Address Sanitization**: Standardizes any incoming MAC delimiter format (`AA-BB-CC-DD-EE-FF`, `aabbccddeeff`, `AA:BB:CC:DD:EE:FF`) to normalized `AA:BB:CC:DD:EE:FF`.
+* 📶 **Multi-SSID MAC Address Filtering**: Grant or restrict specific device MAC addresses to one or multiple UniFi SSIDs (e.g. `SSID-Staff`, `SSID-IoT`, `SSID-VIP`, `SSID-Guest`).
+* 🏷️ **UniFi Dynamic VLAN Assignment**: Automatically returns RADIUS `Tunnel-Private-Group-Id` to place connected devices into designated UniFi VLANs (e.g., VLAN 10, 20, 30).
+* 🧹 **Unlang MAC Address Sanitization**: Standardizes any incoming MAC delimiter format from UniFi APs (`AA-BB-CC-DD-EE-FF`, `aabbccddeeff`, `AA:BB:CC:DD:EE:FF`) to normalized `AA:BB:CC:DD:EE:FF`.
 * ⚡ **One-Liner Automated Installer**: Zero-touch installation for **Ubuntu Server 26.04 / 24.04 / 22.04 LTS**.
 * 🐳 **Docker Microservices Architecture**: Isolated container stack featuring Nginx (HTTPS SSL), PHP 8.3 FPM, MariaDB 10.11, FreeRADIUS v3, and Redis.
 * 💻 **Laravel 12 Dashboard & REST API**: Responsive Bootstrap 5 dark-mode management portal and Sanctum-secured REST API.
 
 ---
 
-## 🚀 One-Liner Automatic Installation
+## 📐 Ubiquiti UniFi RADIUS & Multi-SSID Architecture
 
-Run this single command on a fresh **Ubuntu Server 26.04 / 24.04 / 22.04 LTS** instance as `root` / `sudo`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto
 ```
-
-### Manual Clone & Custom Installation:
-```bash
-git clone https://github.com/technogithub/MACSON.git /opt/macson
-cd /opt/macson
-sudo bash scripts/install.sh --nas-subnet 192.168.1.0/24 --admin-subnet 192.168.1.0/24 --secret MySecretKey2026!
++----------------+            +-----------------------+            +---------------------+            +-------------------+
+|  Client Device |  802.1X /  |  Ubiquiti UniFi AP /  | RADIUS UDP |     FreeRADIUS      | SQL Query  | MariaDB Database  |
+| (Laptop/Phone) | ---------> | UniFi Controller (NAS)| ---------> |   (UDP 1812/1813)   | ---------> |  (`radius` db)    |
++----------------+  MAC Auth  +-----------------------+ 1812 / 1813+---------------------+            +-------------------+
+                                                                          |
+                                                                          v
+                                                                 1. Extract Calling-Station-Id (Device MAC)
+                                                                 2. Parse Target SSID from Called-Station-Id (AP-MAC:SSID)
+                                                                 3. Normalize MAC to AA:BB:CC:DD:EE:FF
+                                                                 4. Query `devices` & `ssids` tables
+                                                                 5. Log attempt in `radius_log`
+                                                                          |
+                                                     +--------------------+--------------------+
+                                                     |                                         |
+                                              [Status = active]                         [Status = inactive/not found]
+                                                     |                                         |
+                                                     v                                         v
+                                         Access-Accept + Dynamic VLAN                   Access-Reject
 ```
 
 ---
 
-## 📐 Architecture & Authentication Flow
+## 🛠️ Step-by-Step Ubuntu Automatic Installation
 
+Follow these steps to deploy **MACSON** on an Ubuntu Server:
+
+### Step 1: Connect to Ubuntu Server
+SSH into your fresh **Ubuntu Server 26.04 / 24.04 / 22.04 LTS** instance:
+```bash
+ssh username@your-ubuntu-server-ip
 ```
-+----------------+            +-------------------+            +---------------------+            +-------------------+
-|  Client Device |  802.1X /  | NAS Access Point  | RADIUS UDP |     FreeRADIUS      | SQL Query  | MariaDB Database  |
-| (Laptop/Phone) | ---------> | (Mikrotik/Cisco)  | ---------> |   (UDP 1812/1813)   | ---------> |  (`radius` db)    |
-+----------------+  MAC Auth  +-------------------+ 1812 / 1813+---------------------+            +-------------------+
-                                                                      |
-                                                                      v
-                                                             1. Extract Calling-Station-Id
-                                                             2. Parse Target SSID from Called-Station-Id
-                                                             3. Normalize MAC to AA:BB:CC:DD:EE:FF
-                                                             4. Query `devices` & `ssids` tables
-                                                             5. Log attempt in `radius_log`
-                                                                      |
-                                                 +--------------------+--------------------+
-                                                 |                                         |
-                                          [Status = active]                         [Status = inactive/not found]
-                                                 |                                         |
-                                                 v                                         v
-                                     Access-Accept + VLAN Tag                       Access-Reject
+
+### Step 2: Execute One-Liner Automatic Installer
+Run the official automated installation script as `root` or `sudo`:
+```bash
+curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto
 ```
+
+### Alternative Step 2: Custom Parameterized Installation
+If you prefer to specify your UniFi NAS subnet, Admin IP segment, and RADIUS Shared Secret manually:
+```bash
+git clone https://github.com/technogithub/MACSON.git /opt/macson
+cd /opt/macson
+sudo bash scripts/install.sh \
+  --nas-subnet 192.168.1.0/24 \
+  --admin-subnet 192.168.1.0/24 \
+  --secret UniFiRadiusSecret2026!
+```
+
+### Step 3: Access Web Management Dashboard
+Once installed, open your browser and access the secure Web Interface:
+* **Dashboard URL**: `https://<YOUR-UBUNTU-SERVER-IP>`
+* **Default Admin**: `admin@radius.local`
+* **Default Password**: `Admin@123456`
+
+---
+
+## 📶 Ubiquiti UniFi Controller Setup Guide
+
+To connect your **Ubiquiti UniFi Controller** to **MACSON**:
+
+1. **Create RADIUS Profile in UniFi Network**:
+   - Open UniFi Network Controller ➔ **Settings** ➔ **Profiles** ➔ **RADIUS**.
+   - Click **Create New Profile**:
+     - **Profile Name**: `MACSON-RADIUS`
+     - **Authentication Host**: `<YOUR-UBUNTU-SERVER-IP>`
+     - **Port**: `1812`
+     - **Shared Secret**: Your configured secret (e.g. `UniFiRadiusSecret2026!`)
+     - **Accounting Host**: `<YOUR-UBUNTU-SERVER-IP>`
+     - **Accounting Port**: `1813`
+2. **Configure UniFi WiFi Wireless Network**:
+   - Go to **Settings** ➔ **WiFi**.
+   - Select your WiFi Network (e.g. `SSID-Staff`) ➔ Edit:
+     - **Authentication**: Set to `MAC ID Authentication` or `802.1X Enterprise`
+     - **RADIUS Profile**: Select `MACSON-RADIUS`
+     - **MAC Address Format**: `AA:BB:CC:DD:EE:FF` or `AA-BB-CC-DD-EE-FF`
+     - **Enable Dynamic VLAN**: `Enabled` (Check *Use RADIUS assigned VLANs*)
 
 ---
 
@@ -92,7 +135,7 @@ MACSON/
 │   ├── resources/views/           # Dark Mode Dashboard & Management Views
 │   └── routes/                    # Web & Sanctum API Routes
 ├── freeradius/                    # FreeRADIUS v3 Configuration
-│   ├── clients.conf               # NAS Access Points & Network Gateway Definitions
+│   ├── clients.conf               # UniFi NAS AP & Gateway Definitions
 │   ├── queries.conf               # Custom Multi-SSID & Dynamic VLAN SQL Queries
 │   └── sites-available/default    # Virtual Server Policy & Unlang Logic
 ├── sql/
@@ -119,7 +162,7 @@ MACSON/
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `id` | BIGINT (PK) | Auto increment primary key |
-| `ssid_name` | VARCHAR(64) | Broadcasted SSID (e.g. `SSID-Staff`, `SSID-IoT`) |
+| `ssid_name` | VARCHAR(64) | Broadcasted UniFi SSID (e.g. `SSID-Staff`, `SSID-IoT`) |
 | `vlan_id` | INT UNSIGNED | IEEE 802.1Q Dynamic VLAN ID (e.g. `10`, `20`, `30`) |
 | `status` | ENUM | `active` / `inactive` |
 
@@ -142,10 +185,10 @@ MACSON/
 
 ## ⚡ FreeRADIUS Unlang & Dynamic VLAN Tagging
 
-FreeRADIUS inspects `Called-Station-Id` and injects IEEE 802.1Q reply attributes upon successful authentication:
+FreeRADIUS inspects `Called-Station-Id` sent by UniFi APs and injects IEEE 802.1Q reply attributes upon successful authentication:
 
 ```unlang
-# Inject Dynamic IEEE 802.1Q VLAN reply attributes if VLAN ID > 0
+# Inject Dynamic IEEE 802.1Q VLAN reply attributes for UniFi APs
 if ("%{control:Assigned-VLAN-ID}" != "0" && "%{control:Assigned-VLAN-ID}" != "") {
     update reply {
         Tunnel-Type := VLAN
@@ -159,14 +202,14 @@ if ("%{control:Assigned-VLAN-ID}" != "0" && "%{control:Assigned-VLAN-ID}" != "")
 
 ## 🧪 Testing RADIUS Authentication (`radtest`)
 
-Execute `radtest` directly inside the FreeRADIUS container:
+Execute `radtest` directly inside the FreeRADIUS container to simulate a UniFi AP request:
 
 ```bash
-# Test Authorized Device on SSID-Staff (Returns Access-Accept & VLAN 10)
+# Test Authorized Device on UniFi SSID-Staff (Returns Access-Accept & Dynamic VLAN 10)
 docker exec -it radius_freeradius radtest AA:BB:CC:DD:EE:01 "" localhost 1812 testing123
 ```
 
-Expected Output:
+Expected Terminal Output:
 ```text
 Sending Access-Request of id 198 to 127.0.0.1 port 1812
         User-Name = "AA:BB:CC:DD:EE:01"
@@ -182,7 +225,7 @@ Received Access-Accept Id 198 from 127.0.0.1:1812 in 2ms
 
 ## 🗑️ Automated Uninstallation
 
-To cleanly purge containers, data, and firewall rules:
+To cleanly purge containers, data, and firewall rules from Ubuntu:
 
 ```bash
 sudo bash scripts/uninstall.sh --auto

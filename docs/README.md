@@ -1,221 +1,240 @@
 # 🛡️ MACSON (MAC Authentication Centralized Santos Operations Network)
-## Enterprise Multi-SSID RADIUS & Dynamic VLAN Management System
+
+> **Enterprise Multi-SSID RADIUS & Dynamic VLAN Management System for Ubiquiti UniFi & Enterprise Access Points**
+
+![Release](https://img.shields.io/github/v/release/technogithub/MACSON?color=green&label=Release)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-26.04%20%7C%2024.04%20LTS-orange?logo=ubuntu)
+![UniFi](https://img.shields.io/badge/UniFi-Network%20Integration-055BF6?logo=ubiquiti)
+![FreeRADIUS](https://img.shields.io/badge/FreeRADIUS-v3.0-blue?logo=freeradius)
+![Laravel](https://img.shields.io/badge/Laravel-12.x-red?logo=laravel)
+![Docker](https://img.shields.io/badge/Docker-Microservices-2496ED?logo=docker)
+![License](https://img.shields.io/badge/License-MIT-brightgreen)
 
 ---
 
-### 📋 Table of Contents
-1. [Project Directory Structure](#1-project-directory-structure)
-2. [Architecture & Authentication Flow](#2-architecture--authentication-flow)
-3. [Database Schema (MariaDB `radius`)](#3-database-schema-mariadb-radius)
-4. [FreeRADIUS Configuration & Unlang Logic](#4-freeradius-configuration--unlang-logic)
-5. [Docker Compose Microservices Deployment](#5-docker-compose-microservices-deployment)
-6. [Laravel 12 Application & Sanctum API](#6-laravel-12-application--sanctum-api)
-7. [Step-by-Step Installation from Scratch (Ubuntu Server 22.04 LTS)](#7-step-by-step-installation-from-scratch-ubuntu-server-2204-lts)
-8. [Testing RADIUS Authentication (radtest & radclient)](#8-testing-radius-authentication-radtest--radclient)
-9. [Automated Backup, Restore & Monitoring](#9-automated-backup-restore--monitoring)
-10. [Production Security & Performance Optimization](#10-production-security--performance-optimization)
+## 📋 Table of Contents
+1. [Overview & Key Features](#-overview--key-features)
+2. [Ubiquiti UniFi RADIUS & Multi-SSID Architecture](#-ubiquiti-unifi-radius--multi-ssid-architecture)
+3. [Step-by-Step Ubuntu Automatic Installation](#-step-by-step-ubuntu-automatic-installation)
+4. [Ubiquiti UniFi Controller Setup Guide](#-ubiquiti-unifi-controller-setup-guide)
+5. [Project Directory Structure](#-project-directory-structure)
+6. [Database Schema (MariaDB `radius`)](#-database-schema-mariadb-radius)
+7. [FreeRADIUS Unlang & Dynamic VLAN Tagging](#-freeradius-unlang--dynamic-vlan-tagging)
+8. [Testing RADIUS Authentication (`radtest`)](#-testing-radius-authentication-radtest)
+9. [Automated Uninstallation](#-automated-uninstallation)
+10. [Author & License](#-author--license)
 
 ---
 
-### 1. Project Directory Structure
+## ✨ Overview & Key Features
+
+**MACSON** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density **Ubiquiti UniFi Access Points**, UniFi Dream Machines (UDM), and enterprise Wireless Access Points. It handles central MAC address authentication, Multi-SSID filtering, dynamic IEEE 802.1Q VLAN assignment, and comprehensive access logging.
+
+* 📶 **Multi-SSID MAC Address Filtering**: Grant or restrict specific device MAC addresses to one or multiple UniFi SSIDs (e.g. `SSID-Staff`, `SSID-IoT`, `SSID-VIP`, `SSID-Guest`).
+* 🏷️ **UniFi Dynamic VLAN Assignment**: Automatically returns RADIUS `Tunnel-Private-Group-Id` to place connected devices into designated UniFi VLANs (e.g., VLAN 10, 20, 30).
+* 🧹 **Unlang MAC Address Sanitization**: Standardizes any incoming MAC delimiter format from UniFi APs (`AA-BB-CC-DD-EE-FF`, `aabbccddeeff`, `AA:BB:CC:DD:EE:FF`) to normalized `AA:BB:CC:DD:EE:FF`.
+* ⚡ **One-Liner Automated Installer**: Zero-touch installation for **Ubuntu Server 26.04 / 24.04 / 22.04 LTS**.
+* 🐳 **Docker Microservices Architecture**: Isolated container stack featuring Nginx (HTTPS SSL), PHP 8.3 FPM, MariaDB 10.11, FreeRADIUS v3, and Redis.
+* 💻 **Laravel 12 Dashboard & REST API**: Responsive Bootstrap 5 dark-mode management portal and Sanctum-secured REST API.
+
+---
+
+## 📐 Ubiquiti UniFi RADIUS & Multi-SSID Architecture
 
 ```
-project/
++----------------+            +-----------------------+            +---------------------+            +-------------------+
+|  Client Device |  802.1X /  |  Ubiquiti UniFi AP /  | RADIUS UDP |     FreeRADIUS      | SQL Query  | MariaDB Database  |
+| (Laptop/Phone) | ---------> | UniFi Controller (NAS)| ---------> |   (UDP 1812/1813)   | ---------> |  (`radius` db)    |
++----------------+  MAC Auth  +-----------------------+ 1812 / 1813+---------------------+            +-------------------+
+                                                                          |
+                                                                          v
+                                                                 1. Extract Calling-Station-Id (Device MAC)
+                                                                 2. Parse Target SSID from Called-Station-Id (AP-MAC:SSID)
+                                                                 3. Normalize MAC to AA:BB:CC:DD:EE:FF
+                                                                 4. Query `devices` & `ssids` tables
+                                                                 5. Log attempt in `radius_log`
+                                                                          |
+                                                     +--------------------+--------------------+
+                                                     |                                         |
+                                              [Status = active]                         [Status = inactive/not found]
+                                                     |                                         |
+                                                     v                                         v
+                                         Access-Accept + Dynamic VLAN                   Access-Reject
+```
+
+---
+
+## 🛠️ Step-by-Step Ubuntu Automatic Installation
+
+Follow these steps to deploy **MACSON** on an Ubuntu Server:
+
+### Step 1: Connect to Ubuntu Server
+SSH into your fresh **Ubuntu Server 26.04 / 24.04 / 22.04 LTS** instance:
+```bash
+ssh username@your-ubuntu-server-ip
+```
+
+### Step 2: Execute One-Liner Automatic Installer
+Run the official automated installation script as `root` or `sudo`:
+```bash
+curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto
+```
+
+### Alternative Step 2: Custom Parameterized Installation
+If you prefer to specify your UniFi NAS subnet, Admin IP segment, and RADIUS Shared Secret manually:
+```bash
+git clone https://github.com/technogithub/MACSON.git /opt/macson
+cd /opt/macson
+sudo bash scripts/install.sh \
+  --nas-subnet 192.168.1.0/24 \
+  --admin-subnet 192.168.1.0/24 \
+  --secret UniFiRadiusSecret2026!
+```
+
+### Step 3: Access Web Management Dashboard
+Once installed, open your browser and access the secure Web Interface:
+* **Dashboard URL**: `https://<YOUR-UBUNTU-SERVER-IP>`
+* **Default Admin**: `admin@radius.local`
+* **Default Password**: `Admin@123456`
+
+---
+
+## 📶 Ubiquiti UniFi Controller Setup Guide
+
+To connect your **Ubiquiti UniFi Controller** to **MACSON**:
+
+1. **Create RADIUS Profile in UniFi Network**:
+   - Open UniFi Network Controller ➔ **Settings** ➔ **Profiles** ➔ **RADIUS**.
+   - Click **Create New Profile**:
+     - **Profile Name**: `MACSON-RADIUS`
+     - **Authentication Host**: `<YOUR-UBUNTU-SERVER-IP>`
+     - **Port**: `1812`
+     - **Shared Secret**: Your configured secret (e.g. `UniFiRadiusSecret2026!`)
+     - **Accounting Host**: `<YOUR-UBUNTU-SERVER-IP>`
+     - **Accounting Port**: `1813`
+2. **Configure UniFi WiFi Wireless Network**:
+   - Go to **Settings** ➔ **WiFi**.
+   - Select your WiFi Network (e.g. `SSID-Staff`) ➔ Edit:
+     - **Authentication**: Set to `MAC ID Authentication` or `802.1X Enterprise`
+     - **RADIUS Profile**: Select `MACSON-RADIUS`
+     - **MAC Address Format**: `AA:BB:CC:DD:EE:FF` or `AA-BB-CC-DD-EE-FF`
+     - **Enable Dynamic VLAN**: `Enabled` (Check *Use RADIUS assigned VLANs*)
+
+---
+
+## 📁 Project Directory Structure
+
+```
+MACSON/
+├── .github/
+│   └── workflows/ci.yml           # GitHub Actions Automated CI Build & Linter
 ├── backend-laravel/               # Laravel 12 Web UI & REST API Application
 │   ├── app/
-│   │   ├── Http/Controllers/      # Dashboard, Device, Log, and API Controllers
-│   │   ├── Models/                # Device, RadiusLog, AuditLog Models
-│   │   └── Services/              # MAC Address Standardizer Service
-│   ├── database/migrations/       # Database Schemas & Migrations
-│   ├── resources/views/           # Bootstrap 5 Dark Mode Blade Templates
+│   │   ├── Http/Controllers/      # Dashboard, Device, Log, Ssid & API Controllers
+│   │   └── Models/                # Device, Ssid, RadiusLog, AuditLog Models
+│   ├── resources/views/           # Dark Mode Dashboard & Management Views
 │   └── routes/                    # Web & Sanctum API Routes
 ├── freeradius/                    # FreeRADIUS v3 Configuration
-│   ├── clients.conf               # NAS Access Points & Router Client Definitions
-│   ├── mods-available/sql         # MySQL / MariaDB Integration Module
-│   ├── queries.conf               # Custom Unlang / SQL Authentication Queries
-│   └── sites-available/default    # RADIUS Virtual Server & Authorization Logic
+│   ├── clients.conf               # UniFi NAS AP & Gateway Definitions
+│   ├── queries.conf               # Custom Multi-SSID & Dynamic VLAN SQL Queries
+│   └── sites-available/default    # Virtual Server Policy & Unlang Logic
 ├── sql/
 │   └── schema.sql                 # Production MariaDB Database DDL & Seeders
 ├── docker/
-│   ├── docker-compose.yml         # Container Orchestration (Nginx, PHP, MariaDB, FreeRADIUS, Redis)
-│   ├── Dockerfile                 # PHP 8.3 FPM Application Image
-│   ├── freeradius.Dockerfile      # FreeRADIUS Ubuntu Container Image
-│   └── nginx.conf                 # Nginx SSL & Security Headers Configuration
+│   ├── docker-compose.yml         # Container Stack (Nginx, PHP, MariaDB, FreeRADIUS, Redis)
+│   ├── Dockerfile                 # PHP 8.3 FPM Image Build File
+│   ├── freeradius.Dockerfile      # FreeRADIUS Container Build File
+│   └── nginx.conf                 # Nginx SSL & Security Headers Config
 ├── scripts/
-│   ├── backup_db.sh               # Automated Database Backup Script
-│   ├── restore_db.sh              # Database Restore Utility
-│   └── health_check.sh            # Service Health & Port Diagnostics
-└── docs/
-    └── README.md                  # Comprehensive Operations Documentation
+│   ├── install.sh                 # Automated Ubuntu 26.04 Installer Script
+│   ├── uninstall.sh               # Automated Clean Uninstaller Script
+│   ├── health_check.sh            # Service Diagnostic & Port Monitoring Script
+│   ├── backup_db.sh               # Automated Database Backup Utility
+│   └── restore_db.sh              # Database Restore Utility
+└── README.md                      # Production Operations & Setup Manual
 ```
 
 ---
 
-### 2. Architecture & Authentication Flow
+## 🗄️ Database Schema (MariaDB `radius`)
 
-When a device connects to a Network Access Server (Mikrotik, Cisco, Aruba, or Access Point):
+### 1. `ssids` Table (Master SSID Inventory & Dynamic VLAN)
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | BIGINT (PK) | Auto increment primary key |
+| `ssid_name` | VARCHAR(64) | Broadcasted UniFi SSID (e.g. `SSID-Staff`, `SSID-IoT`) |
+| `vlan_id` | INT UNSIGNED | IEEE 802.1Q Dynamic VLAN ID (e.g. `10`, `20`, `30`) |
+| `status` | ENUM | `active` / `inactive` |
 
-```
-+----------------+            +-------------------+            +---------------------+            +-------------------+
-|  Client Device |  802.1X /  | NAS Access Point  | RADIUS UDP |     FreeRADIUS      | SQL Query  | MariaDB Database  |
-| (Laptop/Phone) | ---------> | (Mikrotik/Cisco)  | ---------> |   (UDP 1812/1813)   | ---------> |  (`radius` db)    |
-+----------------+  MAC Auth  +-------------------+ 1812 / 1813+---------------------+            +-------------------+
-                                                                     |
-                                                                     v
-                                                            1. Extract Calling-Station-Id
-                                                            2. Normalize MAC to AA:BB:CC:DD:EE:FF
-                                                            3. Query `devices` table status
-                                                            4. Log attempt in `radius_log`
-                                                                     |
-                                                +--------------------+--------------------+
-                                                |                                         |
-                                         [Status = active]                         [Status = inactive/not found]
-                                                |                                         |
-                                                v                                         v
-                                         Access-Accept                             Access-Reject
-```
+### 2. `devices` Table (MAC Address Inventory)
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | BIGINT (PK) | Auto increment primary key |
+| `mac_address` | VARCHAR(17) | Formatted MAC (`AA:BB:CC:DD:EE:FF`) |
+| `ssid` | VARCHAR(64) | Primary SSID or `ALL` |
+| `device_name` | VARCHAR(100) | Human readable device name |
+| `status` | ENUM | `active` / `inactive` |
 
----
-
-### 3. Database Schema (MariaDB `radius`)
-
-The primary database is `radius`. Key tables:
-
-#### `devices` Table
-- `id` (BIGINT, PK, AUTO_INCREMENT)
-- `mac_address` (VARCHAR 17, UNIQUE, INDEX) — e.g. `AA:BB:CC:DD:EE:FF`
-- `raw_mac` (VARCHAR 17) — Original input before sanitization
-- `device_name` (VARCHAR 100)
-- `location` (VARCHAR 150)
-- `description` (TEXT)
-- `status` (ENUM: `active`, `inactive`)
-- `created_at`, `updated_at` (TIMESTAMP)
-
-#### `radius_log` Table
-- `id` (BIGINT, PK, AUTO_INCREMENT)
-- `log_date` (TIMESTAMP)
-- `mac_address` (VARCHAR 17)
-- `username` (VARCHAR 64)
-- `nas_ip` (VARCHAR 45)
-- `auth_result` (ENUM: `ACCEPT`, `REJECT`)
-- `reason` (VARCHAR 255)
+### 3. `device_ssids` Table (Multi-SSID Pivot Mapping)
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `device_id` | BIGINT (FK) | Reference to `devices.id` |
+| `ssid_id` | BIGINT (FK) | Reference to `ssids.id` (NULL = Authorized for `ALL` SSIDs) |
 
 ---
 
-### 4. FreeRADIUS Configuration & Unlang Logic
+## ⚡ FreeRADIUS Unlang & Dynamic VLAN Tagging
 
-FreeRADIUS sanitizes all incoming MAC addresses regardless of vendor delimiter (`-`, `:`, `.`, or raw hex) using `unlang` regex matching:
+FreeRADIUS inspects `Called-Station-Id` sent by UniFi APs and injects IEEE 802.1Q reply attributes upon successful authentication:
 
 ```unlang
-# Unlang MAC Normalization in /etc/freeradius/3.0/sites-available/default
-update control {
-    Tmp-Raw-MAC := "%{toupper:%{string:Calling-Station-Id}}"
-}
-
-if ("%{control:Tmp-Raw-MAC}" =~ /^([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})$/) {
-    update control {
-        Clean-Calling-Station-Id := "%{1}:%{2}:%{3}:%{4}:%{5}:%{6}"
+# Inject Dynamic IEEE 802.1Q VLAN reply attributes for UniFi APs
+if ("%{control:Assigned-VLAN-ID}" != "0" && "%{control:Assigned-VLAN-ID}" != "") {
+    update reply {
+        Tunnel-Type := VLAN
+        Tunnel-Medium-Type := IEEE-802
+        Tunnel-Private-Group-Id := "%{control:Assigned-VLAN-ID}"
     }
 }
 ```
 
 ---
 
-### 5. Step-by-Step Deployment Guide (Zero to Online)
+## 🧪 Testing RADIUS Authentication (`radtest`)
 
-#### Step 1: Clone Repository & Navigate to Directory
+Execute `radtest` directly inside the FreeRADIUS container to simulate a UniFi AP request:
+
 ```bash
-git clone https://github.com/your-org/omni-radius.git /opt/omni-radius
-cd /opt/omni-radius/project/docker
-```
-
-#### Step 2: Build & Launch Docker Stack
-```bash
-docker-compose up -d --build
-```
-
-#### Step 3: Verify Container Health
-```bash
-docker-compose ps
-```
-
-Expected output:
-```
-NAME                    STATUS                  PORTS
-radius_freeradius       running                 0.0.0.0:1812-1813->1812-1813/udp
-radius_laravel_app      running                 9000/tcp
-radius_mariadb          running (healthy)       0.0.0.0:3306->3306/tcp
-radius_nginx            running                 0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
-radius_redis            running                 0.0.0.0:6379->6379/tcp
-```
-
----
-
-### 6. Testing RADIUS Authentication (`radtest` & `radclient`)
-
-#### Test Case 1: Active Registered Device (Expect Access-Accept)
-Run `radtest` from terminal inside the FreeRADIUS container or host:
-```bash
+# Test Authorized Device on UniFi SSID-Staff (Returns Access-Accept & Dynamic VLAN 10)
 docker exec -it radius_freeradius radtest AA:BB:CC:DD:EE:01 "" localhost 1812 testing123
 ```
 
 Expected Terminal Output:
-```
+```text
 Sending Access-Request of id 198 to 127.0.0.1 port 1812
         User-Name = "AA:BB:CC:DD:EE:01"
         User-Password = ""
         NAS-IP-Address = 127.0.0.1
-        NAS-Port = 0
 Received Access-Accept Id 198 from 127.0.0.1:1812 in 2ms
-```
-
-#### Test Case 2: Inactive Registered Device (Expect Access-Reject)
-```bash
-docker exec -it radius_freeradius radtest AA:BB:CC:DD:EE:03 "" localhost 1812 testing123
-```
-
-Expected Terminal Output:
-```
-Received Access-Reject Id 199 from 127.0.0.1:1812 in 1ms
+        Tunnel-Type:0 = VLAN
+        Tunnel-Medium-Type:0 = IEEE-802
+        Tunnel-Private-Group-Id:0 = "10"
 ```
 
 ---
 
-### 7. REST API Authentication (Laravel Sanctum)
+## 🗑️ Automated Uninstallation
 
-#### Endpoint 1: Get All Devices (`GET /api/device`)
-```bash
-curl -X GET https://radius.local/api/device \
-  -H "Authorization: Bearer <SANCTUM_TOKEN>" \
-  -H "Accept: application/json"
-```
+To cleanly purge containers, data, and firewall rules from Ubuntu:
 
-#### Endpoint 2: Add New Device (`POST /api/device`)
 ```bash
-curl -X POST https://radius.local/api/device \
-  -H "Authorization: Bearer <SANCTUM_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "mac_address": "AA-CC-11-22-33-44",
-    "device_name": "New Access Point Unit",
-    "location": "Warehouse B",
-    "description": "API Created Device",
-    "status": "active"
-  }'
+sudo bash scripts/uninstall.sh --auto
 ```
 
 ---
 
-### 8. Production Best Practices & Troubleshooting
+## 👤 Author & License
 
-#### Common Issue: "Access-Reject: Invalid MAC Address Format"
-- **Cause**: Input MAC contains invalid hex characters or non-standard length.
-- **Solution**: Check `radius_log` table for exact raw input:
-  ```sql
-  SELECT * FROM radius_log WHERE auth_result = 'REJECT' ORDER BY log_date DESC LIMIT 5;
-  ```
-
-#### Performance Optimizations
-1. **FreeRADIUS Connection Pool**: Set `max = 32` and `min = 4` in `mods-available/sql` to avoid DB socket starvation under peak load.
-2. **Indexing**: Ensure index `idx_mac_status` on `(mac_address, status)` is active on `devices` table for sub-millisecond lookups.
-3. **Laravel OPcache**: Keep OPcache enabled in `Dockerfile` for PHP 8.3 FPM.
+* **Author**: Santos ([@technogithub](https://github.com/technogithub))
+* **Project Repository**: [https://github.com/technogithub/MACSON](https://github.com/technogithub/MACSON)
+* **License**: MIT License
