@@ -77,7 +77,7 @@ Deploy **MACSON** on your fresh **Ubuntu Server 26.04 / 24.04 / 22.04 LTS** usin
 *Recommended if you want the installer to ask you on-screen for custom subnets and secrets:*
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh)
+curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
 **Interactive Prompts Displayed on Screen:**
