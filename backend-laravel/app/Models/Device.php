@@ -19,8 +19,13 @@ class Device extends Model
         'device_name',
         'location',
         'description',
+        'vlan_id',
         'status',
         'created_by'
+    ];
+
+    protected $casts = [
+        'vlan_id' => 'integer',
     ];
 
     /**

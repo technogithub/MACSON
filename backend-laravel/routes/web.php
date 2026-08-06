@@ -15,9 +15,10 @@ use App\Http\Controllers\LogController;
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
 // Device MAC Address Management Routes
-Route::resource('devices', DeviceController::class);
-Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
 Route::get('devices/export', [DeviceController::class, 'exportCsv'])->name('devices.export');
+Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
+Route::patch('devices/{device}/toggle', [DeviceController::class, 'toggleStatus'])->name('devices.toggle');
+Route::resource('devices', DeviceController::class);
 
 // Multi-SSID Management Routes
 Route::resource('ssids', SsidController::class)->except(['create', 'edit', 'show']);

@@ -47,13 +47,15 @@ CREATE TABLE `devices` (
   `device_name` VARCHAR(100) NOT NULL,
   `location` VARCHAR(150) NULL,
   `description` TEXT NULL,
+  `vlan_id` INT UNSIGNED NULL COMMENT 'Per-device Dynamic VLAN override (1-4094). If set, overrides the SSID VLAN for this MAC.',
   `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   `created_by` BIGINT UNSIGNED NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `unique_mac_ssid` (`mac_address`, `ssid`),
   INDEX `idx_mac_ssid_status` (`mac_address`, `ssid`, `status`),
-  INDEX `idx_status` (`status`)
+  INDEX `idx_status` (`status`),
+  INDEX `idx_vlan_device` (`vlan_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------

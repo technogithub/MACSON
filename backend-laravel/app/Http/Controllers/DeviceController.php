@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Device;
+use App\Models\Ssid;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Validator;
 
 class DeviceController extends Controller
 {
@@ -38,7 +38,7 @@ class DeviceController extends Controller
             $query->where('status', $request->status);
         }
 
-        $devices = $query->orderBy('id', 'desc')->paginate(10)->withQueryString();
+        $devices        = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
         $availableSsids = Device::distinct()->pluck('ssid')->toArray();
 
         return view('devices.index', compact('devices', 'availableSsids'));
@@ -50,7 +50,7 @@ class DeviceController extends Controller
     public function store(Request $request)
     {
         $rawMac = $request->input('mac_address');
-        $ssid = trim($request->input('ssid', 'ALL'));
+        $ssid   = trim($request->input('ssid', 'ALL'));
         $formattedMac = Device::formatMacAddress($rawMac);
 
         if (!$formattedMac) {
@@ -63,20 +63,22 @@ class DeviceController extends Controller
 
         $request->validate([
             'device_name' => 'required|string|max:100',
-            'ssid' => 'required|string|max:64',
-            'location' => 'nullable|string|max:150',
+            'ssid'        => 'required|string|max:64',
+            'location'    => 'nullable|string|max:150',
             'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive'
+            'vlan_id'     => 'nullable|integer|between:1,4094',
+            'status'      => 'required|in:active,inactive',
         ]);
 
         Device::create([
             'mac_address' => $formattedMac,
-            'raw_mac' => $rawMac,
-            'ssid' => $ssid,
+            'raw_mac'     => $rawMac,
+            'ssid'        => $ssid,
             'device_name' => $request->device_name,
-            'location' => $request->location,
+            'location'    => $request->location,
             'description' => $request->description,
-            'status' => $request->status
+            'vlan_id'     => $request->vlan_id ?: null,
+            'status'      => $request->status,
         ]);
 
         return redirect()->route('devices.index')->with('success', "Device {$formattedMac} ({$ssid}) successfully added.");
@@ -89,7 +91,7 @@ class DeviceController extends Controller
     {
         $device = Device::findOrFail($id);
         $rawMac = $request->input('mac_address');
-        $ssid = trim($request->input('ssid', 'ALL'));
+        $ssid   = trim($request->input('ssid', 'ALL'));
         $formattedMac = Device::formatMacAddress($rawMac);
 
         if (!$formattedMac) {
@@ -102,20 +104,22 @@ class DeviceController extends Controller
 
         $request->validate([
             'device_name' => 'required|string|max:100',
-            'ssid' => 'required|string|max:64',
-            'location' => 'nullable|string|max:150',
+            'ssid'        => 'required|string|max:64',
+            'location'    => 'nullable|string|max:150',
             'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive'
+            'vlan_id'     => 'nullable|integer|between:1,4094',
+            'status'      => 'required|in:active,inactive',
         ]);
 
         $device->update([
             'mac_address' => $formattedMac,
-            'raw_mac' => $rawMac,
-            'ssid' => $ssid,
+            'raw_mac'     => $rawMac,
+            'ssid'        => $ssid,
             'device_name' => $request->device_name,
-            'location' => $request->location,
+            'location'    => $request->location,
             'description' => $request->description,
-            'status' => $request->status
+            'vlan_id'     => $request->vlan_id ?: null,
+            'status'      => $request->status,
         ]);
 
         return redirect()->route('devices.index')->with('success', "Device {$formattedMac} ({$ssid}) updated successfully.");
@@ -127,14 +131,14 @@ class DeviceController extends Controller
     public function destroy(int $id)
     {
         $device = Device::findOrFail($id);
-        $mac = $device->mac_address;
+        $mac    = $device->mac_address;
         $device->delete();
 
         return redirect()->route('devices.index')->with('success', "Device {$mac} deleted successfully.");
     }
 
     /**
-     * Toggle Device Status
+     * Toggle Device Status (PATCH)
      */
     public function toggleStatus(int $id)
     {
@@ -147,31 +151,32 @@ class DeviceController extends Controller
 
     /**
      * Import CSV File with Multi-SSID Validation & Duplicate Skip
-     * Format: MAC Address,SSID,Device Name,Location,Description,Status
+     * Format: MAC Address, SSID, Device Name, Location, Description, Status, VLAN ID
      */
     public function importCsv(Request $request)
     {
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:2048'
+            'csv_file' => 'required|file|mimes:csv,txt|max:2048',
         ]);
 
-        $file = $request->file('csv_file');
+        $file   = $request->file('csv_file');
         $handle = fopen($file->getPathname(), 'r');
-        $header = fgetcsv($handle); // Header: MAC Address,SSID,Device Name,Location,Description,Status
+        fgetcsv($handle); // Skip header row
 
         $importedCount = 0;
-        $skippedCount = 0;
-        $invalidCount = 0;
+        $skippedCount  = 0;
+        $invalidCount  = 0;
 
         while (($row = fgetcsv($handle)) !== false) {
             if (count($row) < 2) continue;
 
-            $rawMac = trim($row[0]);
-            $ssid = trim($row[1] ?? 'ALL');
-            $deviceName = trim($row[2] ?? 'Imported Device');
-            $location = trim($row[3] ?? '');
+            $rawMac      = trim($row[0]);
+            $ssid        = trim($row[1] ?? 'ALL');
+            $deviceName  = trim($row[2] ?? 'Imported Device');
+            $location    = trim($row[3] ?? '');
             $description = trim($row[4] ?? 'CSV Import');
-            $status = strtolower(trim($row[5] ?? 'active')) === 'inactive' ? 'inactive' : 'active';
+            $status      = strtolower(trim($row[5] ?? 'active')) === 'inactive' ? 'inactive' : 'active';
+            $vlanId      = isset($row[6]) && is_numeric(trim($row[6])) ? (int)trim($row[6]) : null;
 
             $formattedMac = Device::formatMacAddress($rawMac);
 
@@ -187,12 +192,13 @@ class DeviceController extends Controller
 
             Device::create([
                 'mac_address' => $formattedMac,
-                'raw_mac' => $rawMac,
-                'ssid' => empty($ssid) ? 'ALL' : $ssid,
+                'raw_mac'     => $rawMac,
+                'ssid'        => empty($ssid) ? 'ALL' : $ssid,
                 'device_name' => $deviceName,
-                'location' => $location,
+                'location'    => $location,
                 'description' => $description,
-                'status' => $status
+                'vlan_id'     => ($vlanId >= 1 && $vlanId <= 4094) ? $vlanId : null,
+                'status'      => $status,
             ]);
 
             $importedCount++;
@@ -200,32 +206,43 @@ class DeviceController extends Controller
 
         fclose($handle);
 
-        $msg = "Import completed! Successfully added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid formats: {$invalidCount}.";
+        $msg = "Import completed! Added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid formats: {$invalidCount}.";
         return redirect()->route('devices.index')->with('success', $msg);
     }
 
     /**
-     * Export Devices to CSV including SSID
+     * Export Devices to CSV including VLAN ID
      */
     public function exportCsv()
     {
-        $devices = Device::all();
-        $csvFileName = 'devices_export_' . date('Y-m-d_H-i-s') . '.csv';
+        $devices     = Device::all();
+        $csvFileName = 'mac_devices_export_' . date('Y-m-d_H-i-s') . '.csv';
 
         $headers = [
-            "Content-type" => "text/csv",
+            "Content-type"        => "text/csv",
             "Content-Disposition" => "attachment; filename={$csvFileName}",
-            "Pragma" => "no-cache",
-            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
-            "Expires" => "0"
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0",
         ];
 
         $callback = function() use ($devices) {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['ID', 'MAC Address', 'Target SSID', 'Device Name', 'Location', 'Description', 'Status', 'Created At']);
+            // Header row
+            fputcsv($file, ['MAC Address', 'Target SSID', 'Device Name', 'Location', 'Description', 'Status', 'VLAN ID', 'ID', 'Created At']);
 
             foreach ($devices as $d) {
-                fputcsv($file, [$d->id, $d->mac_address, $d->ssid, $d->device_name, $d->location, $d->description, $d->status, $d->created_at]);
+                fputcsv($file, [
+                    $d->mac_address,
+                    $d->ssid,
+                    $d->device_name,
+                    $d->location,
+                    $d->description,
+                    $d->status,
+                    $d->vlan_id ?? '',
+                    $d->id,
+                    $d->created_at,
+                ]);
             }
 
             fclose($file);
