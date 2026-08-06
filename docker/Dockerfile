@@ -5,7 +5,7 @@
 FROM php:8.3-fpm-alpine
 
 # Install System Dependencies & Extensions
-RUN apk add --no-linux-headers --no-cache \
+RUN apk add --no-cache \
     bash \
     icu-dev \
     libzip-dev \
@@ -15,7 +15,8 @@ RUN apk add --no-linux-headers --no-cache \
     oniguruma-dev \
     mariadb-client \
     git \
-    unzip
+    unzip \
+    linux-headers
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
