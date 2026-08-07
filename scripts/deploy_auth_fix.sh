@@ -1,111 +1,172 @@
 #!/bin/bash
 # =============================================================================
-# MACSON - Quick Deploy Auth Fix Script
-# Run this on the Ubuntu server to apply authentication changes
-# Usage: bash scripts/deploy_auth_fix.sh
+# MACSON - Full Auth Fix & Rebuild Script
+# Run this on the Ubuntu server to fully fix authentication
+# Usage: sudo bash scripts/deploy_auth_fix.sh
 # =============================================================================
 
 set -e
 
-COMPOSE_FILE="/opt/macson/docker/docker-compose.yml"
-PROJECT_DIR="/opt/macson"
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
 APP_CONTAINER="radius_laravel_app"
 
 echo ""
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║       MACSON - Auth Fix Deployment Script            ║"
-echo "╚══════════════════════════════════════════════════════╝"
+echo -e "${BLUE}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║       MACSON - Auth Fix & Full Rebuild Script        ║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # Detect project dir
-if [ ! -f "$COMPOSE_FILE" ]; then
-    # Try to find it
-    COMPOSE_FILE="$(find /opt /home -name 'docker-compose.yml' 2>/dev/null | grep macson | head -1)"
-    PROJECT_DIR="$(dirname "$(dirname "$COMPOSE_FILE")")"
-    if [ -z "$COMPOSE_FILE" ]; then
-        echo "❌ ERROR: Cannot find MACSON docker-compose.yml. Is MACSON installed?"
-        exit 1
+PROJECT_DIR=""
+for D in /opt/macson /home/*/macson /root/macson; do
+    if [ -f "${D}/docker/docker-compose.yml" ]; then
+        PROJECT_DIR="$D"
+        break
     fi
+done
+
+if [ -z "$PROJECT_DIR" ]; then
+    echo -e "${RED}❌ ERROR: Cannot find MACSON project directory.${NC}"
+    exit 1
 fi
 
-echo "✅ Project found at: $PROJECT_DIR"
-echo ""
-
-# Pull latest from git
-echo "⏳ Pulling latest changes from git..."
+echo -e "${GREEN}✅ Project found at: $PROJECT_DIR${NC}"
 cd "$PROJECT_DIR"
-git pull origin main 2>/dev/null || echo "⚠️  Git pull skipped (no remote or not a git repo)"
+
+# Pull latest code
 echo ""
+echo -e "${YELLOW}⏳ Pulling latest code from GitHub...${NC}"
+git pull origin main || echo -e "${YELLOW}⚠️  Git pull skipped${NC}"
 
-# Rebuild and restart the app container
-echo "⏳ Rebuilding and restarting the Laravel app container..."
+# Stop all containers
+echo ""
+echo -e "${YELLOW}⏳ Stopping all MACSON containers...${NC}"
 cd "$PROJECT_DIR/docker"
-docker compose build app
-docker compose up -d app
+docker compose down --remove-orphans 2>/dev/null || true
 
-echo "⏳ Waiting for app to start..."
-sleep 10
+# Remove the app_code named volume (CRITICAL - this forces fresh code into container)
+echo -e "${YELLOW}⏳ Removing stale app_code volume to force fresh build...${NC}"
+docker volume rm docker_app_code 2>/dev/null || \
+docker volume rm $(docker volume ls -q | grep app_code) 2>/dev/null || \
+echo -e "${YELLOW}⚠️  Volume not found or already removed${NC}"
 
-# Clear caches
-echo "⏳ Clearing Laravel caches..."
-docker exec "$APP_CONTAINER" php artisan config:clear 2>/dev/null || true
-docker exec "$APP_CONTAINER" php artisan view:clear 2>/dev/null || true
-docker exec "$APP_CONTAINER" php artisan route:clear 2>/dev/null || true
-docker exec "$APP_CONTAINER" php artisan cache:clear 2>/dev/null || true
+# Rebuild app image from scratch (no cache)
+echo ""
+echo -e "${YELLOW}⏳ Rebuilding Docker image (no cache)...${NC}"
+docker compose build --no-cache app
+
+# Start all services
+echo ""
+echo -e "${YELLOW}⏳ Starting all services...${NC}"
+docker compose up -d
+
+# Wait for MariaDB to be healthy
+echo -e "${YELLOW}⏳ Waiting for MariaDB to be ready (up to 60s)...${NC}"
+for i in $(seq 1 12); do
+    if docker exec radius_mariadb mysqladmin ping -h localhost -u radius_user -pradius_password --silent 2>/dev/null; then
+        echo -e "${GREEN}✅ MariaDB is ready!${NC}"
+        break
+    fi
+    echo "   Waiting... ($((i*5))s)"
+    sleep 5
+done
+
+# Wait for app container
+echo -e "${YELLOW}⏳ Waiting for Laravel app to start (15s)...${NC}"
+sleep 15
+
+# Clear all Laravel caches
+echo ""
+echo -e "${YELLOW}⏳ Clearing Laravel caches...${NC}"
+docker exec "$APP_CONTAINER" php artisan config:clear 2>/dev/null && echo -e "${GREEN}  ✓ Config cache cleared${NC}"
+docker exec "$APP_CONTAINER" php artisan view:clear   2>/dev/null && echo -e "${GREEN}  ✓ View cache cleared${NC}"
+docker exec "$APP_CONTAINER" php artisan route:clear  2>/dev/null && echo -e "${GREEN}  ✓ Route cache cleared${NC}"
+docker exec "$APP_CONTAINER" php artisan cache:clear  2>/dev/null && echo -e "${GREEN}  ✓ App cache cleared${NC}"
 docker exec "$APP_CONTAINER" chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
+# Verify auth config is loaded
 echo ""
-echo "⏳ Setting up admin credentials in database..."
-sleep 3
+echo -e "${YELLOW}⏳ Verifying auth configuration...${NC}"
+AUTH_DRIVER=$(docker exec "$APP_CONTAINER" php artisan tinker --execute="echo config('auth.defaults.guard');" 2>/dev/null || echo "unknown")
+echo -e "${GREEN}  ✓ Auth guard: ${AUTH_DRIVER}${NC}"
 
-docker exec "$APP_CONTAINER" php artisan tinker --no-interaction <<'TINKER_EOF' 2>/dev/null || true
-$admin = App\Models\User::where('email', 'admin@radius.local')->first();
-if ($admin) {
-    $admin->password = bcrypt('Admin@2026!');
-    $admin->save();
-    echo "✅ Admin password updated.\n";
+SESSION_DRV=$(docker exec "$APP_CONTAINER" php artisan tinker --execute="echo config('session.driver');" 2>/dev/null || echo "unknown")
+echo -e "${GREEN}  ✓ Session driver: ${SESSION_DRV}${NC}"
+
+# Check users in DB
+echo ""
+echo -e "${YELLOW}⏳ Checking users in database...${NC}"
+USER_COUNT=$(docker exec "$APP_CONTAINER" php artisan tinker --execute="echo App\Models\User::count();" 2>/dev/null || echo "0")
+echo -e "${GREEN}  ✓ Users in DB: ${USER_COUNT}${NC}"
+
+# Prompt for admin credentials
+echo ""
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}  🔐 Set Admin Login Credentials${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+read -p "Super Admin Email [admin@macson.local]: " SA_EMAIL
+SA_EMAIL=${SA_EMAIL:-admin@macson.local}
+
+while true; do
+    read -s -p "Super Admin Password (min 8 chars): " SA_PASS; echo ""
+    [ ${#SA_PASS} -ge 8 ] && break
+    echo -e "${RED}  ✗ Too short, minimum 8 characters.${NC}"
+done
+
+read -s -p "Confirm Password: " SA_PASS2; echo ""
+if [ "$SA_PASS" != "$SA_PASS2" ]; then
+    echo -e "${RED}❌ Passwords do not match! Please rerun the script.${NC}"
+    exit 1
+fi
+
+# Create/update admin user
+echo ""
+echo -e "${YELLOW}⏳ Creating/updating admin user in database...${NC}"
+
+docker exec "$APP_CONTAINER" php artisan tinker --no-interaction << TINKER_EOF 2>/dev/null
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+
+\$u = User::where('email', '${SA_EMAIL}')->first();
+if (\$u) {
+    \$u->password = Hash::make('${SA_PASS}');
+    \$u->save();
+    echo "✓ Admin user updated: ${SA_EMAIL}\n";
 } else {
-    App\Models\User::create([
+    User::create([
         'name'     => 'Super Administrator',
-        'email'    => 'admin@radius.local',
-        'password' => bcrypt('Admin@2026!'),
+        'email'    => '${SA_EMAIL}',
+        'password' => Hash::make('${SA_PASS}'),
         'role'     => 'Super Admin',
     ]);
-    echo "✅ Admin user created.\n";
-}
-
-$op = App\Models\User::where('email', 'operator@radius.local')->first();
-if ($op) {
-    $op->password = bcrypt('Operator@2026!');
-    $op->save();
-    echo "✅ Operator password updated.\n";
-} else {
-    App\Models\User::create([
-        'name'     => 'Operator User',
-        'email'    => 'operator@radius.local',
-        'password' => bcrypt('Operator@2026!'),
-        'role'     => 'Operator',
-    ]);
-    echo "✅ Operator user created.\n";
+    echo "✓ Admin user created: ${SA_EMAIL}\n";
 }
 TINKER_EOF
 
-SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
+# Verify login works
+echo ""
+echo -e "${YELLOW}⏳ Verifying password hash in database...${NC}"
+HASH_CHECK=$(docker exec "$APP_CONTAINER" php artisan tinker --execute="
+\$u = App\Models\User::where('email','${SA_EMAIL}')->first();
+echo \$u ? 'FOUND hash:'.substr(\$u->password,0,7) : 'NOT FOUND';
+" 2>/dev/null || echo "error")
+echo -e "${GREEN}  ✓ ${HASH_CHECK}${NC}"
+
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
 
 echo ""
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║              ✅ Auth Fix Deployed Successfully!          ║"
-echo "╠══════════════════════════════════════════════════════════╣"
-echo "║  Web Interface : http://${SERVER_IP}                     "
-echo "║  Login URL     : http://${SERVER_IP}/login               "
-echo "╠══════════════════════════════════════════════════════════╣"
-echo "║  Admin Email   : admin@radius.local                      "
-echo "║  Admin Password: Admin@2026!                             "
-echo "║  Operator Email: operator@radius.local                   "
-echo "║  Op Password   : Operator@2026!                          "
-echo "╠══════════════════════════════════════════════════════════╣"
-echo "║  ⚠️  Change passwords after first login!                 ║"
-echo "╚══════════════════════════════════════════════════════════╝"
-echo ""
-echo "💡 TIP: Run 'bash scripts/reset_admin_password.sh' to set custom passwords"
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║            ✅ Auth Fix Completed Successfully!           ║${NC}"
+echo -e "${BLUE}╠══════════════════════════════════════════════════════════╣${NC}"
+echo -e "║  🌐 Web UI    : ${YELLOW}http://${SERVER_IP}/login${NC}"
+echo -e "║  📧 Admin     : ${YELLOW}${SA_EMAIL}${NC}"
+echo -e "║  🔑 Password  : ${YELLOW}[the one you just set]${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""

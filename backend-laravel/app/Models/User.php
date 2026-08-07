@@ -11,20 +11,33 @@ class User extends Authenticatable
 
     protected $table = 'users';
 
+    /**
+     * The attributes that are mass assignable.
+     */
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
+        'remember_token',
     ];
 
+    /**
+     * The attributes that should be hidden for arrays.
+     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
+    /**
+     * The attributes that should be cast.
+     * NOTE: Do NOT use 'hashed' cast - it auto-hashes on set which breaks Auth::attempt()
+     * Password is hashed manually via Hash::make() in AuthController.
+     */
     protected $casts = [
-        'password' => 'hashed',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**

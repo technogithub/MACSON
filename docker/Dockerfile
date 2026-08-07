@@ -51,13 +51,13 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
 # Copy full backend application code
 COPY --chown=www-data:www-data backend-laravel/ /var/www/html/
 
-# Ensure default .env exists inside container
-RUN cp -n .env.example .env 2>/dev/null || true
+# Ensure .env exists (copy from .env.example if not present)
+RUN cp -f .env.example .env 2>/dev/null || true
 
 # Run composer scripts now that full app code exists
 RUN composer dump-autoload --optimize --no-interaction
 
-# Create required Laravel storage directories & set permissions (instant execution)
+# Create required Laravel storage directories & set permissions
 RUN mkdir -p storage/framework/sessions \
              storage/framework/views \
              storage/framework/cache/data \
@@ -66,6 +66,11 @@ RUN mkdir -p storage/framework/sessions \
              bootstrap/cache \
     && touch storage/logs/laravel.log \
     && chmod -R 777 storage bootstrap/cache
+
+# Pre-warm config cache (will be regenerated at runtime if env differs)
+RUN php artisan config:clear 2>/dev/null || true
+RUN php artisan view:clear 2>/dev/null || true
+RUN php artisan route:clear 2>/dev/null || true
 
 EXPOSE 9000
 CMD ["php-fpm"]

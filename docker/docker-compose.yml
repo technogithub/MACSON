@@ -62,7 +62,9 @@ services:
       DB_PASSWORD: radius_password
       CACHE_DRIVER: redis
       QUEUE_CONNECTION: redis
-      SESSION_DRIVER: redis
+      SESSION_DRIVER: cookie
+      SESSION_LIFETIME: 120
+      SESSION_ENCRYPT: "false"
       REDIS_HOST: redis
       REDIS_PORT: 6379
     volumes:
@@ -96,7 +98,7 @@ services:
       DB_PASSWORD: radius_password
       CACHE_DRIVER: redis
       QUEUE_CONNECTION: redis
-      SESSION_DRIVER: redis
+      SESSION_DRIVER: cookie
       REDIS_HOST: redis
       REDIS_PORT: 6379
     volumes:
