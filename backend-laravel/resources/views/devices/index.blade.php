@@ -354,12 +354,12 @@ mark.search-hl {
         </button>
     </div>
     <select id="filterStatus" class="form-select filter-select" style="width:160px;">
-        <option value="all">All Status</option>
+        <option value="all" selected>All Status</option>
         <option value="active">Active Only</option>
         <option value="inactive">Inactive Only</option>
     </select>
     <select id="filterSsid" class="form-select filter-select" style="width:180px;">
-        <option value="all">All SSIDs</option>
+        <option value="all" selected>All SSIDs</option>
         @foreach($availableSsids as $s)
             <option value="{{ $s }}">{{ $s }}</option>
         @endforeach
@@ -680,8 +680,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 (row.dataset.ssid || '').includes(q) ||
                 (row.dataset.desc || '').includes(q);
 
-            const matchStatus = status === 'all' || row.dataset.status === status;
-            const matchSsid   = ssid === 'all' || (row.dataset.ssid || '').includes(ssid);
+            const rowStatus   = (row.dataset.status || '').toLowerCase().trim();
+            const targetStatus = status.toLowerCase().trim();
+            const matchStatus = targetStatus === 'all' || rowStatus === targetStatus;
+
+            const rowSsid    = (row.dataset.ssid || '').toLowerCase().trim();
+            const targetSsid = ssid.toLowerCase().trim();
+            const matchSsid  = targetSsid === 'all' || rowSsid === targetSsid || rowSsid.includes(targetSsid);
 
             if (matchQ && matchStatus && matchSsid) {
                 row.style.display = '';
@@ -740,9 +745,14 @@ document.addEventListener('DOMContentLoaded', function () {
     filterSsid.addEventListener('change', applyFilters);
     clearBtn.addEventListener('click', () => {
         searchInput.value = '';
+        filterStatus.value = 'all';
+        filterSsid.value = 'all';
         applyFilters();
         searchInput.focus();
     });
+
+    // Run initial filter check on page load
+    applyFilters();
 
     // ===== EDIT MODAL POPULATION =====
     document.querySelectorAll('.btn-edit-device').forEach(btn => {
