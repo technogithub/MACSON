@@ -341,7 +341,7 @@ mark.search-hl {
         <span>VLAN Assigned:</span>
         <span class="num" style="color:#a5b4fc;" id="statVlan">{{ $devices->whereNotNull('vlan_id')->count() }}</span>
     </div>
-    <div class="stat-chip ms-auto text-secondary" style="font-size:0.78rem;" id="filterStatus" style="display:none;"></div>
+    <div class="stat-chip ms-auto text-secondary" style="font-size:0.78rem;"></div>
 </div>
 
 <!-- Search & Filter Bar -->
@@ -672,14 +672,18 @@ document.addEventListener('DOMContentLoaded', function () {
         let visible = 0;
 
         rows.forEach(row => {
+            const rawMacStripped = (row.dataset.mac || '').replace(/[^a-f0-9]/gi, '');
+            const qStripped      = q.replace(/[^a-f0-9]/gi, '');
+
             const matchQ = !q ||
-                row.dataset.name.includes(q) ||
-                row.dataset.mac.includes(q) ||
-                row.dataset.ssid.includes(q) ||
-                row.dataset.desc.includes(q);
+                (row.dataset.name || '').includes(q) ||
+                (row.dataset.mac || '').includes(q) ||
+                (qStripped.length >= 3 && rawMacStripped.includes(qStripped)) ||
+                (row.dataset.ssid || '').includes(q) ||
+                (row.dataset.desc || '').includes(q);
 
             const matchStatus = status === 'all' || row.dataset.status === status;
-            const matchSsid   = ssid === 'all' || row.dataset.ssid.includes(ssid);
+            const matchSsid   = ssid === 'all' || (row.dataset.ssid || '').includes(ssid);
 
             if (matchQ && matchStatus && matchSsid) {
                 row.style.display = '';
