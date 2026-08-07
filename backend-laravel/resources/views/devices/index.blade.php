@@ -344,28 +344,37 @@ mark.search-hl {
     <div class="stat-chip ms-auto text-secondary" style="font-size:0.78rem;"></div>
 </div>
 
-<!-- Search & Filter Bar -->
-<div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
+<!-- Search & Filter Bar (server-side submit) -->
+<form method="GET" action="{{ route('devices.index') }}" id="searchFilterForm" class="d-flex gap-3 mb-3 flex-wrap align-items-center">
     <div class="search-wrapper flex-grow-1" style="min-width:240px; max-width:420px;">
         <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" id="liveSearch" class="form-control search-input" placeholder="Search MAC, device name, SSID, description..." autocomplete="off">
-        <button class="search-clear" id="clearSearch" title="Clear search">
+        <input type="text" name="search" id="liveSearch" class="form-control search-input"
+               placeholder="Search MAC, device name, SSID, description..."
+               value="{{ request('search') }}"
+               autocomplete="off">
+        <button type="button" class="search-clear" id="clearSearch" title="Clear search"
+                style="{{ request('search') ? 'display:flex;' : 'display:none;' }}">
             <i class="fa-solid fa-xmark"></i>
         </button>
     </div>
-    <select id="filterStatus" class="form-select filter-select" style="width:160px;">
-        <option value="all" selected>All Status</option>
-        <option value="active">Active Only</option>
-        <option value="inactive">Inactive Only</option>
+    <select name="status" id="filterStatus" class="form-select filter-select" style="width:160px;" onchange="this.form.submit()">
+        <option value="all" {{ request('status','all') === 'all' ? 'selected' : '' }}>All Status</option>
+        <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active Only</option>
+        <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive Only</option>
     </select>
-    <select id="filterSsid" class="form-select filter-select" style="width:180px;">
-        <option value="all" selected>All SSIDs</option>
+    <select name="ssid" id="filterSsid" class="form-select filter-select" style="width:180px;" onchange="this.form.submit()">
+        <option value="all" {{ request('ssid','all') === 'all' ? 'selected' : '' }}>All SSIDs</option>
         @foreach($availableSsids as $s)
-            <option value="{{ $s }}">{{ $s }}</option>
+            <option value="{{ $s }}" {{ request('ssid') === $s ? 'selected' : '' }}>{{ $s }}</option>
         @endforeach
     </select>
-    <div id="liveResultCount" class="text-secondary small" style="white-space:nowrap;"></div>
-</div>
+    @if(request()->hasAny(['search','status','ssid']))
+    <a href="{{ route('devices.index') }}" class="btn btn-sm btn-outline-secondary" title="Reset semua filter">
+        <i class="fa-solid fa-rotate-left me-1"></i>Reset
+    </a>
+    <span class="text-secondary small" style="white-space:nowrap;">{{ $devices->total() }} result(s)</span>
+    @endif
+</form>
 
 <!-- Devices Table -->
 <div class="devices-table-card">
@@ -642,93 +651,37 @@ mark.search-hl {
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-    // ===== LIVE SEARCH & FILTER =====
-    const searchInput   = document.getElementById('liveSearch');
-    const clearBtn      = document.getElementById('clearSearch');
-    const filterStatus  = document.getElementById('filterStatus');
-    const filterSsid    = document.getElementById('filterSsid');
-    const tbody         = document.getElementById('deviceTableBody');
-    const noResults     = document.getElementById('noResultsRow');
-    const resultCount   = document.getElementById('liveResultCount');
-    const rows          = tbody ? Array.from(tbody.querySelectorAll('tr[data-id]')) : [];
+    // ===== SEARCH FORM UX ONLY (actual filtering is server-side) =====
+    const searchInput = document.getElementById('liveSearch');
+    const clearBtn    = document.getElementById('clearSearch');
+    const searchForm  = document.getElementById('searchFilterForm');
 
-    function applyFilters() {
-        if (!searchInput || !tbody) return;
+    if (searchInput && searchForm) {
+        // Show/hide clear button
+        function updateClearBtn() {
+            if (clearBtn) clearBtn.style.display = searchInput.value.length > 0 ? 'flex' : 'none';
+        }
+        searchInput.addEventListener('input', updateClearBtn);
+        updateClearBtn();
 
-        const q      = searchInput.value.trim().toLowerCase();
-        const status = (filterStatus ? filterStatus.value : 'all').toLowerCase().trim();
-        const ssid   = (filterSsid ? filterSsid.value : 'all').toLowerCase().trim();
+        // Submit on Enter key
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchForm.submit();
+            }
+        });
 
+        // Clear button: kosongkan input dan submit
         if (clearBtn) {
-            clearBtn.classList.toggle('visible', q.length > 0);
-        }
-
-        let visibleCount = 0;
-
-        rows.forEach(row => {
-            const name = (row.dataset.name || '').toLowerCase().trim();
-            const mac  = (row.dataset.mac || '').toLowerCase().trim();
-            const rawMacStripped = mac.replace(/[^a-f0-9]/gi, '');
-            const qStripped      = q.replace(/[^a-f0-9]/gi, '');
-            const rowSsid        = (row.dataset.ssid || '').toLowerCase().trim();
-            const desc           = (row.dataset.desc || '').toLowerCase().trim();
-            const rowStatus      = (row.dataset.status || '').toLowerCase().trim();
-
-            // Match Query
-            const matchQ = !q ||
-                name.includes(q) ||
-                mac.includes(q) ||
-                (qStripped.length >= 3 && rawMacStripped.includes(qStripped)) ||
-                rowSsid.includes(q) ||
-                desc.includes(q);
-
-            // Match Status Filter
-            const matchStatus = status === 'all' || rowStatus === status;
-
-            // Match SSID Filter
-            const matchSsid = ssid === 'all' || rowSsid === ssid || rowSsid.includes(ssid);
-
-            if (matchQ && matchStatus && matchSsid) {
-                row.style.display = '';
-                visibleCount++;
-            } else {
-                row.style.display = 'none';
-            }
-        });
-
-        // Toggle No Results Row
-        if (noResults) {
-            noResults.style.display = (rows.length > 0 && visibleCount === 0) ? '' : 'none';
-        }
-
-        // Display Count
-        if (resultCount) {
-            if (q || status !== 'all' || ssid !== 'all') {
-                resultCount.textContent = `${visibleCount} of ${rows.length} shown`;
-            } else {
-                resultCount.textContent = '';
-            }
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                searchForm.submit();
+            });
         }
     }
 
-    // Instant & Debounced Listeners
-    searchInput.addEventListener('input', applyFilters);
-    searchInput.addEventListener('keyup', applyFilters);
-    if (filterStatus) filterStatus.addEventListener('change', applyFilters);
-    if (filterSsid)   filterSsid.addEventListener('change', applyFilters);
 
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            searchInput.value = '';
-            if (filterStatus) filterStatus.value = 'all';
-            if (filterSsid)   filterSsid.value   = 'all';
-            applyFilters();
-            searchInput.focus();
-        });
-    }
-
-    // Initial load
-    applyFilters();
 
     // ===== EDIT MODAL POPULATION =====
     document.querySelectorAll('.btn-edit-device').forEach(btn => {
