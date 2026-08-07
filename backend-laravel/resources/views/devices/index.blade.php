@@ -455,18 +455,16 @@ mark.search-hl {
                                 </form>
                             </div>
                         </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="7">
-                            <div class="empty-state">
-                                <div class="empty-icon"><i class="fa-solid fa-laptop-slash"></i></div>
-                                <p class="fw-semibold text-secondary mb-1">No MAC devices registered yet</p>
-                                <p class="text-muted small">Click "Register Device" to add your first MAC address</p>
-                            </div>
-                        </td>
-                    </tr>
                 @endforelse
+                <tr id="noResultsRow" style="display:none;">
+                    <td colspan="7">
+                        <div class="empty-state py-4">
+                            <div class="empty-icon text-warning mb-2" style="font-size:2rem;"><i class="fa-solid fa-magnifying-glass"></i></div>
+                            <p class="fw-semibold text-secondary mb-1">No matching MAC devices found</p>
+                            <p class="text-muted small mb-0">Try adjusting your search query or filter options</p>
+                        </div>
+                    </td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -688,7 +686,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (matchQ && matchStatus && matchSsid) {
                 row.style.display = '';
                 visible++;
-                // highlight
                 if (q) highlightRow(row, q);
                 else   clearHighlight(row);
             } else {
@@ -697,12 +694,16 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        noResults.style.display = (rows.length > 0 && visible === 0) ? 'block' : 'none';
+        if (noResults) {
+            noResults.style.display = (rows.length > 0 && visible === 0) ? '' : 'none';
+        }
 
-        if (q || status !== 'all' || ssid !== 'all') {
-            resultCount.textContent = `${visible} of ${rows.length} shown`;
-        } else {
-            resultCount.textContent = '';
+        if (resultCount) {
+            if (q || status !== 'all' || ssid !== 'all') {
+                resultCount.textContent = `${visible} of ${rows.length} shown`;
+            } else {
+                resultCount.textContent = '';
+            }
         }
     }
 
