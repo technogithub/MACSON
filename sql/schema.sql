@@ -20,6 +20,9 @@ DROP TABLE IF EXISTS `nas`;
 DROP TABLE IF EXISTS `devices`;
 DROP TABLE IF EXISTS `ssids`;
 DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `cache`;
+DROP TABLE IF EXISTS `cache_locks`;
+DROP TABLE IF EXISTS `sessions`;
 
 -- ------------------------------------------------------------------------------
 -- 1. Table: ssids (Master Multi-SSID Inventory & Dynamic VLAN Definitions)
@@ -105,6 +108,32 @@ CREATE TABLE `users` (
   `remember_token` VARCHAR(100) NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------------------------
+-- 5a. Tables: cache, cache_locks, sessions (Laravel Standard System Support)
+-- ------------------------------------------------------------------------------
+CREATE TABLE `cache` (
+  `key` VARCHAR(255) NOT NULL PRIMARY KEY,
+  `value` MEDIUMTEXT NOT NULL,
+  `expiration` INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cache_locks` (
+  `key` VARCHAR(255) NOT NULL PRIMARY KEY,
+  `owner` VARCHAR(255) NOT NULL,
+  `expiration` INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `sessions` (
+  `id` VARCHAR(255) NOT NULL PRIMARY KEY,
+  `user_id` BIGINT UNSIGNED NULL,
+  `ip_address` VARCHAR(45) NULL,
+  `user_agent` TEXT NULL,
+  `payload` LONGTEXT NOT NULL,
+  `last_activity` INT NOT NULL,
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_last_activity` (`last_activity`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
