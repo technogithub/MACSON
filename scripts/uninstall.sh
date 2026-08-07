@@ -73,13 +73,16 @@ if [ -f "${PROJECT_DIR}/docker/docker-compose.yml" ]; then
 fi
 
 echo -e "\n${GREEN}[2/4] Removing UFW Firewall rule entries...${NC}"
-ufw delete allow proto udp to any port 1812 || true
-ufw delete allow proto udp to any port 1813 || true
-ufw delete allow comment "RADIUS Auth from NAS" || true
-ufw delete allow comment "RADIUS Acct from NAS" || true
-ufw delete allow comment "Admin SSH Access" || true
-ufw delete allow comment "Admin Web UI HTTP" || true
-ufw delete allow comment "Admin Web UI HTTPS" || true
+# Delete rules by port/protocol - UFW does not support deletion by comment
+ufw delete allow 1812/udp   2>/dev/null || true
+ufw delete allow 1813/udp   2>/dev/null || true
+ufw delete allow 80/tcp     2>/dev/null || true
+ufw delete allow 443/tcp    2>/dev/null || true
+ufw delete allow 22/tcp     2>/dev/null || true
+ufw delete allow proto udp to any port 1812 2>/dev/null || true
+ufw delete allow proto udp to any port 1813 2>/dev/null || true
+echo -e "${GREEN}   UFW rules cleaned (non-existent rules skipped safely).${NC}"
+
 
 echo -e "\n${GREEN}[3/4] Cleaning generated SSL certificates...${NC}"
 rm -rf "${PROJECT_DIR}/docker/ssl"
