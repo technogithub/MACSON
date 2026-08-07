@@ -85,6 +85,14 @@ curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/in
 2. `Enter SSH Allowed Subnet for Port 22 (e.g., 192.168.1.50/32) [192.168.1.0/24]:`
 3. `Enter Admin Web UI Allowed Subnet (e.g., 192.168.1.0/24) [192.168.1.0/24]:`
 4. `Enter RADIUS Shared Secret Key [RadiusSecretKey2026!]:`
+5. `Enter Super Admin Name [Super Administrator]:`
+6. `Enter Super Admin Email [admin@macson.local]:`
+7. `Enter Super Admin Password (min 8 chars):` *(hidden input)*
+8. `Confirm Super Admin Password:` *(hidden input)*
+9. `Enter Operator Name [Operator User]:`
+10. `Enter Operator Email [operator@macson.local]:`
+11. `Enter Operator Password (min 8 chars):` *(hidden input)*
+12. `Confirm Operator Password:` *(hidden input)*
 
 ---
 
@@ -98,14 +106,18 @@ curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/in
 ---
 
 ### Mode 3: Parameterized One-Liner Custom Mode
-*Pass custom subnets and RADIUS secret in 1 line without interactive prompts:*
+*Pass custom subnets, RADIUS secret, and admin credentials in 1 line without interactive prompts:*
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto \
   --nas-subnet 192.168.1.0/24 \
   --ssh-subnet 192.168.1.50/32 \
   --admin-subnet 192.168.1.0/24 \
-  --secret UniFiRadiusSecret2026!
+  --secret UniFiRadiusSecret2026! \
+  --admin-email admin@mycompany.local \
+  --admin-password "MySecurePass123!" \
+  --operator-email operator@mycompany.local \
+  --operator-password "OpSecurePass123!"
 ```
 
 ---
@@ -144,19 +156,25 @@ To connect your **Ubiquiti UniFi Controller** to **MACSON**:
 
 ## 🔐 Admin Authentication & Login
 
-MACSON now includes a **secure login system** protecting all dashboard and management pages.
+MACSON includes a **secure login system** — credentials are set **by you** during the installation process.
 
-### Default Login Credentials (after installation)
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Super Admin** | `admin@radius.local` | `Admin@2026!` |
-| **Operator** | `operator@radius.local` | `Operator@2026!` |
+### Login Credentials
+Credentials are entered by you during `install.sh`. After installation, the summary screen will display your email and the password reminder.
 
-> ⚠️ **Change these passwords immediately after first login!**
+> ⚠️ Passwords are stored as **bcrypt hash** in the database — never in plain text.
 
-### Resetting Admin Password
+### Resetting Password
 ```bash
-bash scripts/reset_admin_password.sh
+bash /opt/macson/scripts/reset_admin_password.sh
+```
+
+### Manual Reset via Docker (emergency)
+```bash
+docker exec radius_laravel_app php artisan tinker
+# Inside tinker:
+$u = App\Models\User::where('email','your@email.local')->first();
+$u->password = bcrypt('NewPassword123!');
+$u->save();
 ```
 
 ---

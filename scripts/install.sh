@@ -42,6 +42,14 @@ SSH_SUBNET="192.168.1.0/24"
 ADMIN_SUBNET="192.168.1.0/24"
 RADIUS_SECRET="RadiusSecretKey2026!"
 
+# Default Admin Credentials (overridden by interactive prompts or CLI flags)
+SUPERADMIN_NAME="Super Administrator"
+SUPERADMIN_EMAIL="admin@macson.local"
+SUPERADMIN_PASSWORD=""
+OPERATOR_NAME="Operator User"
+OPERATOR_EMAIL="operator@macson.local"
+OPERATOR_PASSWORD=""
+
 # Parse CLI Arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -65,14 +73,34 @@ while [[ $# -gt 0 ]]; do
       RADIUS_SECRET="$2"
       shift 2
       ;;
+    --admin-email)
+      SUPERADMIN_EMAIL="$2"
+      shift 2
+      ;;
+    --admin-password)
+      SUPERADMIN_PASSWORD="$2"
+      shift 2
+      ;;
+    --operator-email)
+      OPERATOR_EMAIL="$2"
+      shift 2
+      ;;
+    --operator-password)
+      OPERATOR_PASSWORD="$2"
+      shift 2
+      ;;
     --help|-h)
       echo "Usage: sudo ./install.sh [OPTIONS]"
       echo "Options:"
-      echo "  --auto, -y           Run non-interactively with default or passed values"
-      echo "  --nas-subnet CIDR    Allowed NAS Network Subnet (default: 192.168.1.0/24)"
-      echo "  --ssh-subnet CIDR    Allowed SSH Access Subnet (default: 192.168.1.0/24)"
-      echo "  --admin-subnet CIDR  Allowed Admin Web UI Subnet (default: 192.168.1.0/24)"
-      echo "  --secret STRING      RADIUS Shared Secret Key"
+      echo "  --auto, -y                Run non-interactively with default or passed values"
+      echo "  --nas-subnet CIDR         Allowed NAS Network Subnet (default: 192.168.1.0/24)"
+      echo "  --ssh-subnet CIDR         Allowed SSH Access Subnet (default: 192.168.1.0/24)"
+      echo "  --admin-subnet CIDR       Allowed Admin Web UI Subnet (default: 192.168.1.0/24)"
+      echo "  --secret STRING           RADIUS Shared Secret Key"
+      echo "  --admin-email EMAIL       Super Admin login email"
+      echo "  --admin-password PASS     Super Admin login password (min 8 chars)"
+      echo "  --operator-email EMAIL    Operator login email"
+      echo "  --operator-password PASS  Operator login password (min 8 chars)"
       exit 0
       ;;
     *)
@@ -110,6 +138,20 @@ prompt_read() {
     eval "$var_name=\"\$input_val\""
 }
 
+# Helper: read password silently from TTY
+prompt_password() {
+    local prompt_msg="$1"
+    local var_name="$2"
+    local input_val=""
+    if [ -c /dev/tty ]; then
+        read -s -p "$prompt_msg" input_val < /dev/tty || true
+    else
+        read -s -p "$prompt_msg" input_val || true
+    fi
+    echo ""
+    eval "$var_name=\"\$input_val\""
+}
+
 # Interactive Prompts if not running in auto mode
 if [ "$NON_INTERACTIVE" = false ]; then
     prompt_read "Enter NAS Network Subnet for RADIUS (e.g., 192.168.1.0/24) [$NAS_SUBNET]: " INPUT_NAS
@@ -125,18 +167,82 @@ if [ "$NON_INTERACTIVE" = false ]; then
     RADIUS_SECRET=${INPUT_SECRET:-$RADIUS_SECRET}
 
     echo ""
-    echo "-----------------------------------------------------------------"
+    echo -e "${BLUE}-----------------------------------------------------------------${NC}"
+    echo -e "${BLUE}  🔐 Setup MACSON Admin Login Credentials${NC}"
+    echo -e "${BLUE}-----------------------------------------------------------------${NC}"
+
+    # Super Admin credentials
+    prompt_read "Enter Super Admin Name [${SUPERADMIN_NAME}]: " INPUT_SA_NAME
+    SUPERADMIN_NAME=${INPUT_SA_NAME:-$SUPERADMIN_NAME}
+
+    prompt_read "Enter Super Admin Email [${SUPERADMIN_EMAIL}]: " INPUT_SA_EMAIL
+    SUPERADMIN_EMAIL=${INPUT_SA_EMAIL:-$SUPERADMIN_EMAIL}
+
+    while true; do
+        prompt_password "Enter Super Admin Password (min 8 chars): " INPUT_SA_PASS
+        if [ ${#INPUT_SA_PASS} -lt 8 ]; then
+            echo -e "${RED}  ✗ Password too short! Minimum 8 characters required.${NC}"
+            continue
+        fi
+        prompt_password "Confirm Super Admin Password: " INPUT_SA_PASS2
+        if [ "$INPUT_SA_PASS" != "$INPUT_SA_PASS2" ]; then
+            echo -e "${RED}  ✗ Passwords do not match! Please try again.${NC}"
+        else
+            SUPERADMIN_PASSWORD="$INPUT_SA_PASS"
+            echo -e "${GREEN}  ✓ Super Admin password set.${NC}"
+            break
+        fi
+    done
+
+    echo ""
+
+    # Operator credentials
+    prompt_read "Enter Operator Name [${OPERATOR_NAME}]: " INPUT_OP_NAME
+    OPERATOR_NAME=${INPUT_OP_NAME:-$OPERATOR_NAME}
+
+    prompt_read "Enter Operator Email [${OPERATOR_EMAIL}]: " INPUT_OP_EMAIL
+    OPERATOR_EMAIL=${INPUT_OP_EMAIL:-$OPERATOR_EMAIL}
+
+    while true; do
+        prompt_password "Enter Operator Password (min 8 chars): " INPUT_OP_PASS
+        if [ ${#INPUT_OP_PASS} -lt 8 ]; then
+            echo -e "${RED}  ✗ Password too short! Minimum 8 characters required.${NC}"
+            continue
+        fi
+        prompt_password "Confirm Operator Password: " INPUT_OP_PASS2
+        if [ "$INPUT_OP_PASS" != "$INPUT_OP_PASS2" ]; then
+            echo -e "${RED}  ✗ Passwords do not match! Please try again.${NC}"
+        else
+            OPERATOR_PASSWORD="$INPUT_OP_PASS"
+            echo -e "${GREEN}  ✓ Operator password set.${NC}"
+            break
+        fi
+    done
+
+    echo ""
+    echo -e "${BLUE}-----------------------------------------------------------------${NC}"
     echo " Summary Configuration:"
     echo " - NAS Network Subnet (RADIUS 1812/1813): ${NAS_SUBNET}"
     echo " - SSH Allowed Segment (Port 22 SSH)    : ${SSH_SUBNET}"
     echo " - Admin Web UI Segment (Port 80/443)   : ${ADMIN_SUBNET}"
     echo " - RADIUS Shared Secret                 : ${RADIUS_SECRET}"
-    echo "-----------------------------------------------------------------"
+    echo " - Super Admin Email                    : ${SUPERADMIN_EMAIL}"
+    echo " - Operator Email                       : ${OPERATOR_EMAIL}"
+    echo -e "${BLUE}-----------------------------------------------------------------${NC}"
     prompt_read "Proceed with installation? (y/N): " CONFIRM
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
         echo -e "${RED}[CANCELLED] Installation aborted by user.${NC}"
         exit 0
     fi
+fi
+
+# Auto mode: set fallback passwords if not provided via CLI flags
+if [ -z "$SUPERADMIN_PASSWORD" ]; then
+    SUPERADMIN_PASSWORD="Admin@$(date +%Y)!"
+    echo -e "${YELLOW}[INFO] No admin password provided. Using auto-generated: ${SUPERADMIN_PASSWORD}${NC}"
+fi
+if [ -z "$OPERATOR_PASSWORD" ]; then
+    OPERATOR_PASSWORD="Operator@$(date +%Y)!"
 fi
 
 # ------------------------------------------------------------------------------
@@ -263,15 +369,46 @@ docker exec radius_laravel_app php artisan view:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan route:clear 2>/dev/null || true
 docker exec radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
-# Set proper password hashes for admin users via artisan tinker
-echo -e "${GREEN}[INFO] Setting up admin user credentials...${NC}"
-sleep 5
-docker exec radius_laravel_app php artisan tinker --no-interaction <<'TINKER_EOF' 2>/dev/null || true
-$admin = App\Models\User::where('email', 'admin@radius.local')->first();
-if ($admin) { $admin->password = bcrypt('Admin@2026!'); $admin->save(); }
-$op = App\Models\User::where('email', 'operator@radius.local')->first();
-if ($op) { $op->password = bcrypt('Operator@2026!'); $op->save(); }
+# Set admin credentials via artisan tinker using user-provided values
+echo -e "${GREEN}[INFO] Creating admin user accounts in database...${NC}"
+sleep 8
+
+docker exec radius_laravel_app php artisan tinker --no-interaction << TINKER_EOF 2>/dev/null || true
+use App\\Models\\User;
+use Illuminate\\Support\\Facades\\Hash;
+
+\$admin = User::where('email', '${SUPERADMIN_EMAIL}')->first();
+if (\$admin) {
+    \$admin->name     = '${SUPERADMIN_NAME}';
+    \$admin->password = Hash::make('${SUPERADMIN_PASSWORD}');
+    \$admin->role     = 'Super Admin';
+    \$admin->save();
+} else {
+    User::create([
+        'name'     => '${SUPERADMIN_NAME}',
+        'email'    => '${SUPERADMIN_EMAIL}',
+        'password' => Hash::make('${SUPERADMIN_PASSWORD}'),
+        'role'     => 'Super Admin',
+    ]);
+}
+
+\$op = User::where('email', '${OPERATOR_EMAIL}')->first();
+if (\$op) {
+    \$op->name     = '${OPERATOR_NAME}';
+    \$op->password = Hash::make('${OPERATOR_PASSWORD}');
+    \$op->role     = 'Operator';
+    \$op->save();
+} else {
+    User::create([
+        'name'     => '${OPERATOR_NAME}',
+        'email'    => '${OPERATOR_EMAIL}',
+        'password' => Hash::make('${OPERATOR_PASSWORD}'),
+        'role'     => 'Operator',
+    ]);
+}
+echo "Users created successfully.\n";
 TINKER_EOF
+echo -e "${GREEN}[INFO] Admin credentials configured.${NC}"
 
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output
@@ -294,12 +431,11 @@ echo -e " - SSH Allowed Segment : ${YELLOW}Allowed from ${SSH_SUBNET}${NC}"
 echo -e " - Admin IP Restriction: ${YELLOW}Allowed from ${ADMIN_SUBNET}${NC}"
 echo -e " - Installation Path   : ${YELLOW}${PROJECT_DIR}${NC}"
 echo -e "${BLUE}=================================================================${NC}"
-echo -e "${GREEN} 🔐 DEFAULT LOGIN CREDENTIALS${NC}"
-echo -e " - Super Admin Email   : ${YELLOW}admin@radius.local${NC}"
-echo -e " - Super Admin Password: ${YELLOW}Admin@2026!${NC}"
-echo -e " - Operator Email      : ${YELLOW}operator@radius.local${NC}"
-echo -e " - Operator Password   : ${YELLOW}Operator@2026!${NC}"
-echo -e "${RED} ⚠️  CHANGE PASSWORDS IMMEDIATELY after first login!${NC}"
+echo -e "${GREEN} 🔐 YOUR LOGIN CREDENTIALS${NC}"
+echo -e " - Super Admin Email   : ${YELLOW}${SUPERADMIN_EMAIL}${NC}"
+echo -e " - Super Admin Password: ${YELLOW}${SUPERADMIN_PASSWORD}${NC}"
+echo -e " - Operator Email      : ${YELLOW}${OPERATOR_EMAIL}${NC}"
+echo -e " - Operator Password   : ${YELLOW}${OPERATOR_PASSWORD}${NC}"
 echo -e "${BLUE}=================================================================${NC}"
-echo -e "${YELLOW} 💡 TIP: Run 'bash ${SCRIPT_DIR}/reset_admin_password.sh' to set custom passwords${NC}"
+echo -e "${YELLOW} 💡 TIP: Run 'bash ${SCRIPT_DIR}/reset_admin_password.sh' to change passwords${NC}"
 echo ""
