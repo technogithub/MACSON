@@ -666,13 +666,13 @@ document.addEventListener('DOMContentLoaded', function () {
         let visibleCount = 0;
 
         rows.forEach(row => {
-            const name = (row.dataset.name || '').toLowerCase();
-            const mac  = (row.dataset.mac || '').toLowerCase();
+            const name = (row.dataset.name || '').toLowerCase().trim();
+            const mac  = (row.dataset.mac || '').toLowerCase().trim();
             const rawMacStripped = mac.replace(/[^a-f0-9]/gi, '');
             const qStripped      = q.replace(/[^a-f0-9]/gi, '');
-            const rowSsid        = (row.dataset.ssid || '').toLowerCase();
-            const desc           = (row.dataset.desc || '').toLowerCase();
-            const rowStatus      = (row.dataset.status || '').toLowerCase();
+            const rowSsid        = (row.dataset.ssid || '').toLowerCase().trim();
+            const desc           = (row.dataset.desc || '').toLowerCase().trim();
+            const rowStatus      = (row.dataset.status || '').toLowerCase().trim();
 
             // Match Query
             const matchQ = !q ||
