@@ -658,100 +658,84 @@ document.addEventListener('DOMContentLoaded', function () {
     const tbody         = document.getElementById('deviceTableBody');
     const noResults     = document.getElementById('noResultsRow');
     const resultCount   = document.getElementById('liveResultCount');
-    const rows          = Array.from(tbody.querySelectorAll('tr[data-id]'));
+    const rows          = tbody ? Array.from(tbody.querySelectorAll('tr[data-id]')) : [];
 
     function applyFilters() {
+        if (!searchInput || !tbody) return;
+
         const q      = searchInput.value.trim().toLowerCase();
-        const status = filterStatus.value;
-        const ssid   = filterSsid.value.toLowerCase();
+        const status = (filterStatus ? filterStatus.value : 'all').toLowerCase().trim();
+        const ssid   = (filterSsid ? filterSsid.value : 'all').toLowerCase().trim();
 
-        clearBtn.classList.toggle('visible', q.length > 0);
+        if (clearBtn) {
+            clearBtn.classList.toggle('visible', q.length > 0);
+        }
 
-        let visible = 0;
+        let visibleCount = 0;
 
         rows.forEach(row => {
-            const rawMacStripped = (row.dataset.mac || '').replace(/[^a-f0-9]/gi, '');
+            const name = (row.dataset.name || '').toLowerCase();
+            const mac  = (row.dataset.mac || '').toLowerCase();
+            const rawMacStripped = mac.replace(/[^a-f0-9]/gi, '');
             const qStripped      = q.replace(/[^a-f0-9]/gi, '');
+            const rowSsid        = (row.dataset.ssid || '').toLowerCase();
+            const desc           = (row.dataset.desc || '').toLowerCase();
+            const rowStatus      = (row.dataset.status || '').toLowerCase();
 
+            // Match Query
             const matchQ = !q ||
-                (row.dataset.name || '').includes(q) ||
-                (row.dataset.mac || '').includes(q) ||
+                name.includes(q) ||
+                mac.includes(q) ||
                 (qStripped.length >= 3 && rawMacStripped.includes(qStripped)) ||
-                (row.dataset.ssid || '').includes(q) ||
-                (row.dataset.desc || '').includes(q);
+                rowSsid.includes(q) ||
+                desc.includes(q);
 
-            const rowStatus   = (row.dataset.status || '').toLowerCase().trim();
-            const targetStatus = status.toLowerCase().trim();
-            const matchStatus = targetStatus === 'all' || rowStatus === targetStatus;
+            // Match Status Filter
+            const matchStatus = status === 'all' || rowStatus === status;
 
-            const rowSsid    = (row.dataset.ssid || '').toLowerCase().trim();
-            const targetSsid = ssid.toLowerCase().trim();
-            const matchSsid  = targetSsid === 'all' || rowSsid === targetSsid || rowSsid.includes(targetSsid);
+            // Match SSID Filter
+            const matchSsid = ssid === 'all' || rowSsid === ssid || rowSsid.includes(ssid);
 
             if (matchQ && matchStatus && matchSsid) {
                 row.style.display = '';
-                visible++;
-                if (q) highlightRow(row, q);
-                else   clearHighlight(row);
+                visibleCount++;
             } else {
                 row.style.display = 'none';
-                clearHighlight(row);
             }
         });
 
+        // Toggle No Results Row
         if (noResults) {
-            noResults.style.display = (rows.length > 0 && visible === 0) ? '' : 'none';
+            noResults.style.display = (rows.length > 0 && visibleCount === 0) ? '' : 'none';
         }
 
+        // Display Count
         if (resultCount) {
             if (q || status !== 'all' || ssid !== 'all') {
-                resultCount.textContent = `${visible} of ${rows.length} shown`;
+                resultCount.textContent = `${visibleCount} of ${rows.length} shown`;
             } else {
                 resultCount.textContent = '';
             }
         }
     }
 
-    function highlightRow(row, q) {
-        row.querySelectorAll('.searchable').forEach(el => {
-            const original = el.getAttribute('data-original') || el.textContent;
-            el.setAttribute('data-original', original);
-            const regex = new RegExp(`(${escapeRegex(q)})`, 'gi');
-            el.innerHTML = original.replace(regex, '<mark class="search-hl">$1</mark>');
+    // Instant & Debounced Listeners
+    searchInput.addEventListener('input', applyFilters);
+    searchInput.addEventListener('keyup', applyFilters);
+    if (filterStatus) filterStatus.addEventListener('change', applyFilters);
+    if (filterSsid)   filterSsid.addEventListener('change', applyFilters);
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            if (filterStatus) filterStatus.value = 'all';
+            if (filterSsid)   filterSsid.value   = 'all';
+            applyFilters();
+            searchInput.focus();
         });
     }
 
-    function clearHighlight(row) {
-        row.querySelectorAll('.searchable').forEach(el => {
-            const original = el.getAttribute('data-original');
-            if (original) {
-                el.textContent = original;
-                el.removeAttribute('data-original');
-            }
-        });
-    }
-
-    function escapeRegex(s) {
-        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    // Debounce for smooth search
-    let searchTimer;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(applyFilters, 120);
-    });
-    filterStatus.addEventListener('change', applyFilters);
-    filterSsid.addEventListener('change', applyFilters);
-    clearBtn.addEventListener('click', () => {
-        searchInput.value = '';
-        filterStatus.value = 'all';
-        filterSsid.value = 'all';
-        applyFilters();
-        searchInput.focus();
-    });
-
-    // Run initial filter check on page load
+    // Initial load
     applyFilters();
 
     // ===== EDIT MODAL POPULATION =====
