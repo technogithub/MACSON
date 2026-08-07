@@ -468,14 +468,6 @@ mark.search-hl {
             </tbody>
         </table>
     </div>
-
-    <!-- No search results row (hidden by default) -->
-    <div id="noResultsRow" style="display:none; padding: 40px 20px; text-align:center;">
-        <i class="fa-solid fa-magnifying-glass text-secondary" style="font-size:2rem; margin-bottom:12px; display:block;"></i>
-        <p class="text-secondary mb-1 fw-semibold">No results found</p>
-        <p class="text-muted small mb-0">Try different keywords or clear the search</p>
-    </div>
-
     <!-- Pagination -->
     @if($devices->hasPages())
     <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top" style="border-color:#334155 !important;">
