@@ -154,38 +154,23 @@ if [ "$SA_PASS" != "$SA_PASS2" ]; then
     exit 1
 fi
 
-# Create/update admin user
+# Create/update admin user using artisan command
 echo ""
 echo -e "${YELLOW}⏳ Creating/updating admin user in database...${NC}"
 
-docker exec "$APP_CONTAINER" php artisan tinker --no-interaction << TINKER_EOF 2>/dev/null
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
+docker exec "$APP_CONTAINER" php artisan app:seed-admin \
+    --email="${SA_EMAIL}" \
+    --password="${SA_PASS}" \
+    --name="Super Administrator" \
+    --role="Super Admin"
 
-\$u = User::where('email', '${SA_EMAIL}')->first();
-if (\$u) {
-    \$u->password = Hash::make('${SA_PASS}');
-    \$u->save();
-    echo "✓ Admin user updated: ${SA_EMAIL}\n";
-} else {
-    User::create([
-        'name'     => 'Super Administrator',
-        'email'    => '${SA_EMAIL}',
-        'password' => Hash::make('${SA_PASS}'),
-        'role'     => 'Super Admin',
-    ]);
-    echo "✓ Admin user created: ${SA_EMAIL}\n";
-}
-TINKER_EOF
-
-# Verify login works
 echo ""
-echo -e "${YELLOW}⏳ Verifying password hash in database...${NC}"
-HASH_CHECK=$(docker exec "$APP_CONTAINER" php artisan tinker --execute="
+echo -e "${YELLOW}⏳ Verifying admin account in database...${NC}"
+docker exec "$APP_CONTAINER" php artisan tinker --execute="
 \$u = App\Models\User::where('email','${SA_EMAIL}')->first();
-echo \$u ? 'FOUND hash:'.substr(\$u->password,0,7) : 'NOT FOUND';
-" 2>/dev/null || echo "error")
-echo -e "${GREEN}  ✓ ${HASH_CHECK}${NC}"
+echo \$u ? '✅ User exists: '.\$u->email.' (Role: '.\$u->role.')' : '❌ User not found!';
+" 2>/dev/null || true
+
 
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
 

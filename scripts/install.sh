@@ -369,46 +369,23 @@ docker exec radius_laravel_app php artisan view:clear 2>/dev/null || true
 docker exec radius_laravel_app php artisan route:clear 2>/dev/null || true
 docker exec radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
-# Set admin credentials via artisan tinker using user-provided values
+# Set admin credentials using reliable artisan app:seed-admin command
 echo -e "${GREEN}[INFO] Creating admin user accounts in database...${NC}"
-sleep 8
+sleep 5
 
-docker exec radius_laravel_app php artisan tinker --no-interaction << TINKER_EOF 2>/dev/null || true
-use App\\Models\\User;
-use Illuminate\\Support\\Facades\\Hash;
+docker exec radius_laravel_app php artisan app:seed-admin \
+    --email="${SUPERADMIN_EMAIL}" \
+    --password="${SUPERADMIN_PASSWORD}" \
+    --name="${SUPERADMIN_NAME}" \
+    --role="Super Admin" || echo -e "${RED}[WARNING] Failed to seed Super Admin user${NC}"
 
-\$admin = User::where('email', '${SUPERADMIN_EMAIL}')->first();
-if (\$admin) {
-    \$admin->name     = '${SUPERADMIN_NAME}';
-    \$admin->password = Hash::make('${SUPERADMIN_PASSWORD}');
-    \$admin->role     = 'Super Admin';
-    \$admin->save();
-} else {
-    User::create([
-        'name'     => '${SUPERADMIN_NAME}',
-        'email'    => '${SUPERADMIN_EMAIL}',
-        'password' => Hash::make('${SUPERADMIN_PASSWORD}'),
-        'role'     => 'Super Admin',
-    ]);
-}
+docker exec radius_laravel_app php artisan app:seed-admin \
+    --email="${OPERATOR_EMAIL}" \
+    --password="${OPERATOR_PASSWORD}" \
+    --name="${OPERATOR_NAME}" \
+    --role="Operator" || echo -e "${RED}[WARNING] Failed to seed Operator user${NC}"
 
-\$op = User::where('email', '${OPERATOR_EMAIL}')->first();
-if (\$op) {
-    \$op->name     = '${OPERATOR_NAME}';
-    \$op->password = Hash::make('${OPERATOR_PASSWORD}');
-    \$op->role     = 'Operator';
-    \$op->save();
-} else {
-    User::create([
-        'name'     => '${OPERATOR_NAME}',
-        'email'    => '${OPERATOR_EMAIL}',
-        'password' => Hash::make('${OPERATOR_PASSWORD}'),
-        'role'     => 'Operator',
-    ]);
-}
-echo "Users created successfully.\n";
-TINKER_EOF
-echo -e "${GREEN}[INFO] Admin credentials configured.${NC}"
+echo -e "${GREEN}[INFO] Admin credentials configured successfully.${NC}"
 
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output
