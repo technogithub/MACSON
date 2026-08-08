@@ -464,6 +464,17 @@ mark.search-hl {
                                 </form>
                             </div>
                         </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state py-5 text-center">
+                                <div class="empty-icon text-warning mb-2" style="font-size:2rem;"><i class="fa-solid fa-database"></i></div>
+                                <p class="fw-semibold text-secondary mb-1">No devices registered yet</p>
+                                <p class="text-muted small mb-0">Click "Register Device" to add your first MAC address</p>
+                            </div>
+                        </td>
+                    </tr>
                 @endforelse
                 <tr id="noResultsRow" style="display:none;">
                     <td colspan="7">
