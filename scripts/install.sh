@@ -358,8 +358,23 @@ cd "${PROJECT_DIR}/docker"
 docker compose down -v --remove-orphans 2>/dev/null || true
 docker compose up -d --build
 
-echo -e "${GREEN}[INFO] Waiting for MariaDB & Laravel to initialize...${NC}"
-sleep 10
+echo -e "${GREEN}[INFO] Waiting for MariaDB to be ready (max 120s)...${NC}"
+DB_READY=false
+for i in $(seq 1 24); do
+    if docker exec radius_mariadb mysqladmin ping -h 127.0.0.1 -u radius -pradius --silent 2>/dev/null; then
+        echo -e "${GREEN}[OK] MariaDB is ready! (after ~$((i*5))s)${NC}"
+        DB_READY=true
+        break
+    fi
+    echo -e "${YELLOW}   ... waiting for MariaDB ($((i*5))s elapsed)...${NC}"
+    sleep 5
+done
+
+if [ "$DB_READY" = false ]; then
+    echo -e "${RED}[ERROR] MariaDB did not become ready within 120 seconds. Check Docker logs:${NC}"
+    echo -e "  docker logs radius_mariadb"
+    exit 1
+fi
 
 # Finalize Laravel: generate APP_KEY & clear caches
 echo -e "${GREEN}[INFO] Finalizing Laravel application setup...${NC}"
@@ -371,7 +386,6 @@ docker exec radius_laravel_app chmod -R 777 storage bootstrap/cache 2>/dev/null 
 
 # Set admin credentials using reliable artisan app:seed-admin command
 echo -e "${GREEN}[INFO] Creating admin user accounts in database...${NC}"
-sleep 5
 
 docker exec radius_laravel_app php artisan app:seed-admin \
     --email="${SUPERADMIN_EMAIL}" \
@@ -386,6 +400,7 @@ docker exec radius_laravel_app php artisan app:seed-admin \
     --role="Operator" || echo -e "${RED}[WARNING] Failed to seed Operator user${NC}"
 
 echo -e "${GREEN}[INFO] Admin credentials configured successfully.${NC}"
+
 
 # ------------------------------------------------------------------------------
 # 6. Service Health Check & Final Output
