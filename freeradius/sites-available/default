@@ -22,7 +22,7 @@ server default {
     authorize {
         filter_username
 
-        # 1. Extract Calling-Station-Id (MAC Address)
+        # 1. Extract Calling-Station-Id (MAC Address) or User-Name
         if ("%{Calling-Station-Id}" != "") {
             update request {
                 Tmp-String-0 := "%{Calling-Station-Id}"
@@ -37,72 +37,72 @@ server default {
 
         # 2. Extract Target SSID from Called-Station-Id (Format: AP-MAC:SSID-Name or just SSID-Name)
         if ("%{Called-Station-Id}" =~ /^.*:(.*)$/) {
-            update control {
-                Target-SSID := "%{1}"
+            update request {
+                Tmp-String-1 := "%{1}"
             }
         } elsif ("%{Called-Station-Id}" != "") {
-            update control {
-                Target-SSID := "%{Called-Station-Id}"
+            update request {
+                Tmp-String-1 := "%{Called-Station-Id}"
             }
         } else {
-            update control {
-                Target-SSID := "ALL"
+            update request {
+                Tmp-String-1 := "ALL"
             }
         }
 
         # 3. Unlang MAC Normalization to AA:BB:CC:DD:EE:FF format
-        update control {
-            Tmp-Raw-MAC := "%{toupper:%{string:Tmp-String-0}}"
+        update request {
+            Tmp-String-2 := "%{toupper:%{string:Tmp-String-0}}"
         }
 
-        if ("%{control:Tmp-Raw-MAC}" =~ /^([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})$/) {
-            update control {
-                Clean-Calling-Station-Id := "%{1}:%{2}:%{3}:%{4}:%{5}:%{6}"
+        if ("%{request:Tmp-String-2}" =~ /^([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})[\:\-\.]?([0-9A-F]{2})$/) {
+            update request {
+                Tmp-String-3 := "%{1}:%{2}:%{3}:%{4}:%{5}:%{6}"
             }
         } else {
-            update control {
-                Auth-Reject-Reason := "Invalid MAC Address Format"
+            update request {
+                Tmp-String-6 := "Invalid MAC Address Format"
             }
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Tmp-Raw-MAC}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Invalid MAC Address Format')}
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-2}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Invalid MAC Address Format')}
             reject
         }
 
         # 4. Query Database `devices` and `ssids` tables for Normalized MAC & SSID matching
-        update control {
-            Device-Status := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{control:Clean-Calling-Station-Id}' AND d.status = 'active' AND (s.ssid_name = '%{control:Target-SSID}' OR ds.ssid_id IS NULL OR d.ssid = '%{control:Target-SSID}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{control:Target-SSID}' THEN 1 WHEN d.ssid = '%{control:Target-SSID}' THEN 2 ELSE 3 END LIMIT 1}"
-            Assigned-VLAN-ID := "%{sql: SELECT COALESCE(s.vlan_id, 0) FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{control:Clean-Calling-Station-Id}' AND d.status = 'active' AND (s.ssid_name = '%{control:Target-SSID}' OR ds.ssid_id IS NULL OR d.ssid = '%{control:Target-SSID}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{control:Target-SSID}' THEN 1 WHEN d.ssid = '%{control:Target-SSID}' THEN 2 ELSE 3 END LIMIT 1}"
+        update request {
+            Tmp-String-4 := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{sql:escape:%{request:Tmp-String-3}}' AND d.status = 'active' AND (s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' OR ds.ssid_id IS NULL OR d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' THEN 1 WHEN d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' THEN 2 ELSE 3 END LIMIT 1}"
+            Tmp-String-5 := "%{sql: SELECT COALESCE(d.vlan_id, s.vlan_id, 0) FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{sql:escape:%{request:Tmp-String-3}}' AND d.status = 'active' AND (s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' OR ds.ssid_id IS NULL OR d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' THEN 1 WHEN d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' THEN 2 ELSE 3 END LIMIT 1}"
         }
 
         # 5. Enforce Access Policy & Dynamic VLAN Assignment
-        if ("%{control:Device-Status}" == "active") {
+        if ("%{request:Tmp-String-4}" == "active") {
             # Device Found & Active for Target SSID -> ACCEPT
             update control {
                 Auth-Type := Accept
             }
 
             # Inject Dynamic IEEE 802.1Q VLAN reply attributes if VLAN ID > 0
-            if ("%{control:Assigned-VLAN-ID}" != "0" && "%{control:Assigned-VLAN-ID}" != "") {
+            if ("%{request:Tmp-String-5}" != "0" && "%{request:Tmp-String-5}" != "") {
                 update reply {
                     Tunnel-Type := VLAN
                     Tunnel-Medium-Type := IEEE-802
-                    Tunnel-Private-Group-Id := "%{control:Assigned-VLAN-ID}"
+                    Tunnel-Private-Group-Id := "%{request:Tmp-String-5}"
                 }
             }
 
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Clean-Calling-Station-Id}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}
-        } elsif ("%{control:Device-Status}" == "inactive") {
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}
+        } elsif ("%{request:Tmp-String-4}" == "inactive") {
             # Device Found but Inactive -> REJECT
-            update control {
-                Auth-Reject-Reason := "Device Status Inactive"
+            update request {
+                Tmp-String-6 := "Device Status Inactive"
             }
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Clean-Calling-Station-Id}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Device Inactive for SSID')}
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Device Inactive for SSID')}
             reject
         } else {
             # Device Not Authorized for this SSID -> REJECT
-            update control {
-                Auth-Reject-Reason := "MAC Not Authorized for SSID: %{control:Target-SSID}"
+            update request {
+                Tmp-String-6 := "MAC Not Authorized for SSID: %{request:Tmp-String-1}"
             }
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{control:Clean-Calling-Station-Id}', '%{control:Target-SSID}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'MAC Not Authorized for SSID')}
+            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'MAC Not Authorized for SSID')}
             reject
         }
     }
