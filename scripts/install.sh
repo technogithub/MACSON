@@ -333,10 +333,16 @@ cat <<EOF > "${PROJECT_DIR}/freeradius/clients.conf"
 # ==============================================================================
 
 client localhost {
-    ipaddr      = 127.0.0.1
+    ipaddr      = 127.0.0.0/8
     proto       = *
     secret      = testing123
     shortname   = localhost
+}
+
+client docker_bridge {
+    ipaddr      = 172.16.0.0/12
+    secret      = testing123
+    shortname   = docker_bridge
 }
 
 client nas_network {
