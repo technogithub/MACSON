@@ -52,6 +52,7 @@ START_TIME=$(date +%s%N)
 # Stream payload into container radclient using pure bash
 for i in $(seq 1 $TOTAL_REQUESTS); do
     cat "$PAYLOAD_FILE"
+    echo ""
 done | docker exec -i radius_freeradius radclient -p $CONCURRENCY -r 1 127.0.0.1:1812 auth $RADIUS_SECRET 2>&1 | tee /tmp/macson_stress_output.log || true
 
 END_TIME=$(date +%s%N)
