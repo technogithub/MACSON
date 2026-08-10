@@ -33,33 +33,25 @@ if ! docker ps | grep -q radius_freeradius; then
     exit 1
 fi
 
-echo -e "${YELLOW}[INFO] Generating batch RADIUS Access-Request payload...${NC}"
-
-# Prepare temporary packet payload inside container
-docker exec radius_freeradius bash -c "cat <<EOF > /tmp/macson_stress_payload.txt
-User-Name = \"testing\"
-User-Password = \"testing\"
+PAYLOAD_FILE="/tmp/macson_stress_payload.txt"
+cat <<EOF > "$PAYLOAD_FILE"
+User-Name = "testing"
+User-Password = "testing"
 NAS-IP-Address = 127.0.0.1
 NAS-Port = 1812
-Called-Station-Id = \"00-11-22-33-44-55:SSID-Staff\"
-Calling-Station-Id = \"AA-BB-CC-11-22-33\"
-EOF"
+Called-Station-Id = "00-11-22-33-44-55:SSID-Staff"
+Calling-Station-Id = "AA-BB-CC-11-22-33"
+EOF
 
 echo -e "${GREEN}[INFO] Executing parallel stress test against UDP 1812...${NC}"
 echo ""
 
 START_TIME=$(date +%s%N)
 
-# Run parallel radclient workers
-docker exec -i radius_freeradius bash -c "
-    python3 -c '
-import sys
-with open(\"/tmp/macson_stress_payload.txt\", \"r\") as f:
-    payload = f.read()
-for _ in range($TOTAL_REQUESTS):
-    sys.stdout.write(payload + \"\n\")
-' | radclient -p $CONCURRENCY -r 1 127.0.0.1:1812 auth $RADIUS_SECRET
-" 2>&1 | tee /tmp/macson_stress_output.log || true
+# Stream payload into container radclient using pure bash
+for i in $(seq 1 $TOTAL_REQUESTS); do
+    cat "$PAYLOAD_FILE"
+done | docker exec -i radius_freeradius radclient -p $CONCURRENCY -r 1 127.0.0.1:1812 auth $RADIUS_SECRET 2>&1 | tee /tmp/macson_stress_output.log || true
 
 END_TIME=$(date +%s%N)
 
