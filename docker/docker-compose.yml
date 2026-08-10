@@ -7,7 +7,7 @@ services:
     container_name: radius_mariadb
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: RootPassword2026!
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootPassword2026!}
       MYSQL_DATABASE: radius
       MYSQL_USER: radius_user
       MYSQL_PASSWORD: radius_password
@@ -166,7 +166,7 @@ services:
       PMA_PORT: 3306
       PMA_USER: radius_user
       PMA_PASSWORD: radius_password
-      MYSQL_ROOT_PASSWORD: RootPassword2026!
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootPassword2026!}
     ports:
       - "8080:80"
     depends_on:

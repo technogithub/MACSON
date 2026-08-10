@@ -41,6 +41,7 @@ NAS_SUBNET="192.168.1.0/24"
 SSH_SUBNET="192.168.1.0/24"
 ADMIN_SUBNET="192.168.1.0/24"
 RADIUS_SECRET="RadiusSecretKey2026!"
+MARIADB_ROOT_PASSWORD="RootPassword2026!"
 
 # Default Admin Credentials (overridden by interactive prompts or CLI flags)
 SUPERADMIN_NAME="Super Administrator"
@@ -73,6 +74,10 @@ while [[ $# -gt 0 ]]; do
       RADIUS_SECRET="$2"
       shift 2
       ;;
+    --db-root-password)
+      MARIADB_ROOT_PASSWORD="$2"
+      shift 2
+      ;;
     --admin-email)
       SUPERADMIN_EMAIL="$2"
       shift 2
@@ -97,6 +102,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --ssh-subnet CIDR         Allowed SSH Access Subnet (default: 192.168.1.0/24)"
       echo "  --admin-subnet CIDR       Allowed Admin Web UI Subnet (default: 192.168.1.0/24)"
       echo "  --secret STRING           RADIUS Shared Secret Key"
+      echo "  --db-root-password STRING MariaDB Root User Password"
       echo "  --admin-email EMAIL       Super Admin login email"
       echo "  --admin-password PASS     Super Admin login password (min 8 chars)"
       echo "  --operator-email EMAIL    Operator login email"
@@ -170,9 +176,18 @@ if [ "$NON_INTERACTIVE" = false ]; then
     prompt_read "4. Enter RADIUS Shared Secret Key [$RADIUS_SECRET]: " INPUT_SECRET
     RADIUS_SECRET=${INPUT_SECRET:-$RADIUS_SECRET}
 
+    prompt_password "5. Enter MariaDB Root User Password (min 8 chars) [default: $MARIADB_ROOT_PASSWORD]: " INPUT_DB_PASS
+    if [ -n "$INPUT_DB_PASS" ]; then
+        if [ ${#INPUT_DB_PASS} -ge 8 ]; then
+            MARIADB_ROOT_PASSWORD="$INPUT_DB_PASS"
+        else
+            echo -e "${YELLOW}  ⚠ Password too short. Keeping default MariaDB root password.${NC}"
+        fi
+    fi
+
     echo ""
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
-    echo -e "${BLUE}  🔐 5. Setup Web Admin Login Password (admin@macson.local)${NC}"
+    echo -e "${BLUE}  🔐 6. Setup Web Admin Login Password (admin@macson.local)${NC}"
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
 
     while true; do
@@ -198,6 +213,7 @@ if [ "$NON_INTERACTIVE" = false ]; then
     echo " - SSH Allowed Segment (Port 22 SSH)    : ${SSH_SUBNET}"
     echo " - Admin Web UI Segment (Port 80/443)   : ${ADMIN_SUBNET}"
     echo " - RADIUS Shared Secret                 : ${RADIUS_SECRET}"
+    echo " - MariaDB Root User Password           : ${MARIADB_ROOT_PASSWORD}"
     echo " - Web Admin Login                      : admin@macson.local"
     echo " - phpMyAdmin Web UI Access             : http://<SERVER-IP>:8080"
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
@@ -333,6 +349,9 @@ EOF
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}[5/6] Building & Launching MACSON Docker Microservices Stack...${NC}"
 cd "${PROJECT_DIR}/docker"
+
+# Create docker/.env with custom MariaDB root password
+echo "MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}" > "${PROJECT_DIR}/docker/.env"
 
 # Remove any stale app_code volume so fresh image contents populate it
 docker compose down -v --remove-orphans 2>/dev/null || true
