@@ -152,33 +152,69 @@ class DeviceController extends Controller
     /**
      * Import CSV File with Multi-SSID Validation & Duplicate Skip
      * Format: MAC Address, SSID, Device Name, Location, Description, Status, VLAN ID
+    /**
+     * Import CSV File with Multi-SSID Validation, BOM Stripping & Auto Delimiter Detection
      */
     public function importCsv(Request $request)
     {
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:2048',
+            'csv_file' => 'required|file|max:4096',
         ]);
 
-        $file   = $request->file('csv_file');
-        $handle = fopen($file->getPathname(), 'r');
-        $headerRow = fgetcsv($handle);
-        $headers   = array_map(function($h) { return strtolower(trim($h)); }, $headerRow ?: []);
+        $file    = $request->file('csv_file');
+        $content = file_get_contents($file->getPathname());
 
-        // Dynamic Header Index Detection
-        $macIdx   = array_search('mac address', $headers) !== false ? array_search('mac address', $headers) : (array_search('mac', $headers) !== false ? array_search('mac', $headers) : 0);
-        $ssidIdx  = array_search('target ssid', $headers) !== false ? array_search('target ssid', $headers) : (array_search('ssid', $headers) !== false ? array_search('ssid', $headers) : 1);
-        $nameIdx  = array_search('device name', $headers) !== false ? array_search('device name', $headers) : (array_search('name', $headers) !== false ? array_search('name', $headers) : (array_search('device', $headers) !== false ? array_search('device', $headers) : 2));
-        $locIdx   = array_search('location', $headers) !== false ? array_search('location', $headers) : 3;
-        $descIdx  = array_search('description', $headers) !== false ? array_search('description', $headers) : 4;
-        $statIdx  = array_search('status', $headers) !== false ? array_search('status', $headers) : 5;
-        $vlanIdx  = array_search('vlan id', $headers) !== false ? array_search('vlan id', $headers) : (array_search('vlan', $headers) !== false ? array_search('vlan', $headers) : 6);
+        // Strip UTF-8 BOM if present
+        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+
+        // Auto detect line endings (Windows CRLF, Unix LF, Mac CR)
+        $lines = preg_split('/\r\n|\r|\n/', trim($content));
+
+        if (empty($lines) || (count($lines) === 1 && empty(trim($lines[0])))) {
+            return redirect()->route('devices.index')->with('error', 'CSV file is empty!');
+        }
+
+        // Auto detect delimiter (; vs ,)
+        $firstLine = $lines[0];
+        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+
+        $firstRowData = str_getcsv($firstLine, $delimiter);
+        $firstCell    = trim($firstRowData[0] ?? '');
+
+        // Check if first row is a header or actual MAC data
+        $isHeader = !Device::formatMacAddress($firstCell) && !preg_match('/^[0-9a-fA-F:\-\.]{12,17}$/', $firstCell);
+        $startIndex = $isHeader ? 1 : 0;
+
+        $macIdx  = 0;
+        $ssidIdx = 1;
+        $nameIdx = 2;
+        $locIdx  = 3;
+        $descIdx = 4;
+        $statIdx = 5;
+        $vlanIdx = 6;
+
+        if ($isHeader) {
+            $headers = array_map(function($h) { return strtolower(trim($h)); }, $firstRowData);
+            foreach ($headers as $idx => $hName) {
+                if (str_contains($hName, 'mac')) $macIdx = $idx;
+                elseif (str_contains($hName, 'ssid')) $ssidIdx = $idx;
+                elseif (str_contains($hName, 'name') || str_contains($hName, 'device')) $nameIdx = $idx;
+                elseif (str_contains($hName, 'loc')) $locIdx = $idx;
+                elseif (str_contains($hName, 'desc')) $descIdx = $idx;
+                elseif (str_contains($hName, 'stat')) $statIdx = $idx;
+                elseif (str_contains($hName, 'vlan')) $vlanIdx = $idx;
+            }
+        }
 
         $importedCount = 0;
         $skippedCount  = 0;
         $invalidCount  = 0;
 
-        while (($row = fgetcsv($handle)) !== false) {
-            if (empty($row) || !isset($row[$macIdx])) continue;
+        for ($i = $startIndex; $i < count($lines); $i++) {
+            $line = trim($lines[$i]);
+            if (empty($line)) continue;
+
+            $row = str_getcsv($line, $delimiter);
 
             $rawMac      = trim($row[$macIdx] ?? '');
             $ssid        = trim($row[$ssidIdx] ?? 'ALL');
@@ -216,8 +252,6 @@ class DeviceController extends Controller
 
             $importedCount++;
         }
-
-        fclose($handle);
 
         $msg = "Import completed! Added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid formats: {$invalidCount}.";
         return redirect()->route('devices.index')->with('success', $msg);
