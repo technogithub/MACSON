@@ -8,7 +8,7 @@
 set -e
 
 TOTAL_REQUESTS="${1:-1000}"
-CONCURRENCY="${2:-50}"
+CONCURRENCY="${2:-10}"
 RADIUS_SECRET="testing123"
 
 # Colors
