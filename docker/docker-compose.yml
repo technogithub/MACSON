@@ -153,6 +153,28 @@ services:
     networks:
       - radius_net
 
+  # ----------------------------------------------------------------------------
+  # 7. Database Web Management: phpMyAdmin
+  # Access via http://<SERVER-IP>:8080
+  # ----------------------------------------------------------------------------
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: radius_phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: radius_user
+      PMA_PASSWORD: radius_password
+      MYSQL_ROOT_PASSWORD: RootPassword2026!
+    ports:
+      - "8080:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - radius_net
+
 networks:
   radius_net:
     driver: bridge
@@ -160,3 +182,4 @@ networks:
 volumes:
   mariadb_data:
   app_code:
+

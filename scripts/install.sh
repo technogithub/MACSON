@@ -154,80 +154,52 @@ prompt_password() {
 
 # Interactive Prompts if not running in auto mode
 if [ "$NON_INTERACTIVE" = false ]; then
-    prompt_read "Enter NAS Network Subnet for RADIUS (e.g., 192.168.1.0/24) [$NAS_SUBNET]: " INPUT_NAS
+    echo -e "${BLUE}-----------------------------------------------------------------${NC}"
+    echo -e "${BLUE}  ⚙️  MACSON Network & Security Configuration${NC}"
+    echo -e "${BLUE}-----------------------------------------------------------------${NC}"
+
+    prompt_read "1. Enter NAS Network Subnet for RADIUS (e.g., 192.168.1.0/24) [$NAS_SUBNET]: " INPUT_NAS
     NAS_SUBNET=${INPUT_NAS:-$NAS_SUBNET}
 
-    prompt_read "Enter SSH Allowed Subnet for Port 22 (e.g., 192.168.1.50/32) [$SSH_SUBNET]: " INPUT_SSH
+    prompt_read "2. Enter SSH Allowed Subnet for Port 22 (e.g., 192.168.1.0/24) [$SSH_SUBNET]: " INPUT_SSH
     SSH_SUBNET=${INPUT_SSH:-$SSH_SUBNET}
 
-    prompt_read "Enter Admin Web UI Allowed Subnet (e.g., 192.168.1.0/24) [$ADMIN_SUBNET]: " INPUT_ADMIN
+    prompt_read "3. Enter Admin Web UI Allowed Subnet (e.g., 192.168.1.0/24) [$ADMIN_SUBNET]: " INPUT_ADMIN
     ADMIN_SUBNET=${INPUT_ADMIN:-$ADMIN_SUBNET}
 
-    prompt_read "Enter RADIUS Shared Secret Key [$RADIUS_SECRET]: " INPUT_SECRET
+    prompt_read "4. Enter RADIUS Shared Secret Key [$RADIUS_SECRET]: " INPUT_SECRET
     RADIUS_SECRET=${INPUT_SECRET:-$RADIUS_SECRET}
 
     echo ""
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
-    echo -e "${BLUE}  🔐 Setup MACSON Admin Login Credentials${NC}"
+    echo -e "${BLUE}  🔐 5. Setup Web Admin Login Password (admin@macson.local)${NC}"
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
 
-    # Super Admin credentials
-    prompt_read "Enter Super Admin Name [${SUPERADMIN_NAME}]: " INPUT_SA_NAME
-    SUPERADMIN_NAME=${INPUT_SA_NAME:-$SUPERADMIN_NAME}
-
-    prompt_read "Enter Super Admin Email [${SUPERADMIN_EMAIL}]: " INPUT_SA_EMAIL
-    SUPERADMIN_EMAIL=${INPUT_SA_EMAIL:-$SUPERADMIN_EMAIL}
-
     while true; do
-        prompt_password "Enter Super Admin Password (min 8 chars): " INPUT_SA_PASS
+        prompt_password "Enter Web Admin Password (min 8 chars): " INPUT_SA_PASS
         if [ ${#INPUT_SA_PASS} -lt 8 ]; then
             echo -e "${RED}  ✗ Password too short! Minimum 8 characters required.${NC}"
             continue
         fi
-        prompt_password "Confirm Super Admin Password: " INPUT_SA_PASS2
+        prompt_password "Confirm Web Admin Password: " INPUT_SA_PASS2
         if [ "$INPUT_SA_PASS" != "$INPUT_SA_PASS2" ]; then
             echo -e "${RED}  ✗ Passwords do not match! Please try again.${NC}"
         else
             SUPERADMIN_PASSWORD="$INPUT_SA_PASS"
-            echo -e "${GREEN}  ✓ Super Admin password set.${NC}"
-            break
-        fi
-    done
-
-    echo ""
-
-    # Operator credentials
-    prompt_read "Enter Operator Name [${OPERATOR_NAME}]: " INPUT_OP_NAME
-    OPERATOR_NAME=${INPUT_OP_NAME:-$OPERATOR_NAME}
-
-    prompt_read "Enter Operator Email [${OPERATOR_EMAIL}]: " INPUT_OP_EMAIL
-    OPERATOR_EMAIL=${INPUT_OP_EMAIL:-$OPERATOR_EMAIL}
-
-    while true; do
-        prompt_password "Enter Operator Password (min 8 chars): " INPUT_OP_PASS
-        if [ ${#INPUT_OP_PASS} -lt 8 ]; then
-            echo -e "${RED}  ✗ Password too short! Minimum 8 characters required.${NC}"
-            continue
-        fi
-        prompt_password "Confirm Operator Password: " INPUT_OP_PASS2
-        if [ "$INPUT_OP_PASS" != "$INPUT_OP_PASS2" ]; then
-            echo -e "${RED}  ✗ Passwords do not match! Please try again.${NC}"
-        else
-            OPERATOR_PASSWORD="$INPUT_OP_PASS"
-            echo -e "${GREEN}  ✓ Operator password set.${NC}"
+            echo -e "${GREEN}  ✓ Web Admin password set.${NC}"
             break
         fi
     done
 
     echo ""
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
-    echo " Summary Configuration:"
+    echo " Installation Summary:"
     echo " - NAS Network Subnet (RADIUS 1812/1813): ${NAS_SUBNET}"
     echo " - SSH Allowed Segment (Port 22 SSH)    : ${SSH_SUBNET}"
     echo " - Admin Web UI Segment (Port 80/443)   : ${ADMIN_SUBNET}"
     echo " - RADIUS Shared Secret                 : ${RADIUS_SECRET}"
-    echo " - Super Admin Email                    : ${SUPERADMIN_EMAIL}"
-    echo " - Operator Email                       : ${OPERATOR_EMAIL}"
+    echo " - Web Admin Login                      : admin@macson.local"
+    echo " - phpMyAdmin Web UI Access             : http://<SERVER-IP>:8080"
     echo -e "${BLUE}-----------------------------------------------------------------${NC}"
     prompt_read "Proceed with installation? (y/N): " CONFIRM
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
@@ -305,9 +277,10 @@ ufw allow in on lo comment "Allow Loopback Traffic"
 # Allow SSH (Port 22) strictly from SSH Subnet
 ufw allow from "${SSH_SUBNET}" to any port 22 proto tcp comment "Admin SSH Access"
 
-# Allow Web UI (80/443) strictly from Admin Segment
+# Allow Web UI (80/443/8080) strictly from Admin Segment
 ufw allow from "${ADMIN_SUBNET}" to any port 80 proto tcp comment "Admin Web UI HTTP"
 ufw allow from "${ADMIN_SUBNET}" to any port 443 proto tcp comment "Admin Web UI HTTPS"
+ufw allow from "${ADMIN_SUBNET}" to any port 8080 proto tcp comment "phpMyAdmin Web UI"
 
 # Allow FreeRADIUS Auth (1812/udp) & Accounting (1813/udp) from Localhost & NAS Subnet
 ufw allow from 127.0.0.0/8 to any port 1812 proto udp comment "RADIUS Auth Localhost"
