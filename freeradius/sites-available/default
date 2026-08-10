@@ -62,15 +62,15 @@ server default {
         } else {
             update request {
                 Tmp-String-6 := "Invalid MAC Address Format"
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-2}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Invalid MAC Address Format')}"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-2}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Invalid MAC Address Format')}"
             }
             reject
         }
 
         # 4. Query Database `devices` and `ssids` tables for Normalized MAC & SSID matching
         update request {
-            Tmp-String-4 := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{sql:escape:%{request:Tmp-String-3}}' AND d.status = 'active' AND (s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' OR ds.ssid_id IS NULL OR d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' THEN 1 WHEN d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' THEN 2 ELSE 3 END LIMIT 1}"
-            Tmp-String-5 := "%{sql: SELECT COALESCE(d.vlan_id, s.vlan_id, 0) FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{sql:escape:%{request:Tmp-String-3}}' AND d.status = 'active' AND (s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' OR ds.ssid_id IS NULL OR d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{sql:escape:%{request:Tmp-String-1}}' THEN 1 WHEN d.ssid = '%{sql:escape:%{request:Tmp-String-1}}' THEN 2 ELSE 3 END LIMIT 1}"
+            Tmp-String-4 := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{request:Tmp-String-3}' AND d.status = 'active' AND (s.ssid_name = '%{request:Tmp-String-1}' OR ds.ssid_id IS NULL OR d.ssid = '%{request:Tmp-String-1}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{request:Tmp-String-1}' THEN 1 WHEN d.ssid = '%{request:Tmp-String-1}' THEN 2 ELSE 3 END LIMIT 1}"
+            Tmp-String-5 := "%{sql: SELECT COALESCE(d.vlan_id, s.vlan_id, 0) FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON (ds.ssid_id = s.id) WHERE d.mac_address = '%{request:Tmp-String-3}' AND d.status = 'active' AND (s.ssid_name = '%{request:Tmp-String-1}' OR ds.ssid_id IS NULL OR d.ssid = '%{request:Tmp-String-1}' OR d.ssid = 'ALL') ORDER BY CASE WHEN s.ssid_name = '%{request:Tmp-String-1}' THEN 1 WHEN d.ssid = '%{request:Tmp-String-1}' THEN 2 ELSE 3 END LIMIT 1}"
         }
 
         # 5. Enforce Access Policy & Dynamic VLAN Assignment
@@ -90,20 +90,20 @@ server default {
             }
 
             update request {
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}"
             }
         } elsif ("%{request:Tmp-String-4}" == "inactive") {
             # Device Found but Inactive -> REJECT
             update request {
                 Tmp-String-6 := "Device Status Inactive"
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Device Inactive for SSID')}"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Device Inactive for SSID')}"
             }
             reject
         } else {
             # Device Not Authorized for this SSID -> REJECT
             update request {
                 Tmp-String-6 := "MAC Not Authorized for SSID: %{request:Tmp-String-1}"
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'MAC Not Authorized for SSID')}"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'MAC Not Authorized for SSID')}"
             }
             reject
         }
