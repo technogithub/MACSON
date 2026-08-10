@@ -9,7 +9,7 @@ set -e
 
 TOTAL_REQUESTS="${1:-1000}"
 CONCURRENCY="${2:-50}"
-RADIUS_SECRET="RadiusSecretKey2026!"
+RADIUS_SECRET="testing123"
 
 # Colors
 GREEN='\033[0;32m'
