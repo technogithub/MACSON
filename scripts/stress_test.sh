@@ -41,6 +41,7 @@ NAS-IP-Address = 127.0.0.1
 NAS-Port = 1812
 Called-Station-Id = "00-11-22-33-44-55:SSID-Staff"
 Calling-Station-Id = "AA-BB-CC-11-22-33"
+
 EOF
 
 echo -e "${GREEN}[INFO] Executing parallel stress test against UDP 1812...${NC}"
