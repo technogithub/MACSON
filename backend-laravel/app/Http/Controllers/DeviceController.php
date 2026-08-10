@@ -188,8 +188,14 @@ class DeviceController extends Controller
         $firstRowData = str_getcsv($firstLine, $delimiter);
         $firstCell    = trim($firstRowData[0] ?? '');
 
+        // Helper to check if string contains 12 hex characters (valid MAC)
+        $isMacString = function($val) {
+            $hexOnly = preg_replace('/[^a-fA-F0-9]/', '', (string)$val);
+            return strlen($hexOnly) === 12;
+        };
+
         // Check if first row is a header or actual MAC data
-        $isHeader = !Device::formatMacAddress($firstCell) && !preg_match('/^[0-9a-fA-F:\-\.]{12,17}$/', $firstCell);
+        $isHeader   = !$isMacString($firstCell);
         $startIndex = $isHeader ? 1 : 0;
 
         $macIdx  = 0;
