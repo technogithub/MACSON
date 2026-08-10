@@ -153,7 +153,7 @@ class DeviceController extends Controller
      * Import CSV File with Multi-SSID Validation & Duplicate Skip
      * Format: MAC Address, SSID, Device Name, Location, Description, Status, VLAN ID
     /**
-     * Import CSV File with Multi-SSID Validation, BOM Stripping & Auto Delimiter Detection
+     * Import CSV File with Multi-SSID Validation, UTF-16 Encoding Conversion & Auto Delimiter Detection
      */
     public function importCsv(Request $request)
     {
@@ -162,16 +162,23 @@ class DeviceController extends Controller
         ]);
 
         $file    = $request->file('csv_file');
-        $content = file_get_contents($file->getPathname());
+        $content = file_get_contents($file->getRealPath() ?: $file->getPathname());
 
-        // Strip UTF-8 BOM if present
+        // Detect & Convert Encoding (UTF-16LE, UTF-16BE, Windows-1252 to UTF-8)
+        $encoding = mb_detect_encoding($content, ['UTF-8', 'UTF-16LE', 'UTF-16BE', 'UTF-16', 'ISO-8859-1', 'Windows-1252'], true);
+        if ($encoding && $encoding !== 'UTF-8') {
+            $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+        }
+
+        // Clean null bytes and UTF-8 BOM
+        $content = str_replace("\x00", '', $content);
         $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
 
         // Auto detect line endings (Windows CRLF, Unix LF, Mac CR)
         $lines = preg_split('/\r\n|\r|\n/', trim($content));
 
         if (empty($lines) || (count($lines) === 1 && empty(trim($lines[0])))) {
-            return redirect()->route('devices.index')->with('error', 'CSV file is empty!');
+            return redirect()->route('devices.index')->with('error', 'CSV file is empty or could not be read!');
         }
 
         // Auto detect delimiter (; vs ,)
