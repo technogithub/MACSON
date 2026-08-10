@@ -72,9 +72,9 @@ else
     TPS="$TOTAL_REQUESTS"
 fi
 
-ACCEPTS=$(grep -c "Received Access-Accept" /tmp/macson_stress_output.log 2>/dev/null || echo "0")
-REJECTS=$(grep -c "Received Access-Reject" /tmp/macson_stress_output.log 2>/dev/null || echo "0")
-DROPS=$(grep -c "No response" /tmp/macson_stress_output.log 2>/dev/null || echo "0")
+ACCEPTS=$(grep -iE "Access-Accept|code 2" /tmp/macson_stress_output.log 2>/dev/null | wc -l | tr -d ' ')
+REJECTS=$(grep -iE "Access-Reject|code 3" /tmp/macson_stress_output.log 2>/dev/null | wc -l | tr -d ' ')
+DROPS=$(grep -iE "No response|timeout" /tmp/macson_stress_output.log 2>/dev/null | wc -l | tr -d ' ')
 
 echo ""
 echo -e "${BLUE}=================================================================${NC}"
