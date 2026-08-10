@@ -164,9 +164,6 @@ services:
     environment:
       PMA_HOST: mariadb
       PMA_PORT: 3306
-      PMA_USER: radius_user
-      PMA_PASSWORD: radius_password
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootPassword2026!}
     ports:
       - "8080:80"
     depends_on:
