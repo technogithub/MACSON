@@ -116,9 +116,7 @@ server default {
     }
 
     post-auth {
-        Post-Auth-Type REJECT {
-            attr_filter.post-auth
-        }
+        # Post-auth processing
     }
 
     accounting {
