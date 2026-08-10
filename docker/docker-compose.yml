@@ -137,6 +137,8 @@ services:
       dockerfile: docker/freeradius.Dockerfile
     container_name: radius_freeradius
     restart: always
+    command: >
+      sh -c "ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enabled/sql && freeradius -X"
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"
