@@ -57,8 +57,8 @@ echo ""
 
 START_TIME=$(date +%s%N)
 
-# Feed pre-generated batch file directly to radclient
-docker exec -i radius_freeradius radclient -p $CONCURRENCY -r 1 127.0.0.1:1812 auth $RADIUS_SECRET < "$BATCH_FILE" 2>&1 | tee /tmp/macson_stress_output.log || true
+# Feed pre-generated batch file directly to radclient with 1s timeout
+docker exec -i radius_freeradius radclient -c 1 -t 1 -r 1 -p $CONCURRENCY 127.0.0.1:1812 auth $RADIUS_SECRET < "$BATCH_FILE" 2>&1 | tee /tmp/macson_stress_output.log || true
 
 END_TIME=$(date +%s%N)
 
