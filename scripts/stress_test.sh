@@ -34,6 +34,8 @@ if ! docker ps | grep -q radius_freeradius; then
 fi
 
 PAYLOAD_FILE="/tmp/macson_stress_payload.txt"
+BATCH_FILE="/tmp/macson_stress_batch.txt"
+
 cat <<EOF > "$PAYLOAD_FILE"
 User-Name = "testing"
 User-Password = "testing"
@@ -44,16 +46,19 @@ Calling-Station-Id = "AA-BB-CC-11-22-33"
 
 EOF
 
+echo -e "${YELLOW}[INFO] Pre-generating ${TOTAL_REQUESTS} RADIUS request packets...${NC}"
+rm -f "$BATCH_FILE"
+for i in $(seq 1 $TOTAL_REQUESTS); do
+    cat "$PAYLOAD_FILE"
+done > "$BATCH_FILE"
+
 echo -e "${GREEN}[INFO] Executing parallel stress test against UDP 1812...${NC}"
 echo ""
 
 START_TIME=$(date +%s%N)
 
-# Stream payload into container radclient using pure bash
-for i in $(seq 1 $TOTAL_REQUESTS); do
-    cat "$PAYLOAD_FILE"
-    echo ""
-done | docker exec -i radius_freeradius radclient -p $CONCURRENCY -r 1 127.0.0.1:1812 auth $RADIUS_SECRET 2>&1 | tee /tmp/macson_stress_output.log || true
+# Feed pre-generated batch file directly to radclient
+docker exec -i radius_freeradius radclient -p $CONCURRENCY -r 1 127.0.0.1:1812 auth $RADIUS_SECRET < "$BATCH_FILE" 2>&1 | tee /tmp/macson_stress_output.log || true
 
 END_TIME=$(date +%s%N)
 
