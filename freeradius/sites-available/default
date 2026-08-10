@@ -62,8 +62,8 @@ server default {
         } else {
             update request {
                 Tmp-String-6 := "Invalid MAC Address Format"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-2}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Invalid MAC Address Format')}"
             }
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-2}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Invalid MAC Address Format')}
             reject
         }
 
@@ -89,20 +89,22 @@ server default {
                 }
             }
 
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}
+            update request {
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}"
+            }
         } elsif ("%{request:Tmp-String-4}" == "inactive") {
             # Device Found but Inactive -> REJECT
             update request {
                 Tmp-String-6 := "Device Status Inactive"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Device Inactive for SSID')}"
             }
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'Device Inactive for SSID')}
             reject
         } else {
             # Device Not Authorized for this SSID -> REJECT
             update request {
                 Tmp-String-6 := "MAC Not Authorized for SSID: %{request:Tmp-String-1}"
+                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'MAC Not Authorized for SSID')}"
             }
-            %{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{sql:escape:%{request:Tmp-String-3}}', '%{sql:escape:%{request:Tmp-String-1}}', '%{sql:escape:%{User-Name}}', '%{sql:escape:%{NAS-IP-Address}}', '%{sql:escape:%{NAS-Port}}', 'REJECT', 'MAC Not Authorized for SSID')}
             reject
         }
     }
