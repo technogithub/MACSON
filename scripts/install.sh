@@ -346,14 +346,8 @@ client localhost {
     shortname   = localhost
 }
 
-client docker_bridge {
-    ipaddr      = 172.16.0.0/12
-    secret      = testing123
-    shortname   = docker_bridge
-}
-
 client nas_network {
-    ipaddr      = ${NAS_SUBNET}
+    ipaddr      = 0.0.0.0/0
     secret      = ${RADIUS_SECRET}
     shortname   = nas_segment
     nas_type    = other
