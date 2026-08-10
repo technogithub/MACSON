@@ -299,6 +299,9 @@ ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
 
+# Allow Loopback Interface Traffic (Localhost / radtest)
+ufw allow in on lo comment "Allow Loopback Traffic"
+
 # Allow SSH (Port 22) strictly from SSH Subnet
 ufw allow from "${SSH_SUBNET}" to any port 22 proto tcp comment "Admin SSH Access"
 
@@ -306,9 +309,13 @@ ufw allow from "${SSH_SUBNET}" to any port 22 proto tcp comment "Admin SSH Acces
 ufw allow from "${ADMIN_SUBNET}" to any port 80 proto tcp comment "Admin Web UI HTTP"
 ufw allow from "${ADMIN_SUBNET}" to any port 443 proto tcp comment "Admin Web UI HTTPS"
 
-# Allow FreeRADIUS Auth (1812/udp) & Accounting (1813/udp) strictly from NAS Subnet
+# Allow FreeRADIUS Auth (1812/udp) & Accounting (1813/udp) from Localhost & NAS Subnet
+ufw allow from 127.0.0.0/8 to any port 1812 proto udp comment "RADIUS Auth Localhost"
+ufw allow from 127.0.0.0/8 to any port 1813 proto udp comment "RADIUS Acct Localhost"
 ufw allow from "${NAS_SUBNET}" to any port 1812 proto udp comment "RADIUS Auth from NAS"
 ufw allow from "${NAS_SUBNET}" to any port 1813 proto udp comment "RADIUS Acct from NAS"
+ufw allow 1812/udp comment "RADIUS Auth UDP 1812"
+ufw allow 1813/udp comment "RADIUS Acct UDP 1813"
 
 ufw --force enable
 echo -e "${GREEN}[OK] UFW Firewall Active & Enforced!${NC}"
