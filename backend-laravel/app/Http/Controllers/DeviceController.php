@@ -161,22 +161,35 @@ class DeviceController extends Controller
 
         $file   = $request->file('csv_file');
         $handle = fopen($file->getPathname(), 'r');
-        fgetcsv($handle); // Skip header row
+        $headerRow = fgetcsv($handle);
+        $headers   = array_map(function($h) { return strtolower(trim($h)); }, $headerRow ?: []);
+
+        // Dynamic Header Index Detection
+        $macIdx   = array_search('mac address', $headers) !== false ? array_search('mac address', $headers) : (array_search('mac', $headers) !== false ? array_search('mac', $headers) : 0);
+        $ssidIdx  = array_search('target ssid', $headers) !== false ? array_search('target ssid', $headers) : (array_search('ssid', $headers) !== false ? array_search('ssid', $headers) : 1);
+        $nameIdx  = array_search('device name', $headers) !== false ? array_search('device name', $headers) : (array_search('name', $headers) !== false ? array_search('name', $headers) : (array_search('device', $headers) !== false ? array_search('device', $headers) : 2));
+        $locIdx   = array_search('location', $headers) !== false ? array_search('location', $headers) : 3;
+        $descIdx  = array_search('description', $headers) !== false ? array_search('description', $headers) : 4;
+        $statIdx  = array_search('status', $headers) !== false ? array_search('status', $headers) : 5;
+        $vlanIdx  = array_search('vlan id', $headers) !== false ? array_search('vlan id', $headers) : (array_search('vlan', $headers) !== false ? array_search('vlan', $headers) : 6);
 
         $importedCount = 0;
         $skippedCount  = 0;
         $invalidCount  = 0;
 
         while (($row = fgetcsv($handle)) !== false) {
-            if (count($row) < 2) continue;
+            if (empty($row) || !isset($row[$macIdx])) continue;
 
-            $rawMac      = trim($row[0]);
-            $ssid        = trim($row[1] ?? 'ALL');
-            $deviceName  = trim($row[2] ?? 'Imported Device');
-            $location    = trim($row[3] ?? '');
-            $description = trim($row[4] ?? 'CSV Import');
-            $status      = strtolower(trim($row[5] ?? 'active')) === 'inactive' ? 'inactive' : 'active';
-            $vlanId      = isset($row[6]) && is_numeric(trim($row[6])) ? (int)trim($row[6]) : null;
+            $rawMac      = trim($row[$macIdx] ?? '');
+            $ssid        = trim($row[$ssidIdx] ?? 'ALL');
+            $deviceName  = trim($row[$nameIdx] ?? 'Imported Device');
+            $location    = isset($row[$locIdx]) ? trim($row[$locIdx]) : '';
+            $description = isset($row[$descIdx]) ? trim($row[$descIdx]) : 'CSV Import';
+            $statusVal   = isset($row[$statIdx]) ? strtolower(trim($row[$statIdx])) : 'active';
+            $status      = ($statusVal === 'inactive' || $statusVal === 'blocked') ? 'inactive' : 'active';
+            $vlanId      = isset($row[$vlanIdx]) && is_numeric(trim($row[$vlanIdx])) ? (int)trim($row[$vlanIdx]) : null;
+
+            if (empty($rawMac)) continue;
 
             $formattedMac = Device::formatMacAddress($rawMac);
 
@@ -194,7 +207,7 @@ class DeviceController extends Controller
                 'mac_address' => $formattedMac,
                 'raw_mac'     => $rawMac,
                 'ssid'        => empty($ssid) ? 'ALL' : $ssid,
-                'device_name' => $deviceName,
+                'device_name' => empty($deviceName) ? 'Imported Device' : $deviceName,
                 'location'    => $location,
                 'description' => $description,
                 'vlan_id'     => ($vlanId >= 1 && $vlanId <= 4094) ? $vlanId : null,
