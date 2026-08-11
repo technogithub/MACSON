@@ -276,7 +276,15 @@ class DeviceController extends Controller
                     continue;
                 }
 
-                Device::create([
+                // Auto-create SSID in master ssids table if it doesn't exist yet
+                if (!empty($ssid) && strtoupper($ssid) !== 'ALL') {
+                    Ssid::firstOrCreate(
+                        ['ssid_name' => $ssid],
+                        ['status' => 'active', 'description' => 'Auto-created via CSV Import']
+                    );
+                }
+
+                $device = Device::create([
                     'mac_address' => $formattedMac,
                     'raw_mac'     => $rawMac,
                     'ssid'        => empty($ssid) ? 'ALL' : $ssid,
