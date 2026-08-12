@@ -153,7 +153,7 @@ class DeviceController extends Controller
      * Import CSV File with Multi-SSID Validation & Duplicate Skip
      * Format: MAC Address, SSID, Device Name, Location, Description, Status, VLAN ID
     /**
-     * Import CSV File with Multi-SSID Validation, Line Normalization & Comprehensive Error Handling
+     * Import CSV File with Multi-SSID Validation, Line Normalization, Header Detection & Comprehensive Error Handling
      */
     public function importCsv(Request $request)
     {
@@ -167,41 +167,28 @@ class DeviceController extends Controller
                 return redirect()->route('devices.index')->with('error', 'No file uploaded.');
             }
 
-            $path    = $file->getRealPath() ?: $file->getPathname();
-            $content = @file_get_contents($path);
+            $path = $file->getRealPath() ?: $file->getPathname();
+            $rawContent = @file_get_contents($path);
 
-            if ($content === false || strlen(trim($content)) === 0) {
+            if ($rawContent === false || strlen(trim($rawContent)) === 0) {
                 return redirect()->route('devices.index')->with('error', 'Could not read CSV file or file is empty.');
             }
 
             // Strip UTF-8 BOM if present
-            $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+            $rawContent = preg_replace('/^\xEF\xBB\xBF/', '', $rawContent);
 
             // Detect & Convert Encoding (UTF-16LE, UTF-16BE, Windows-1252, ANSI to UTF-8)
-            $encoding = mb_detect_encoding($content, ['UTF-8', 'UTF-16LE', 'UTF-16BE', 'UTF-16', 'ISO-8859-1', 'Windows-1252'], true);
+            $encoding = mb_detect_encoding($rawContent, ['UTF-8', 'UTF-16LE', 'UTF-16BE', 'UTF-16', 'ISO-8859-1', 'Windows-1252'], true);
             if ($encoding && $encoding !== 'UTF-8') {
-                $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+                $rawContent = mb_convert_encoding($rawContent, 'UTF-8', $encoding);
             }
 
-            // Clean null bytes
-            $content = str_replace("\x00", '', $content);
+            // Clean null bytes & standardize line endings
+            $rawContent = str_replace("\x00", '', $rawContent);
+            $rawContent = str_replace(["\r\n", "\r"], "\n", $rawContent);
 
-            // Standardize line endings (\r\n, \r -> \n)
-            $content = str_replace(["\r\n", "\r"], "\n", $content);
-            $rawLines = explode("\n", $content);
-            $lines = [];
-            foreach ($rawLines as $l) {
-                if (strlen(trim($l)) > 0) {
-                    $lines[] = trim($l);
-                }
-            }
-
-            if (empty($lines)) {
-                return redirect()->route('devices.index')->with('error', 'CSV file contains no valid data lines.');
-            }
-
-            // Auto detect delimiter (; vs , vs \t)
-            $firstLine = $lines[0];
+            // Auto-detect delimiter from the first line
+            $firstLine = strtok($rawContent, "\n") ?: '';
             $delimiter = ',';
             if (substr_count($firstLine, ';') >= substr_count($firstLine, ',')) {
                 $delimiter = ';';
@@ -209,18 +196,36 @@ class DeviceController extends Controller
                 $delimiter = "\t";
             }
 
-            $firstRowData = str_getcsv($firstLine, $delimiter);
-            $firstCell    = trim($firstRowData[0] ?? '');
+            // Stream parse content using temp memory buffer and fgetcsv
+            $stream = fopen('php://temp', 'r+');
+            fwrite($stream, $rawContent);
+            rewind($stream);
 
-            // Helper to check if string contains 12 hex characters (valid MAC)
-            $isMacString = function($val) {
+            $rows = [];
+            while (($row = fgetcsv($stream, 0, $delimiter)) !== false) {
+                // Filter out empty rows
+                if (empty($row) || (count($row) === 1 && trim($row[0]) === '')) {
+                    continue;
+                }
+                $rows[] = array_map('trim', $row);
+            }
+            fclose($stream);
+
+            if (empty($rows)) {
+                return redirect()->route('devices.index')->with('error', 'CSV file contains no valid data rows.');
+            }
+
+            // Helper to check if a string looks like a MAC address (12 hex characters)
+            $isMacString = function ($val) {
                 $hexOnly = preg_replace('/[^a-fA-F0-9]/', '', (string)$val);
                 return strlen($hexOnly) === 12;
             };
 
-            // Check if first row is a header or actual MAC data
-            $isHeader   = !$isMacString($firstCell);
-            $startIndex = $isHeader ? 1 : 0;
+            $firstRowData = $rows[0];
+            $firstCell    = $firstRowData[0] ?? '';
+
+            // Check if first row is header or actual data
+            $isHeader = !$isMacString($firstCell);
 
             $macIdx  = 0;
             $ssidIdx = 1;
@@ -231,28 +236,32 @@ class DeviceController extends Controller
             $vlanIdx = 6;
 
             if ($isHeader) {
-                $headers = array_map(function($h) { return strtolower(trim($h)); }, $firstRowData);
+                $headers = array_map('strtolower', $firstRowData);
                 foreach ($headers as $idx => $hName) {
-                    if (str_contains($hName, 'mac')) $macIdx = $idx;
-                    elseif (str_contains($hName, 'ssid')) $ssidIdx = $idx;
-                    elseif (str_contains($hName, 'name') || str_contains($hName, 'device')) $nameIdx = $idx;
-                    elseif (str_contains($hName, 'loc')) $locIdx = $idx;
-                    elseif (str_contains($hName, 'desc')) $descIdx = $idx;
-                    elseif (str_contains($hName, 'stat')) $statIdx = $idx;
-                    elseif (str_contains($hName, 'vlan')) $vlanIdx = $idx;
+                    if (str_contains($hName, 'mac')) {
+                        $macIdx = $idx;
+                    } elseif (str_contains($hName, 'ssid')) {
+                        $ssidIdx = $idx;
+                    } elseif (str_contains($hName, 'name') || str_contains($hName, 'device')) {
+                        $nameIdx = $idx;
+                    } elseif (str_contains($hName, 'loc')) {
+                        $locIdx = $idx;
+                    } elseif (str_contains($hName, 'desc')) {
+                        $descIdx = $idx;
+                    } elseif (str_contains($hName, 'stat')) {
+                        $statIdx = $idx;
+                    } elseif (str_contains($hName, 'vlan')) {
+                        $vlanIdx = $idx;
+                    }
                 }
+                array_shift($rows); // Remove header row from dataset
             }
 
             $importedCount = 0;
             $skippedCount  = 0;
             $invalidCount  = 0;
 
-            for ($i = $startIndex; $i < count($lines); $i++) {
-                $line = trim($lines[$i]);
-                if (empty($line)) continue;
-
-                $row = str_getcsv($line, $delimiter);
-
+            foreach ($rows as $row) {
                 $rawMac      = trim($row[$macIdx] ?? '');
                 $ssid        = trim($row[$ssidIdx] ?? 'ALL');
                 $deviceName  = trim($row[$nameIdx] ?? 'Imported Device');
@@ -260,9 +269,12 @@ class DeviceController extends Controller
                 $description = isset($row[$descIdx]) ? trim($row[$descIdx]) : 'CSV Import';
                 $statusVal   = isset($row[$statIdx]) ? strtolower(trim($row[$statIdx])) : 'active';
                 $status      = ($statusVal === 'inactive' || $statusVal === 'blocked') ? 'inactive' : 'active';
-                $vlanId      = isset($row[$vlanIdx]) && is_numeric(trim($row[$vlanIdx])) ? (int)trim($row[$vlanIdx]) : null;
+                $vlanRaw     = isset($row[$vlanIdx]) ? trim($row[$vlanIdx]) : '';
+                $vlanId      = (is_numeric($vlanRaw) && (int)$vlanRaw >= 1 && (int)$vlanRaw <= 4094) ? (int)$vlanRaw : null;
 
-                if (empty($rawMac)) continue;
+                if (empty($rawMac)) {
+                    continue;
+                }
 
                 $formattedMac = Device::formatMacAddress($rawMac);
 
@@ -284,21 +296,21 @@ class DeviceController extends Controller
                     );
                 }
 
-                $device = Device::create([
+                Device::create([
                     'mac_address' => $formattedMac,
                     'raw_mac'     => $rawMac,
                     'ssid'        => empty($ssid) ? 'ALL' : $ssid,
                     'device_name' => empty($deviceName) ? 'Imported Device' : $deviceName,
                     'location'    => $location,
                     'description' => $description,
-                    'vlan_id'     => ($vlanId >= 1 && $vlanId <= 4094) ? $vlanId : null,
+                    'vlan_id'     => $vlanId,
                     'status'      => $status,
                 ]);
 
                 $importedCount++;
             }
 
-            $msg = "Import completed! Added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid formats: {$invalidCount}.";
+            $msg = "Import completed! Added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid MAC formats: {$invalidCount}.";
             return redirect()->route('devices.index')->with('success', $msg);
 
         } catch (\Exception $e) {
