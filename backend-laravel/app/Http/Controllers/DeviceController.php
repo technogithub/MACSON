@@ -236,7 +236,10 @@ class DeviceController extends Controller
             $vlanIdx = 6;
 
             if ($isHeader) {
-                $headers = array_map('strtolower', $firstRowData);
+                $headers = array_map(function($h) {
+                    return strtolower(trim(preg_replace('/[\x00-\x1F\x7F\xEF\xBB\xBF]/u', '', $h)));
+                }, $firstRowData);
+
                 foreach ($headers as $idx => $hName) {
                     if (str_contains($hName, 'mac')) {
                         $macIdx = $idx;
@@ -262,7 +265,28 @@ class DeviceController extends Controller
             $invalidCount  = 0;
 
             foreach ($rows as $row) {
-                $rawMac      = trim($row[$macIdx] ?? '');
+                // Determine raw MAC by first checking designated macIdx, or fallback to searching first cell matching 12 hex chars
+                $rawMac = trim($row[$macIdx] ?? '');
+                if (empty($rawMac) || !Device::formatMacAddress($rawMac)) {
+                    foreach ($row as $cell) {
+                        $cellTrim = trim($cell);
+                        if (Device::formatMacAddress($cellTrim)) {
+                            $rawMac = $cellTrim;
+                            break;
+                        }
+                    }
+                }
+
+                if (empty($rawMac)) {
+                    continue;
+                }
+
+                $formattedMac = Device::formatMacAddress($rawMac);
+                if (!$formattedMac) {
+                    $invalidCount++;
+                    continue;
+                }
+
                 $ssid        = trim($row[$ssidIdx] ?? 'ALL');
                 $deviceName  = trim($row[$nameIdx] ?? 'Imported Device');
                 $location    = isset($row[$locIdx]) ? trim($row[$locIdx]) : '';
@@ -271,17 +295,6 @@ class DeviceController extends Controller
                 $status      = ($statusVal === 'inactive' || $statusVal === 'blocked') ? 'inactive' : 'active';
                 $vlanRaw     = isset($row[$vlanIdx]) ? trim($row[$vlanIdx]) : '';
                 $vlanId      = (is_numeric($vlanRaw) && (int)$vlanRaw >= 1 && (int)$vlanRaw <= 4094) ? (int)$vlanRaw : null;
-
-                if (empty($rawMac)) {
-                    continue;
-                }
-
-                $formattedMac = Device::formatMacAddress($rawMac);
-
-                if (!$formattedMac) {
-                    $invalidCount++;
-                    continue;
-                }
 
                 if (Device::isDuplicate($formattedMac, $ssid)) {
                     $skippedCount++;
