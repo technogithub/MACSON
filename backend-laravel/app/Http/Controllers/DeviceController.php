@@ -261,9 +261,23 @@ class DeviceController extends Controller
                 array_shift($rows); // Remove header row from dataset
             }
 
+            set_time_limit(300); // 5 minutes execution limit for large CSVs
+            ini_set('memory_limit', '512M');
+
+            // Load existing MAC + SSID combinations and Master SSIDs into memory for fast lookup
+            $existingDevices = Device::select('mac_address', 'ssid')->get()
+                ->mapWithKeys(fn($item) => [$item->mac_address . '___' . $item->ssid => true])
+                ->toArray();
+
+            $existingSsids = Ssid::pluck('ssid_name')->mapWithKeys(fn($s) => [strtoupper($s) => true])->toArray();
+
             $importedCount = 0;
             $skippedCount  = 0;
             $invalidCount  = 0;
+
+            $devicesToInsert = [];
+            $newSsidsToInsert = [];
+            $now = now();
 
             foreach ($rows as $row) {
                 // Determine raw MAC by first checking designated macIdx, or fallback to searching first cell matching 12 hex chars
@@ -297,32 +311,57 @@ class DeviceController extends Controller
                 $vlanRaw     = isset($row[$vlanIdx]) ? trim($row[$vlanIdx]) : '';
                 $vlanId      = (is_numeric($vlanRaw) && (int)$vlanRaw >= 1 && (int)$vlanRaw <= 4094) ? (int)$vlanRaw : null;
 
-                if (Device::isDuplicate($formattedMac, $ssid)) {
+                $ssidKey = empty($ssid) ? 'ALL' : $ssid;
+                $dupKey  = $formattedMac . '___' . $ssidKey;
+
+                if (isset($existingDevices[$dupKey])) {
                     $skippedCount++;
                     continue;
                 }
 
-                // Auto-create SSID in master ssids table if it doesn't exist yet
-                if (!empty($ssid) && strtoupper($ssid) !== 'ALL') {
-                    Ssid::firstOrCreate(
-                        ['ssid_name' => $ssid],
-                        ['status' => 'active', 'description' => 'Auto-created via CSV Import']
-                    );
+                // Register duplicate key in memory to prevent duplicates within the same CSV file
+                $existingDevices[$dupKey] = true;
+
+                // Collect SSIDs to insert if not existing yet
+                if (!empty($ssidKey) && strtoupper($ssidKey) !== 'ALL' && !isset($existingSsids[strtoupper($ssidKey)])) {
+                    $newSsidsToInsert[strtoupper($ssidKey)] = [
+                        'ssid_name'   => $ssidKey,
+                        'description' => 'Auto-created via CSV Import',
+                        'status'      => 'active',
+                        'created_at'  => $now,
+                        'updated_at'  => $now,
+                    ];
+                    $existingSsids[strtoupper($ssidKey)] = true;
                 }
 
-                Device::create([
+                $devicesToInsert[] = [
                     'mac_address' => $formattedMac,
                     'raw_mac'     => $rawMac,
-                    'ssid'        => empty($ssid) ? 'ALL' : $ssid,
+                    'ssid'        => $ssidKey,
                     'device_name' => empty($deviceName) ? 'Imported Device' : $deviceName,
                     'location'    => $location,
                     'description' => $description,
                     'vlan_id'     => $vlanId,
                     'status'      => $status,
-                ]);
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ];
 
                 $importedCount++;
             }
+
+            // Perform DB insertions in a single transaction with chunking
+            \Illuminate\Support\Facades\DB::transaction(function() use ($newSsidsToInsert, $devicesToInsert) {
+                if (!empty($newSsidsToInsert)) {
+                    Ssid::insert(array_values($newSsidsToInsert));
+                }
+
+                if (!empty($devicesToInsert)) {
+                    foreach (array_chunk($devicesToInsert, 500) as $chunk) {
+                        Device::insert($chunk);
+                    }
+                }
+            });
 
             $msg = "Import completed! Added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid MAC formats: {$invalidCount}.";
             return redirect()->route('devices.index')->with('success', $msg);
