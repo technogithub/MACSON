@@ -20,6 +20,7 @@ return new class extends Migration
 
         Schema::create('unifi_vouchers', function (Blueprint $table) {
             $table->id();
+            $table->string('unifi_id', 50)->nullable()->index();
             $table->string('code', 20)->index();
             $table->integer('duration_minutes');
             $table->integer('quota_mb')->nullable();

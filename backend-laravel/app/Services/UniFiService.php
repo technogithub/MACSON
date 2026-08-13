@@ -226,4 +226,43 @@ class UniFiService
 
         return [];
     }
+
+    /**
+     * Revoke / Delete a voucher on UniFi Controller by its _id or code
+     */
+    public function revokeVoucher(string $voucherIdOrCode): bool
+    {
+        $config = $this->getConfig();
+
+        if ($this->login()) {
+            $baseUrl = rtrim($config->controller_url, '/');
+            $endpointPath = $this->isUnifiOs
+                ? '/proxy/network/api/s/' . $config->site_id . '/cmd/hotspot'
+                : '/api/s/' . $config->site_id . '/cmd/hotspot';
+
+            $headers = ['Cookie' => $this->cookie];
+            if ($this->csrfToken) {
+                $headers['X-CSRF-Token'] = $this->csrfToken;
+            }
+
+            try {
+                $response = Http::withHeaders($headers)
+                    ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
+                    ->post($baseUrl . $endpointPath, [
+                        'cmd' => 'revoke-voucher',
+                        '_id' => $voucherIdOrCode,
+                    ]);
+
+                if ($response->successful()) {
+                    return true;
+                } else {
+                    Log::error('Revoke UniFi Voucher Failed: ' . $response->body());
+                }
+            } catch (\Exception $e) {
+                Log::error('Revoke UniFi Voucher Exception: ' . $e->getMessage());
+            }
+        }
+
+        return false;
+    }
 }

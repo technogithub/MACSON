@@ -12,6 +12,7 @@ class UnifiVoucher extends Model
     protected $table = 'unifi_vouchers';
 
     protected $fillable = [
+        'unifi_id',
         'code',
         'duration_minutes',
         'quota_mb',

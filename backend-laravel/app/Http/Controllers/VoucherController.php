@@ -88,8 +88,11 @@ class VoucherController extends Controller
 
         if (!empty($result['data'])) {
             foreach ($result['data'] as $vData) {
-                $code = isset($vData['code']) ? str_replace('-', '', $vData['code']) : sprintf('%05d%05d', rand(10000, 99999), rand(10000, 99999));
+                $code    = isset($vData['code']) ? str_replace('-', '', $vData['code']) : sprintf('%05d%05d', rand(10000, 99999), rand(10000, 99999));
+                $unifiId = $vData['_id'] ?? null;
+                
                 $vouchersToSave[] = [
+                    'unifi_id'         => $unifiId,
                     'code'             => $code,
                     'duration_minutes' => $durationMinutes,
                     'quota_mb'         => $quotaMB,
@@ -138,10 +141,19 @@ class VoucherController extends Controller
     public function destroy(int $id)
     {
         $voucher = UnifiVoucher::findOrFail($id);
+        
+        // Revoke on UniFi Controller API if unifi_id or code exists
+        $targetId = $voucher->unifi_id ?: $voucher->code;
+        $revokedOnUnifi = $this->uniFiService->revokeVoucher($targetId);
+
         $voucher->status = 'revoked';
         $voucher->save();
 
-        return redirect()->back()->with('success', "Voucher {$voucher->code} has been revoked.");
+        $msg = $revokedOnUnifi 
+            ? "Voucher {$voucher->code} successfully revoked on both UniFi Controller and Local System." 
+            : "Voucher {$voucher->code} marked as revoked locally.";
+
+        return redirect()->back()->with('success', $msg);
     }
 
     /**

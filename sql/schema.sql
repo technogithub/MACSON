@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS `unifi_configs` (
 
 CREATE TABLE IF NOT EXISTS `unifi_vouchers` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `unifi_id` VARCHAR(50) NULL,
   `code` VARCHAR(20) NOT NULL,
   `duration_minutes` INT NOT NULL,
   `quota_mb` INT NULL,
@@ -227,6 +228,7 @@ CREATE TABLE IF NOT EXISTS `unifi_vouchers` (
   `used_at` TIMESTAMP NULL DEFAULT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_unifi_id` (`unifi_id`),
   INDEX `idx_code` (`code`),
   INDEX `idx_batch` (`batch_id`),
   INDEX `idx_v_status` (`status`)
