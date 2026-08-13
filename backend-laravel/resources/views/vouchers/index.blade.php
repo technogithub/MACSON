@@ -110,7 +110,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h3 class="fw-bold mb-1" style="color:#f1f5f9;">
-                <i class="fa-solid fa-ticket text-indigo me-2" style="color:#818cf8;"></i>UniFi Hotspot Vouchers
+                <i class="fa-solid fa-wifi text-indigo me-2" style="color:#818cf8;"></i>SJA SEMARANG HOTSPOT
             </h3>
             <p class="text-secondary small mb-0">Generate, manage, and print guest Wi-Fi hotspot vouchers for UniFi Controller</p>
         </div>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'Dashboard') - MACSON NAC</title>
+    <title>@yield('title', 'Dashboard') - SANTAFE NAC</title>
     
     <!-- Bootstrap 5.3 CSS & FontAwesome 6 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -262,7 +262,7 @@
                 <div class="d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(99,102,241,0.2));border:1px solid rgba(56,189,248,0.4);border-radius:10px;">
                     <i class="fa-solid fa-shield-halved text-info fs-5"></i>
                 </div>
-                <span class="brand-text">MACSON</span>
+                <span class="brand-text">SANTAFE</span>
                 <span class="badge bg-dark-subtle text-info border border-info-subtle rounded-pill fs-7 px-2 py-1 ms-1">v1.0</span>
             </a>
 
@@ -344,7 +344,7 @@
             <!-- Mobile Offcanvas Sidebar -->
             <div class="offcanvas offcanvas-start bg-dark text-light border-end border-secondary" tabindex="-1" id="mobileSidebar" style="width:280px;background:#0f172a !important;">
                 <div class="offcanvas-header border-bottom border-secondary">
-                    <h5 class="offcanvas-title font-outfit fw-bold brand-text">MACSON Menu</h5>
+                    <h5 class="offcanvas-title font-outfit fw-bold brand-text">SANTAFE Menu</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
                 </div>
                 <div class="offcanvas-body p-3">

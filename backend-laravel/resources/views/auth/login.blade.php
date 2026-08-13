@@ -324,9 +324,9 @@
             <div class="brand-logo">
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
-            <h1 class="login-title">Welcome to MACSON</h1>
+            <h1 class="login-title">Welcome to SANTAFE</h1>
             <p class="login-subtitle">
-                <span>MAC Authentication</span> &amp; Network Control
+                <span>Santos Advanced Network Traffic & Access Filtering Engine</span>
             </p>
 
             <!-- Alerts -->

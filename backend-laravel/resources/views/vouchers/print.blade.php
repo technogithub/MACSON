@@ -77,7 +77,7 @@
 <div class="voucher-grid">
     @forelse($vouchers as $v)
         <div class="voucher-card">
-            <div class="voucher-title">GUEST WI-FI VOUCHER</div>
+            <div class="voucher-title">SJA SEMARANG HOTSPOT</div>
             <div class="voucher-code">{{ $v->formatted_code }}</div>
             <div class="voucher-meta">
                 <strong>Duration:</strong> 
