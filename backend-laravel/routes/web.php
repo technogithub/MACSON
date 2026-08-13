@@ -9,6 +9,8 @@ use App\Http\Controllers\LogController;
 
 use App\Http\Controllers\VoucherController;
 
+use App\Http\Middleware\EnsureSuperAdmin;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes - MACSON Dashboard & Management UI
@@ -25,25 +27,30 @@ Route::middleware('auth')->group(function () {
     // Logout
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // Dashboard
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-
-    // Device MAC Address Management Routes
-    Route::get('devices/export', [DeviceController::class, 'exportCsv'])->name('devices.export');
-    Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
-    Route::patch('devices/{device}/toggle', [DeviceController::class, 'toggleStatus'])->name('devices.toggle');
-    Route::resource('devices', DeviceController::class);
-
-    // Multi-SSID Management Routes
-    Route::resource('ssids', SsidController::class)->except(['create', 'edit', 'show']);
-
-    // UniFi Hotspot Voucher Routes
+    // UniFi Hotspot Voucher Routes (Accessible to both Super Admin & Operator)
     Route::get('vouchers/print', [VoucherController::class, 'print'])->name('vouchers.print');
     Route::post('vouchers/sync', [VoucherController::class, 'syncNow'])->name('vouchers.sync');
-    Route::post('vouchers/config', [VoucherController::class, 'updateConfig'])->name('vouchers.config');
     Route::resource('vouchers', VoucherController::class)->only(['index', 'store', 'destroy']);
 
-    // RADIUS & Audit Access Log Routes
-    Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
-    Route::delete('/logs/clear', [LogController::class, 'clear'])->name('logs.clear');
+    // ── Super Admin Only Restricted Routes ─────────────────────────────
+    Route::middleware(EnsureSuperAdmin::class)->group(function () {
+        // Dashboard
+        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+        // Device MAC Address Management Routes
+        Route::get('devices/export', [DeviceController::class, 'exportCsv'])->name('devices.export');
+        Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
+        Route::patch('devices/{device}/toggle', [DeviceController::class, 'toggleStatus'])->name('devices.toggle');
+        Route::resource('devices', DeviceController::class);
+
+        // Multi-SSID Management Routes
+        Route::resource('ssids', SsidController::class)->except(['create', 'edit', 'show']);
+
+        // UniFi Controller Config
+        Route::post('vouchers/config', [VoucherController::class, 'updateConfig'])->name('vouchers.config');
+
+        // RADIUS & Audit Access Log Routes
+        Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
+        Route::delete('/logs/clear', [LogController::class, 'clear'])->name('logs.clear');
+    });
 });

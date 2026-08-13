@@ -13,7 +13,9 @@ class AuthController extends Controller
     public function showLogin()
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return Auth::user()->isSuperAdmin() 
+                ? redirect()->route('dashboard') 
+                : redirect()->route('vouchers.index');
         }
         return view('auth.login');
     }
@@ -32,6 +34,12 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
+            $user = Auth::user();
+            
+            if ($user->isOperator()) {
+                return redirect()->route('vouchers.index')->with('success', "Welcome back, {$user->name}! Operator portal active.");
+            }
+
             return redirect()->intended(route('dashboard'));
         }
 

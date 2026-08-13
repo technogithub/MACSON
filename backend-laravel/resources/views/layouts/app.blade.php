@@ -314,37 +314,7 @@
             <aside class="macson-sidebar p-3 d-none d-lg-block">
                 <div class="text-uppercase text-secondary fw-bold px-3 mb-2" style="font-size:0.7rem;letter-spacing:1px;">Core Navigation</div>
                 <nav class="nav flex-column">
-                    <a class="nav-item-macson {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
-                        <i class="fa-solid fa-chart-pie"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a class="nav-item-macson {{ request()->routeIs('devices.*') ? 'active' : '' }}" href="{{ route('devices.index') }}">
-                        <i class="fa-solid fa-laptop-code"></i>
-                        <span>MAC Devices</span>
-                    </a>
-                    <a class="nav-item-macson {{ request()->routeIs('ssids.*') ? 'active' : '' }}" href="{{ route('ssids.index') }}">
-                        <i class="fa-solid fa-wifi"></i>
-                        <span>SSID & VLAN</span>
-                    </a>
-                    <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
-                        <i class="fa-solid fa-ticket"></i>
-                        <span>UniFi Vouchers</span>
-                    </a>
-                    <a class="nav-item-macson {{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.index') }}">
-                        <i class="fa-solid fa-list-check"></i>
-                        <span>Audit Access Logs</span>
-                    </a>
-                </nav>
-            </aside>
-
-            <!-- Mobile Offcanvas Sidebar -->
-            <div class="offcanvas offcanvas-start bg-dark text-light border-end border-secondary" tabindex="-1" id="mobileSidebar" style="width:280px;background:#0f172a !important;">
-                <div class="offcanvas-header border-bottom border-secondary">
-                    <h5 class="offcanvas-title font-outfit fw-bold brand-text">MACSON Menu</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
-                </div>
-                <div class="offcanvas-body p-3">
-                    <nav class="nav flex-column">
+                    @if(auth()->user()->isSuperAdmin())
                         <a class="nav-item-macson {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
                             <i class="fa-solid fa-chart-pie"></i>
                             <span>Dashboard</span>
@@ -357,14 +327,52 @@
                             <i class="fa-solid fa-wifi"></i>
                             <span>SSID & VLAN</span>
                         </a>
-                        <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
-                            <i class="fa-solid fa-ticket"></i>
-                            <span>UniFi Vouchers</span>
-                        </a>
+                    @endif
+                    <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
+                        <i class="fa-solid fa-ticket"></i>
+                        <span>UniFi Vouchers</span>
+                    </a>
+                    @if(auth()->user()->isSuperAdmin())
                         <a class="nav-item-macson {{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.index') }}">
                             <i class="fa-solid fa-list-check"></i>
                             <span>Audit Access Logs</span>
                         </a>
+                    @endif
+                </nav>
+            </aside>
+
+            <!-- Mobile Offcanvas Sidebar -->
+            <div class="offcanvas offcanvas-start bg-dark text-light border-end border-secondary" tabindex="-1" id="mobileSidebar" style="width:280px;background:#0f172a !important;">
+                <div class="offcanvas-header border-bottom border-secondary">
+                    <h5 class="offcanvas-title font-outfit fw-bold brand-text">MACSON Menu</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+                </div>
+                <div class="offcanvas-body p-3">
+                    <nav class="nav flex-column">
+                        @if(auth()->user()->isSuperAdmin())
+                            <a class="nav-item-macson {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
+                                <i class="fa-solid fa-chart-pie"></i>
+                                <span>Dashboard</span>
+                            </a>
+                            <a class="nav-item-macson {{ request()->routeIs('devices.*') ? 'active' : '' }}" href="{{ route('devices.index') }}">
+                                <i class="fa-solid fa-laptop-code"></i>
+                                <span>MAC Devices</span>
+                            </a>
+                            <a class="nav-item-macson {{ request()->routeIs('ssids.*') ? 'active' : '' }}" href="{{ route('ssids.index') }}">
+                                <i class="fa-solid fa-wifi"></i>
+                                <span>SSID & VLAN</span>
+                            </a>
+                        @endif
+                        <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
+                            <i class="fa-solid fa-ticket"></i>
+                            <span>UniFi Vouchers</span>
+                        </a>
+                        @if(auth()->user()->isSuperAdmin())
+                            <a class="nav-item-macson {{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.index') }}">
+                                <i class="fa-solid fa-list-check"></i>
+                                <span>Audit Access Logs</span>
+                            </a>
+                        @endif
                     </nav>
                 </div>
             </div>

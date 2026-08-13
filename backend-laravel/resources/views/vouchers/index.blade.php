@@ -122,10 +122,12 @@
                     <i class="fa-solid fa-rotate me-1"></i> Sync UniFi Now
                 </button>
             </form>
+            @if(auth()->user()->isSuperAdmin())
             <!-- Controller Config Button -->
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#configModal">
                 <i class="fa-solid fa-gear me-1"></i> UniFi Controller Config
             </button>
+            @endif
             <!-- Print Unused Vouchers -->
             <a href="{{ route('vouchers.print') }}" target="_blank" class="btn btn-outline-warning btn-sm">
                 <i class="fa-solid fa-print me-1"></i> Print Vouchers
