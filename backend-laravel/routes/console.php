@@ -23,3 +23,15 @@ Artisan::command('radius:prune-logs {--days=30 : Number of days to retain logs}'
 // Schedule daily automated pruning at 02:00 AM
 Schedule::command('radius:prune-logs --days=30')->dailyAt('02:00');
 
+/**
+ * UniFi Voucher Auto-Sync Command
+ * Automatically syncs pending created or revoked vouchers to UniFi Controller when online
+ */
+Artisan::command('unifi:sync-vouchers', function (\App\Services\UniFiService $uniFiService) {
+    $stats = $uniFiService->syncPendingVouchers();
+    $this->info("UniFi Sync Completed. Created: {$stats['created']}, Revoked: {$stats['revoked']}, Failed: {$stats['failed']}");
+})->purpose('Sync pending vouchers with UniFi Controller');
+
+// Schedule automatic background sync every 5 minutes
+Schedule::command('unifi:sync-vouchers')->everyFiveMinutes();
+

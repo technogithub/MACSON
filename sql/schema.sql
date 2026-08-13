@@ -225,13 +225,15 @@ CREATE TABLE IF NOT EXISTS `unifi_vouchers` (
   `note` VARCHAR(255) NULL,
   `batch_id` VARCHAR(50) NULL,
   `status` ENUM('unused', 'used', 'expired', 'revoked') NOT NULL DEFAULT 'unused',
+  `sync_status` ENUM('synced', 'pending_create', 'pending_revoke') NOT NULL DEFAULT 'synced',
   `used_at` TIMESTAMP NULL DEFAULT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_unifi_id` (`unifi_id`),
   INDEX `idx_code` (`code`),
   INDEX `idx_batch` (`batch_id`),
-  INDEX `idx_v_status` (`status`)
+  INDEX `idx_v_status` (`status`),
+  INDEX `idx_v_sync` (`sync_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Re-enable FK checks

@@ -304,4 +304,58 @@ class UniFiService
 
         return false;
     }
+
+    /**
+     * Sync all pending vouchers (pending_create & pending_revoke) when UniFi comes back online
+     */
+    public function syncPendingVouchers(): array
+    {
+        $stats = ['created' => 0, 'revoked' => 0, 'failed' => 0];
+
+        if (!$this->login()) {
+            return $stats; // UniFi is still offline/unreachable
+        }
+
+        // 1. Sync pending_create vouchers
+        $pendingCreates = \App\Models\UnifiVoucher::where('sync_status', 'pending_create')->get()->groupBy('batch_id');
+        foreach ($pendingCreates as $batchId => $vouchers) {
+            $sample = $vouchers->first();
+            $result = $this->createVouchers(
+                $vouchers->count(),
+                $sample->duration_minutes,
+                $sample->use_limit,
+                $sample->quota_mb,
+                $sample->down_kbps,
+                $sample->up_kbps,
+                $sample->note
+            );
+
+            if ($result['mode'] === 'unifi_api') {
+                foreach ($vouchers as $index => $v) {
+                    $uData = $result['data'][$index] ?? null;
+                    $v->update([
+                        'unifi_id'    => $uData['_id'] ?? null,
+                        'code'        => isset($uData['code']) ? str_replace('-', '', $uData['code']) : $v->code,
+                        'sync_status' => 'synced',
+                    ]);
+                    $stats['created']++;
+                }
+            } else {
+                $stats['failed'] += $vouchers->count();
+            }
+        }
+
+        // 2. Sync pending_revoke vouchers
+        $pendingRevokes = \App\Models\UnifiVoucher::where('sync_status', 'pending_revoke')->get();
+        foreach ($pendingRevokes as $v) {
+            if ($this->revokeVoucher($v->unifi_id, $v->code)) {
+                $v->update(['sync_status' => 'synced']);
+                $stats['revoked']++;
+            } else {
+                $stats['failed']++;
+            }
+        }
+
+        return $stats;
+    }
 }

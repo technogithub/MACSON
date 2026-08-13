@@ -23,6 +23,7 @@ class UnifiVoucher extends Model
         'note',
         'batch_id',
         'status',
+        'sync_status',
         'used_at',
     ];
 

@@ -85,6 +85,8 @@ class VoucherController extends Controller
 
         $vouchersToSave = [];
         $now = now();
+        $isSynced = ($result['mode'] === 'unifi_api');
+        $syncStatus = $isSynced ? 'synced' : 'pending_create';
 
         if (!empty($result['data'])) {
             foreach ($result['data'] as $vData) {
@@ -103,6 +105,7 @@ class VoucherController extends Controller
                     'note'             => $note,
                     'batch_id'         => $batchId,
                     'status'           => 'unused',
+                    'sync_status'      => $syncStatus,
                     'created_at'       => $now,
                     'updated_at'       => $now,
                 ];
@@ -111,7 +114,7 @@ class VoucherController extends Controller
             UnifiVoucher::insert($vouchersToSave);
         }
 
-        $modeText = ($result['mode'] === 'unifi_api') ? 'UniFi Controller API' : 'Local Engine (Offline Mode)';
+        $modeText = $isSynced ? 'UniFi Controller API (Synced)' : 'Local Engine (Offline Mode - Queued for Auto Sync)';
         return redirect()->route('vouchers.index')->with('success', "Successfully generated {$count} UniFi Vouchers via {$modeText}. Batch ID: {$batchId}");
     }
 
@@ -146,13 +149,29 @@ class VoucherController extends Controller
         $revokedOnUnifi = $this->uniFiService->revokeVoucher($voucher->unifi_id, $voucher->code);
 
         $voucher->status = 'revoked';
+        $voucher->sync_status = $revokedOnUnifi ? 'synced' : 'pending_revoke';
         $voucher->save();
 
         $msg = $revokedOnUnifi 
             ? "Voucher {$voucher->code} successfully revoked on both UniFi Controller and Local System." 
-            : "Voucher {$voucher->code} marked as revoked locally.";
+            : "Voucher {$voucher->code} marked as revoked locally (Queued for Auto-Sync when UniFi is Online).";
 
         return redirect()->back()->with('success', $msg);
+    }
+
+    /**
+     * Trigger Manual Sync for Pending Vouchers
+     */
+    public function syncNow()
+    {
+        $stats = $this->uniFiService->syncPendingVouchers();
+        $totalSynced = $stats['created'] + $stats['revoked'];
+
+        if ($totalSynced > 0) {
+            return redirect()->back()->with('success', "UniFi Sync Completed! Synced {$stats['created']} new vouchers and {$stats['revoked']} revoked vouchers to UniFi Controller.");
+        }
+
+        return redirect()->back()->with('error', 'UniFi Controller is still unreachable or no pending sync items found.');
     }
 
     /**

@@ -115,6 +115,13 @@
             <p class="text-secondary small mb-0">Generate, manage, and print guest Wi-Fi hotspot vouchers for UniFi Controller</p>
         </div>
         <div class="d-flex gap-2 flex-wrap align-items-center">
+            <!-- Sync Now Button -->
+            <form action="{{ route('vouchers.sync') }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-outline-info btn-sm" title="Sync Pending Vouchers with UniFi Controller">
+                    <i class="fa-solid fa-rotate me-1"></i> Sync UniFi Now
+                </button>
+            </form>
             <!-- Controller Config Button -->
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#configModal">
                 <i class="fa-solid fa-gear me-1"></i> UniFi Controller Config
@@ -185,6 +192,7 @@
                     <th>Speed Limit</th>
                     <th>Batch / Note</th>
                     <th>Status</th>
+                    <th>UniFi Sync</th>
                     <th>Created At</th>
                     <th class="text-center">Actions</th>
                 </tr>
@@ -236,6 +244,13 @@
                                 <span class="badge bg-danger" style="font-size:0.75rem;">Revoked</span>
                             @else
                                 <span class="badge bg-secondary" style="font-size:0.75rem;">Expired</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if(($v->sync_status ?? 'synced') === 'synced')
+                                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.72rem;"><i class="fa-solid fa-cloud-check me-1"></i>Synced</span>
+                            @else
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:0.72rem;" title="Pending Sync to UniFi Controller"><i class="fa-solid fa-clock-rotate-left me-1"></i>Pending Sync</span>
                             @endif
                         </td>
                         <td class="text-secondary small">

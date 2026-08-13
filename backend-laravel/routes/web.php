@@ -39,6 +39,7 @@ Route::middleware('auth')->group(function () {
 
     // UniFi Hotspot Voucher Routes
     Route::get('vouchers/print', [VoucherController::class, 'print'])->name('vouchers.print');
+    Route::post('vouchers/sync', [VoucherController::class, 'syncNow'])->name('vouchers.sync');
     Route::post('vouchers/config', [VoucherController::class, 'updateConfig'])->name('vouchers.config');
     Route::resource('vouchers', VoucherController::class)->only(['index', 'store', 'destroy']);
 
