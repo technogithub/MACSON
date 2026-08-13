@@ -228,7 +228,7 @@ class UniFiService
     }
 
     /**
-     * Revoke / Delete a voucher on UniFi Controller by its _id or code
+     * Revoke / Delete a voucher on UniFi Controller by trying all official API payload structures
      */
     public function revokeVoucher(?string $unifiId, string $code): bool
     {
@@ -248,7 +248,7 @@ class UniFiService
             $url = $baseUrl . $endpointPath;
             $cleanCode = str_replace('-', '', $code);
 
-            // 1. If unifiId is missing, query UniFi Controller to find the matching _id for this code
+            // 1. Fetch exact _id from UniFi Controller stat if missing
             if (!$unifiId) {
                 $statPath = $this->isUnifiOs
                     ? '/proxy/network/api/s/' . $config->site_id . '/stat/voucher'
@@ -269,16 +269,20 @@ class UniFiService
                         }
                     }
                 } catch (\Exception $e) {
-                    Log::warning('Failed fetching UniFi voucher stat for revoke: ' . $e->getMessage());
+                    Log::warning('Failed fetching UniFi voucher stat: ' . $e->getMessage());
                 }
             }
 
-            // 2. Perform revocation using _id or fallback to code
+            // 2. Build payload variations used by different UniFi Controller versions
             $payloads = [];
             if ($unifiId) {
                 $payloads[] = ['cmd' => 'revoke-voucher', '_id' => $unifiId];
+                $payloads[] = ['cmd' => 'revoke-voucher', 'id'  => $unifiId];
+                $payloads[] = ['cmd' => 'delete-voucher', '_id' => $unifiId];
             }
             $payloads[] = ['cmd' => 'revoke-voucher', 'code' => $cleanCode];
+            $payloads[] = ['cmd' => 'delete-voucher', 'code' => $cleanCode];
+            $payloads[] = ['cmd' => 'revoke-voucher', 'code' => $code];
 
             foreach ($payloads as $p) {
                 try {
@@ -287,10 +291,10 @@ class UniFiService
                         ->post($url, $p);
 
                     if ($res->successful()) {
-                        Log::info('UniFi Voucher Revoked Successfully: ' . json_encode($p));
+                        Log::info('UniFi Voucher Revoked Successfully with payload: ' . json_encode($p));
                         return true;
                     } else {
-                        Log::warning('UniFi Revoke Attempt Failed (HTTP ' . $res->status() . '): ' . $res->body());
+                        Log::warning('UniFi Revoke Payload Failed [HTTP ' . $res->status() . '] Payload: ' . json_encode($p) . ' Response: ' . $res->body());
                     }
                 } catch (\Exception $e) {
                     Log::error('UniFi Revoke Payload Exception: ' . $e->getMessage());
