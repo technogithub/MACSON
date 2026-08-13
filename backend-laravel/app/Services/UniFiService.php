@@ -230,7 +230,7 @@ class UniFiService
     /**
      * Revoke / Delete a voucher on UniFi Controller by its _id or code
      */
-    public function revokeVoucher(string $voucherIdOrCode): bool
+    public function revokeVoucher(?string $unifiId, string $code): bool
     {
         $config = $this->getConfig();
 
@@ -245,21 +245,35 @@ class UniFiService
                 $headers['X-CSRF-Token'] = $this->csrfToken;
             }
 
-            try {
-                $response = Http::withHeaders($headers)
-                    ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
-                    ->post($baseUrl . $endpointPath, [
-                        'cmd' => 'revoke-voucher',
-                        '_id' => $voucherIdOrCode,
-                    ]);
+            $url = $baseUrl . $endpointPath;
 
-                if ($response->successful()) {
+            // 1. Try revoking via _id if available
+            if ($unifiId) {
+                try {
+                    $res = Http::withHeaders($headers)
+                        ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
+                        ->post($url, ['cmd' => 'revoke-voucher', '_id' => $unifiId]);
+
+                    if ($res->successful()) {
+                        return true;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('UniFi Revoke by _id failed: ' . $e->getMessage());
+                }
+            }
+
+            // 2. Fallback try revoking by code / raw code
+            try {
+                $cleanCode = str_replace('-', '', $code);
+                $res = Http::withHeaders($headers)
+                    ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
+                    ->post($url, ['cmd' => 'revoke-voucher', 'code' => $cleanCode]);
+
+                if ($res->successful()) {
                     return true;
-                } else {
-                    Log::error('Revoke UniFi Voucher Failed: ' . $response->body());
                 }
             } catch (\Exception $e) {
-                Log::error('Revoke UniFi Voucher Exception: ' . $e->getMessage());
+                Log::error('UniFi Revoke by code failed: ' . $e->getMessage());
             }
         }
 

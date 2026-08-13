@@ -142,9 +142,8 @@ class VoucherController extends Controller
     {
         $voucher = UnifiVoucher::findOrFail($id);
         
-        // Revoke on UniFi Controller API if unifi_id or code exists
-        $targetId = $voucher->unifi_id ?: $voucher->code;
-        $revokedOnUnifi = $this->uniFiService->revokeVoucher($targetId);
+        // Revoke on UniFi Controller API by _id or code
+        $revokedOnUnifi = $this->uniFiService->revokeVoucher($voucher->unifi_id, $voucher->code);
 
         $voucher->status = 'revoked';
         $voucher->save();
