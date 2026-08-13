@@ -326,6 +326,10 @@
                         <i class="fa-solid fa-wifi"></i>
                         <span>SSID & VLAN</span>
                     </a>
+                    <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
+                        <i class="fa-solid fa-ticket"></i>
+                        <span>UniFi Vouchers</span>
+                    </a>
                     <a class="nav-item-macson {{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.index') }}">
                         <i class="fa-solid fa-list-check"></i>
                         <span>Audit Access Logs</span>
@@ -352,6 +356,10 @@
                         <a class="nav-item-macson {{ request()->routeIs('ssids.*') ? 'active' : '' }}" href="{{ route('ssids.index') }}">
                             <i class="fa-solid fa-wifi"></i>
                             <span>SSID & VLAN</span>
+                        </a>
+                        <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
+                            <i class="fa-solid fa-ticket"></i>
+                            <span>UniFi Vouchers</span>
                         </a>
                         <a class="nav-item-macson {{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.index') }}">
                             <i class="fa-solid fa-list-check"></i>

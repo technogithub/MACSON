@@ -7,6 +7,8 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\SsidController;
 use App\Http\Controllers\LogController;
 
+use App\Http\Controllers\VoucherController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes - MACSON Dashboard & Management UI
@@ -34,6 +36,11 @@ Route::middleware('auth')->group(function () {
 
     // Multi-SSID Management Routes
     Route::resource('ssids', SsidController::class)->except(['create', 'edit', 'show']);
+
+    // UniFi Hotspot Voucher Routes
+    Route::get('vouchers/print', [VoucherController::class, 'print'])->name('vouchers.print');
+    Route::post('vouchers/config', [VoucherController::class, 'updateConfig'])->name('vouchers.config');
+    Route::resource('vouchers', VoucherController::class)->only(['index', 'store', 'destroy']);
 
     // RADIUS & Audit Access Log Routes
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');

@@ -198,6 +198,40 @@ CREATE TABLE `nas` (
   INDEX `nasname` (`nasname`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ------------------------------------------------------------------------------
+-- 8. Tables: unifi_configs & unifi_vouchers (UniFi Controller Integration)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `unifi_configs` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `controller_url` VARCHAR(255) NOT NULL DEFAULT 'https://127.0.0.1:8443',
+  `site_id` VARCHAR(64) NOT NULL DEFAULT 'default',
+  `username` VARCHAR(100) NOT NULL DEFAULT 'admin',
+  `password` VARCHAR(255) NOT NULL DEFAULT 'password',
+  `verify_ssl` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `unifi_vouchers` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `code` VARCHAR(20) NOT NULL,
+  `duration_minutes` INT NOT NULL,
+  `quota_mb` INT NULL,
+  `down_kbps` INT NULL,
+  `up_kbps` INT NULL,
+  `use_limit` INT NOT NULL DEFAULT 1,
+  `used_count` INT NOT NULL DEFAULT 0,
+  `note` VARCHAR(255) NULL,
+  `batch_id` VARCHAR(50) NULL,
+  `status` ENUM('unused', 'used', 'expired', 'revoked') NOT NULL DEFAULT 'unused',
+  `used_at` TIMESTAMP NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_code` (`code`),
+  INDEX `idx_batch` (`batch_id`),
+  INDEX `idx_v_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Re-enable FK checks
 SET FOREIGN_KEY_CHECKS = 1;
 
