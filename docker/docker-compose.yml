@@ -7,6 +7,7 @@ services:
     container_name: radius_mariadb
     restart: always
     environment:
+      TZ: "Asia/Jakarta"
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootPassword2026!}
       MYSQL_DATABASE: radius
       MYSQL_USER: radius_user
@@ -49,6 +50,8 @@ services:
     container_name: radius_laravel_app
     restart: always
     environment:
+      TZ: "Asia/Jakarta"
+      APP_TIMEZONE: "Asia/Jakarta"
       APP_NAME: "MACSON"
       APP_ENV: production
       APP_KEY: "base64:aDhOa1YybzVCMXE3WThkM1I0cDlNNmExRjJ0M0U0eDU="
@@ -89,7 +92,8 @@ services:
     restart: always
     command: php /var/www/html/artisan queue:work --sleep=3 --tries=3
     environment:
-      APP_ENV: production
+      TZ: "Asia/Jakarta"
+      APP_TIMEZONE: "Asia/Jakarta"
       APP_KEY: "base64:aDhOa1YybzVCMXE3WThkM1I0cDlNNmExRjJ0M0U0eDU="
       DB_CONNECTION: mysql
       DB_HOST: mariadb
@@ -139,6 +143,8 @@ services:
       dockerfile: docker/freeradius.Dockerfile
     container_name: radius_freeradius
     restart: always
+    environment:
+      TZ: "Asia/Jakarta"
     command: >
       sh -c "ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enabled/sql && freeradius -X"
     ports:
