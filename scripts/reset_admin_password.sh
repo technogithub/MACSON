@@ -68,22 +68,19 @@ echo "⏳ Resetting passwords inside container..."
 
 # Use PHP inside the container to generate valid Bcrypt hash and update DB
 docker exec -i "$CONTAINER" php artisan tinker --no-interaction <<EOF
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-
 if (!empty('${ADMIN_PASS}')) {
-    \$admin = User::where('username', '${ADMIN_USER}')->orWhere('email', 'admin@radius.local')->first();
+    \$admin = \App\Models\User::where('username', '${ADMIN_USER}')->orWhere('email', 'admin@radius.local')->first();
     if (\$admin) {
-        \$admin->password = Hash::make('${ADMIN_PASS}');
+        \$admin->password = \Illuminate\Support\Facades\Hash::make('${ADMIN_PASS}');
         \$admin->save();
         echo "✅ Super Admin ('${ADMIN_USER}') password updated successfully.\n";
     }
 }
 
 if (!empty('${OP_PASS}')) {
-    \$op = User::where('username', '${OPERATOR_USER}')->orWhere('email', 'operator@radius.local')->first();
+    \$op = \App\Models\User::where('username', '${OPERATOR_USER}')->orWhere('email', 'operator@radius.local')->first();
     if (\$op) {
-        \$op->password = Hash::make('${OP_PASS}');
+        \$op->password = \Illuminate\Support\Facades\Hash::make('${OP_PASS}');
         \$op->save();
         echo "✅ Operator ('${OPERATOR_USER}') password updated successfully.\n";
     }
