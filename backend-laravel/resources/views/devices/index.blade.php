@@ -556,8 +556,15 @@ mark.search-hl {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Target SSID *</label>
-                            <input type="text" name="ssid" class="form-control form-control-dark" placeholder="SSID-Staff" value="ALL" required>
-                            <div class="form-text">Use <strong>ALL</strong> for any SSID</div>
+                            <select name="ssid" class="form-select form-control-dark" required>
+                                <option value="ALL" selected>ALL (Authorized for Any SSID)</option>
+                                @foreach($masterSsids as $mSsid)
+                                    <option value="{{ $mSsid->ssid_name }}">
+                                        {{ $mSsid->ssid_name }} (VLAN {{ $mSsid->vlan_id ?? 'Native' }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Select target SSID or <strong>ALL</strong></div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">VLAN Override <span class="text-muted fw-normal">(optional)</span></label>
@@ -618,8 +625,15 @@ mark.search-hl {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Target SSID *</label>
-                            <input type="text" name="ssid" id="editSsid" class="form-control form-control-dark" required>
-                            <div class="form-text">Use <strong>ALL</strong> for any SSID</div>
+                            <select name="ssid" id="editSsid" class="form-select form-control-dark" required>
+                                <option value="ALL">ALL (Authorized for Any SSID)</option>
+                                @foreach($masterSsids as $mSsid)
+                                    <option value="{{ $mSsid->ssid_name }}">
+                                        {{ $mSsid->ssid_name }} (VLAN {{ $mSsid->vlan_id ?? 'Native' }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Select target SSID or <strong>ALL</strong></div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">VLAN Override <span class="text-muted fw-normal">(optional)</span></label>
