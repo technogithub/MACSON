@@ -243,6 +243,37 @@ mark.search-hl {
     padding: 1px 2px;
 }
 
+/* Pagination styling */
+.pagination {
+    margin-bottom: 0;
+    gap: 4px;
+}
+.pagination .page-item .page-link {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    border-radius: 8px !important;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    transition: all 0.15s;
+}
+.pagination .page-item .page-link:hover {
+    background: #334155;
+    color: #38bdf8;
+    border-color: #475569;
+}
+.pagination .page-item.active .page-link {
+    background: #0ea5e9;
+    border-color: #0ea5e9;
+    color: #ffffff;
+    font-weight: 600;
+}
+.pagination .page-item.disabled .page-link {
+    background: #0f172a;
+    border-color: #1e293b;
+    color: #475569;
+}
+
 /* Empty state */
 .empty-state {
     text-align: center;
