@@ -15,7 +15,7 @@ class UniFiService
 
     public function __construct()
     {
-        $this->config = UnifiConfig::first();
+        // Keep constructor clean to prevent DB query before DB connection is ready
     }
 
     /**
@@ -23,6 +23,10 @@ class UniFiService
      */
     public function getConfig(): UnifiConfig
     {
+        if (!$this->config) {
+            $this->config = UnifiConfig::first();
+        }
+
         if (!$this->config) {
             $this->config = UnifiConfig::create([
                 'controller_url' => env('UNIFI_CONTROLLER_URL', 'https://127.0.0.1:8443'),
