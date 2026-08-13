@@ -40,8 +40,9 @@ class DeviceController extends Controller
 
         $devices        = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
         $availableSsids = Device::distinct()->pluck('ssid')->toArray();
+        $masterSsids    = Ssid::orderBy('vlan_id', 'asc')->get();
 
-        return view('devices.index', compact('devices', 'availableSsids'));
+        return view('devices.index', compact('devices', 'availableSsids', 'masterSsids'));
     }
 
     /**
