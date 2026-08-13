@@ -61,7 +61,8 @@ class VoucherController extends Controller
     {
         $request->validate([
             'count'            => 'required|integer|min:1|max:500',
-            'duration_minutes' => 'required|integer|min:5',
+            'duration_value'   => 'required|integer|min:1',
+            'duration_unit'    => 'required|in:minutes,hours,days',
             'use_limit'        => 'required|integer|min:1',
             'quota_mb'         => 'nullable|integer|min:1',
             'down_kbps'        => 'nullable|integer|min:64',
@@ -69,13 +70,24 @@ class VoucherController extends Controller
             'note'             => 'nullable|string|max:100',
         ]);
 
-        $count           = (int)$request->count;
-        $durationMinutes = (int)$request->duration_minutes;
-        $useLimit        = (int)$request->use_limit;
-        $quotaMB         = $request->filled('quota_mb') ? (int)$request->quota_mb : null;
-        $downKbps        = $request->filled('down_kbps') ? (int)$request->down_kbps : null;
-        $upKbps          = $request->filled('up_kbps') ? (int)$request->up_kbps : null;
-        $note            = $request->note ? trim($request->note) : 'Manual Batch';
+        $count  = (int)$request->count;
+        $val    = (int)$request->duration_value;
+        $unit   = $request->duration_unit;
+
+        // Calculate total duration in minutes
+        if ($unit === 'days') {
+            $durationMinutes = $val * 1440;
+        } elseif ($unit === 'hours') {
+            $durationMinutes = $val * 60;
+        } else {
+            $durationMinutes = $val;
+        }
+
+        $useLimit = (int)$request->use_limit;
+        $quotaMB  = $request->filled('quota_mb') ? (int)$request->quota_mb : null;
+        $downKbps = $request->filled('down_kbps') ? (int)$request->down_kbps : null;
+        $upKbps   = $request->filled('up_kbps') ? (int)$request->up_kbps : null;
+        $note     = $request->note ? trim($request->note) : 'Manual Batch';
 
         $batchId = 'batch_' . date('Ymd_His') . '_' . Str::random(4);
 

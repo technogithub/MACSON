@@ -309,13 +309,14 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Duration *</label>
-                            <select name="duration_minutes" class="form-select form-control-dark" required>
-                                <option value="60">1 Hour</option>
-                                <option value="480">8 Hours</option>
-                                <option value="1440" selected>24 Hours (1 Day)</option>
-                                <option value="10080">7 Days</option>
-                                <option value="43200">30 Days</option>
-                            </select>
+                            <div class="input-group">
+                                <input type="number" name="duration_value" class="form-control form-control-dark" value="1" min="1" required>
+                                <select name="duration_unit" class="form-select form-control-dark" style="max-width: 110px;">
+                                    <option value="days" selected>Day(s)</option>
+                                    <option value="hours">Hour(s)</option>
+                                    <option value="minutes">Minute(s)</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Data Limit (MB) <span class="text-muted fw-normal">(optional)</span></label>
