@@ -102,6 +102,7 @@ CREATE TABLE `radius_log` (
 CREATE TABLE `users` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
   `email` VARCHAR(150) NOT NULL UNIQUE,
   `password` VARCHAR(255) NOT NULL,
   `role` ENUM('Super Admin', 'Operator') NOT NULL DEFAULT 'Operator',
@@ -244,9 +245,9 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Default password hash = 'password' (Laravel default test hash)
 -- IMPORTANT: Run scripts/reset_admin_password.sh after install to set a secure password!
 -- ------------------------------------------------------------------------------
-INSERT INTO `users` (`name`, `email`, `password`, `role`) VALUES
-('Super Administrator', 'admin@radius.local', '$2y$12$R.S2uIylzHw2.Z3/qC3qE.y4YnZkR/5a0nK5Yx5d5Z5Z5Z5Z5Z5Z5', 'Super Admin'),
-('Operator User', 'operator@radius.local', '$2y$12$R.S2uIylzHw2.Z3/qC3qE.y4YnZkR/5a0nK5Yx5d5Z5Z5Z5Z5Z5Z5', 'Operator');
+INSERT INTO `users` (`name`, `username`, `email`, `password`, `role`) VALUES
+('Super Administrator', 'admin', 'admin@radius.local', '$2y$12$R.S2uIylzHw2.Z3/qC3qE.y4YnZkR/5a0nK5Yx5d5Z5Z5Z5Z5Z5Z5', 'Super Admin'),
+('Operator User', 'operator', 'operator@radius.local', '$2y$12$R.S2uIylzHw2.Z3/qC3qE.y4YnZkR/5a0nK5Yx5d5Z5Z5Z5Z5Z5Z5', 'Operator');
 
 
 -- ------------------------------------------------------------------------------

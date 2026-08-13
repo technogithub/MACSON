@@ -25,12 +25,22 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email'    => 'required|email',
+        $request->validate([
+            'username' => 'required|string',
             'password' => 'required|string|min:6',
         ]);
 
-        $remember = $request->boolean('remember');
+        $loginInput = trim($request->input('username'));
+        $password   = $request->input('password');
+        $remember   = $request->boolean('remember');
+
+        // Determine if login input is email or username
+        $fieldType = filter_var($loginInput, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+
+        $credentials = [
+            $fieldType => $loginInput,
+            'password'  => $password,
+        ];
 
         if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
@@ -44,8 +54,8 @@ class AuthController extends Controller
         }
 
         return back()
-            ->withInput($request->only('email'))
-            ->with('error', 'Invalid email or password. Please try again.');
+            ->withInput($request->only('username'))
+            ->with('error', 'Invalid username or password. Please try again.');
     }
 
     /**

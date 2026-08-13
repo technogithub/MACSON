@@ -353,22 +353,22 @@
             <form id="loginForm" method="POST" action="{{ route('login') }}" novalidate>
                 @csrf
 
-                <!-- Email -->
+                <!-- Username -->
                 <div class="mb-1">
-                    <label class="form-label" for="email">Email Address</label>
+                    <label class="form-label" for="username">Username / Email</label>
                 </div>
                 <div class="input-group-custom">
                     <input
-                        type="email"
-                        id="email"
-                        name="email"
+                        type="text"
+                        id="username"
+                        name="username"
                         class="form-control-custom"
-                        placeholder="admin@radius.local"
-                        value="{{ old('email') }}"
-                        autocomplete="email"
+                        placeholder="Enter username (e.g. admin or operator)"
+                        value="{{ old('username') }}"
+                        autocomplete="username"
                         required
                     >
-                    <i class="fa-solid fa-envelope input-icon"></i>
+                    <i class="fa-solid fa-user input-icon"></i>
                 </div>
 
                 <!-- Password -->
