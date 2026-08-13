@@ -355,17 +355,17 @@ mark.search-hl {
     <div class="stat-chip">
         <i class="fa-solid fa-devices text-info"></i>
         <span>Total:</span>
-        <span class="num text-info" id="statTotal">{{ $devices->total() }}</span>
+        <span class="num text-info" id="statTotal">{{ $totalCount ?? $devices->total() }}</span>
     </div>
     <div class="stat-chip">
         <i class="fa-solid fa-circle-check text-success"></i>
         <span>Active:</span>
-        <span class="num text-success" id="statActive">{{ $devices->where('status','active')->count() }}</span>
+        <span class="num text-success" id="statActive">{{ $activeCount ?? $devices->where('status','active')->count() }}</span>
     </div>
     <div class="stat-chip">
         <i class="fa-solid fa-circle-xmark text-danger"></i>
         <span>Inactive:</span>
-        <span class="num text-danger" id="statInactive">{{ $devices->where('status','inactive')->count() }}</span>
+        <span class="num text-danger" id="statInactive">{{ $inactiveCount ?? $devices->where('status','inactive')->count() }}</span>
     </div>
     <div class="stat-chip">
         <i class="fa-solid fa-tag" style="color:#a5b4fc;"></i>

@@ -42,7 +42,12 @@ class DeviceController extends Controller
         $availableSsids = Device::distinct()->pluck('ssid')->toArray();
         $masterSsids    = Ssid::orderBy('vlan_id', 'asc')->get();
 
-        return view('devices.index', compact('devices', 'availableSsids', 'masterSsids'));
+        // Calculate global statistics across ALL pages
+        $totalCount    = Device::count();
+        $activeCount   = Device::where('status', 'active')->count();
+        $inactiveCount = Device::where('status', 'inactive')->count();
+
+        return view('devices.index', compact('devices', 'availableSsids', 'masterSsids', 'totalCount', 'activeCount', 'inactiveCount'));
     }
 
     /**
