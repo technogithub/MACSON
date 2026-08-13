@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# MACSON - MAC Authentication Centralized Santos Operations Network
+# SANTAFE NAC - Santos Advanced Network Traffic & Access Filtering Engine
 # Automated Ubuntu 26.04 / 24.04 / 22.04 Installer
 # Supports: Interactive TTY prompts & Automated Non-Interactive (--auto)
 # ==============================================================================

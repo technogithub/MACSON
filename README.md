@@ -1,6 +1,6 @@
-# 🛡️ MACSON (MAC Authentication Centralized Santos Operations Network)
+# 🛡️ SANTAFE NAC (Santos Advanced Network Traffic & Access Filtering Engine)
 
-> **Enterprise Multi-SSID RADIUS & Dynamic VLAN Management System for Ubiquiti UniFi & Enterprise Access Points**
+> **Enterprise Multi-SSID RADIUS, Dynamic VLAN & UniFi Hotspot Voucher Management System for Ubiquiti UniFi & Enterprise Access Points**
 
 ![Release](https://img.shields.io/github/v/release/technogithub/MACSON?color=green&label=Release)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-26.04%20%7C%2024.04%20LTS-orange?logo=ubuntu)
@@ -36,9 +36,13 @@
 
 ## ✨ Overview & Key Features
 
-**MACSON** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density **Ubiquiti UniFi Access Points**, UniFi Dream Machines (UDM), and enterprise Wireless Access Points. It handles central MAC address authentication, Target SSID filtering, dynamic IEEE 802.1Q VLAN assignment, strict firewall isolation, and comprehensive access logging.
+**SANTAFE NAC** is a production-ready, enterprise-grade Network Access Control (NAC) system engineered for high-density **Ubiquiti UniFi Access Points**, UniFi Dream Machines (UDM), and enterprise Wireless Access Points. It handles central MAC address authentication, Target SSID filtering, dynamic IEEE 802.1Q VLAN assignment, UniFi Hotspot Voucher Generation, strict Role-Based Access Control (RBAC), firewall isolation, and comprehensive access logging.
 
-* 📶 **Target SSID MAC Authorization**: Restrict specific device MAC addresses to one specific UniFi SSID (e.g. `SSID-Staff`) or grant access to `ALL` SSIDs.
+* 🎫 **UniFi Hotspot Voucher Module (SJA SEMARANG HOTSPOT)**: Batch generate guest Wi-Fi vouchers with custom durations (Days, Hours, Minutes), speed limits, data quotas, printable thermal/A4 slips, and real-time UniFi UDM Controller API integration.
+* 🔄 **Offline Resilience & Auto-Sync Worker**: Generates and revokes vouchers locally even when UniFi Controller is offline, then automatically syncs pending items when UniFi comes back online.
+* 🔐 **Role-Based Access Control (RBAC)**: Supports **Super Admin** (`admin`) for full system configuration and **Operator** (`operator`) dedicated strictly to Guest Voucher management.
+* 👤 **Username / Email Authentication**: Login flexibly using concise usernames (`admin`, `operator`) or full email addresses.
+* 📶 **Target SSID MAC Authorization**: Restrict specific device MAC addresses to one specific UniFi SSID (e.g. `SSID-Staff`) or grant access to `ALL` SSIDs via interactive dropdowns.
 * 🏷️ **UniFi Dynamic VLAN Assignment**: Automatically returns RADIUS `Tunnel-Private-Group-Id` to place connected devices into designated UniFi VLANs (e.g., VLAN 10, 20, 30).
 * 🔒 **Strict SSH & Network Firewall Restrictions**: Enforces UFW Firewall rules separating **Port 22 SSH** (`$SSH_SUBNET`), **Web Admin UI & phpMyAdmin** (`$ADMIN_SUBNET`), and **RADIUS 1812/1813 UDP** (`$NAS_SUBNET`).
 * 🧹 **Unlang MAC Address Sanitization**: Standardizes any incoming MAC delimiter format from UniFi APs (`AA-BB-CC-DD-EE-FF`, `aabbccddeeff`, `AA:BB:CC:DD:EE:FF`) to normalized `AA:BB:CC:DD:EE:FF`.

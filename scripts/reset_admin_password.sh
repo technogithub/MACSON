@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# MACSON - Reset Admin Password Script
+# SANTAFE NAC - User Password Reset Utility (Super Admin & Operator)
 # Run this script on the Ubuntu server AFTER docker-compose is running
 # Usage: bash scripts/reset_admin_password.sh
 # =============================================================================
@@ -8,12 +8,12 @@
 set -e
 
 CONTAINER="radius_app"
-ADMIN_EMAIL="admin@radius.local"
-OPERATOR_EMAIL="operator@radius.local"
+ADMIN_USER="admin"
+OPERATOR_USER="operator"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
-echo "║         MACSON - Admin Password Reset Utility        ║"
+echo "║      SANTAFE NAC - User Password Reset Utility       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 
@@ -27,56 +27,58 @@ fi
 echo "✅ Container '${CONTAINER}' is running."
 echo ""
 
-# Prompt for new Admin password
-while true; do
-    read -s -p "🔐 Enter new Admin password (min 8 chars): " ADMIN_PASS
-    echo ""
-    if [ ${#ADMIN_PASS} -ge 8 ]; then break; fi
-    echo "⚠️  Password too short, minimum 8 characters required."
-done
+# Prompt for user selection
+echo "Select account to reset password:"
+echo " 1) Super Admin (admin)"
+echo " 2) Operator (operator)"
+echo " 3) Reset BOTH accounts"
+read -p "Select option [1-3]: " CHOICE
 
-read -s -p "🔐 Enter new Operator password (min 8 chars) [press Enter to use same]: " OP_PASS
-echo ""
-if [ -z "$OP_PASS" ]; then
-    OP_PASS="$ADMIN_PASS"
+ADMIN_PASS=""
+OP_PASS=""
+
+if [[ "$CHOICE" == "1" || "$CHOICE" == "3" ]]; then
+    while true; do
+        read -s -p "🔐 Enter new Super Admin ('admin') password (min 6 chars): " ADMIN_PASS
+        echo ""
+        if [ ${#ADMIN_PASS} -ge 6 ]; then break; fi
+        echo "⚠️  Password too short, minimum 6 characters required."
+    done
+fi
+
+if [[ "$CHOICE" == "2" || "$CHOICE" == "3" ]]; then
+    while true; do
+        read -s -p "🔐 Enter new Operator ('operator') password (min 6 chars): " OP_PASS
+        echo ""
+        if [ ${#OP_PASS} -ge 6 ]; then break; fi
+        echo "⚠️  Password too short, minimum 6 characters required."
+    done
 fi
 
 echo ""
 echo "⏳ Resetting passwords inside container..."
 
-# Use PHP inside the container to generate hash and update DB
+# Use PHP inside the container to generate valid Bcrypt hash and update DB
 docker exec -i "$CONTAINER" php artisan tinker --no-interaction <<EOF
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
-\$admin = User::where('email', '${ADMIN_EMAIL}')->first();
-if (\$admin) {
-    \$admin->password = Hash::make('${ADMIN_PASS}');
-    \$admin->save();
-    echo "✅ Admin password updated for: ${ADMIN_EMAIL}\n";
-} else {
-    User::create([
-        'name'     => 'Super Administrator',
-        'email'    => '${ADMIN_EMAIL}',
-        'password' => Hash::make('${ADMIN_PASS}'),
-        'role'     => 'Super Admin',
-    ]);
-    echo "✅ Admin user created: ${ADMIN_EMAIL}\n";
+if (!empty('${ADMIN_PASS}')) {
+    \$admin = User::where('username', '${ADMIN_USER}')->orWhere('email', 'admin@radius.local')->first();
+    if (\$admin) {
+        \$admin->password = Hash::make('${ADMIN_PASS}');
+        \$admin->save();
+        echo "✅ Super Admin ('${ADMIN_USER}') password updated successfully.\n";
+    }
 }
 
-\$op = User::where('email', '${OPERATOR_EMAIL}')->first();
-if (\$op) {
-    \$op->password = Hash::make('${OP_PASS}');
-    \$op->save();
-    echo "✅ Operator password updated for: ${OPERATOR_EMAIL}\n";
-} else {
-    User::create([
-        'name'     => 'Operator User',
-        'email'    => '${OPERATOR_EMAIL}',
-        'password' => Hash::make('${OP_PASS}'),
-        'role'     => 'Operator',
-    ]);
-    echo "✅ Operator user created: ${OPERATOR_EMAIL}\n";
+if (!empty('${OP_PASS}')) {
+    \$op = User::where('username', '${OPERATOR_USER}')->orWhere('email', 'operator@radius.local')->first();
+    if (\$op) {
+        \$op->password = Hash::make('${OP_PASS}');
+        \$op->save();
+        echo "✅ Operator ('${OPERATOR_USER}') password updated successfully.\n";
+    }
 }
 
 echo "✅ Done!\n";
@@ -86,7 +88,7 @@ echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║               ✅ Password Reset Complete!            ║"
 echo "╠══════════════════════════════════════════════════════╣"
-echo "║  Admin Email   : ${ADMIN_EMAIL}          ║"
-echo "║  Operator Email: ${OPERATOR_EMAIL}      ║"
+echo "║  Super Admin Username : admin                        ║"
+echo "║  Operator Username    : operator                     ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
