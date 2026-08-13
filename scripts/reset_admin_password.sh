@@ -7,7 +7,15 @@
 
 set -e
 
-CONTAINER="radius_app"
+# Detect container name dynamically (radius_laravel_app, radius_app, or fallback)
+CONTAINER=""
+for cname in "radius_laravel_app" "radius_app" "app"; do
+    if docker ps --format '{{.Names}}' | grep -q "^${cname}$"; then
+        CONTAINER="$cname"
+        break
+    fi
+done
+
 ADMIN_USER="admin"
 OPERATOR_USER="operator"
 
@@ -17,10 +25,10 @@ echo "║      SANTAFE NAC - User Password Reset Utility       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 
-# Check if container is running
-if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
-    echo "❌ ERROR: Container '${CONTAINER}' is not running!"
-    echo "   Please run: docker-compose -f docker/docker-compose.yml up -d"
+# Check if container was found and is running
+if [ -z "$CONTAINER" ]; then
+    echo "❌ ERROR: Laravel container ('radius_laravel_app') is not running!"
+    echo "   Please run: docker compose -f docker/docker-compose.yml up -d"
     exit 1
 fi
 
