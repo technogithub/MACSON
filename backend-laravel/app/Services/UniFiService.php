@@ -246,34 +246,55 @@ class UniFiService
             }
 
             $url = $baseUrl . $endpointPath;
+            $cleanCode = str_replace('-', '', $code);
 
-            // 1. Try revoking via _id if available
-            if ($unifiId) {
+            // 1. If unifiId is missing, query UniFi Controller to find the matching _id for this code
+            if (!$unifiId) {
+                $statPath = $this->isUnifiOs
+                    ? '/proxy/network/api/s/' . $config->site_id . '/stat/voucher'
+                    : '/api/s/' . $config->site_id . '/stat/voucher';
+
                 try {
-                    $res = Http::withHeaders($headers)
+                    $statRes = Http::withHeaders($headers)
                         ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
-                        ->post($url, ['cmd' => 'revoke-voucher', '_id' => $unifiId]);
+                        ->get($baseUrl . $statPath);
 
-                    if ($res->successful()) {
-                        return true;
+                    if ($statRes->successful() && isset($statRes['data']) && is_array($statRes['data'])) {
+                        foreach ($statRes['data'] as $v) {
+                            $vCode = str_replace('-', '', $v['code'] ?? '');
+                            if ($vCode === $cleanCode && isset($v['_id'])) {
+                                $unifiId = $v['_id'];
+                                break;
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
-                    Log::warning('UniFi Revoke by _id failed: ' . $e->getMessage());
+                    Log::warning('Failed fetching UniFi voucher stat for revoke: ' . $e->getMessage());
                 }
             }
 
-            // 2. Fallback try revoking by code / raw code
-            try {
-                $cleanCode = str_replace('-', '', $code);
-                $res = Http::withHeaders($headers)
-                    ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
-                    ->post($url, ['cmd' => 'revoke-voucher', 'code' => $cleanCode]);
+            // 2. Perform revocation using _id or fallback to code
+            $payloads = [];
+            if ($unifiId) {
+                $payloads[] = ['cmd' => 'revoke-voucher', '_id' => $unifiId];
+            }
+            $payloads[] = ['cmd' => 'revoke-voucher', 'code' => $cleanCode];
 
-                if ($res->successful()) {
-                    return true;
+            foreach ($payloads as $p) {
+                try {
+                    $res = Http::withHeaders($headers)
+                        ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 10])
+                        ->post($url, $p);
+
+                    if ($res->successful()) {
+                        Log::info('UniFi Voucher Revoked Successfully: ' . json_encode($p));
+                        return true;
+                    } else {
+                        Log::warning('UniFi Revoke Attempt Failed (HTTP ' . $res->status() . '): ' . $res->body());
+                    }
+                } catch (\Exception $e) {
+                    Log::error('UniFi Revoke Payload Exception: ' . $e->getMessage());
                 }
-            } catch (\Exception $e) {
-                Log::error('UniFi Revoke by code failed: ' . $e->getMessage());
             }
         }
 
