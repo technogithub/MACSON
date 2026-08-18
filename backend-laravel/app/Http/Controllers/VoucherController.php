@@ -172,18 +172,33 @@ class VoucherController extends Controller
     }
 
     /**
-     * Trigger Manual Sync for Pending Vouchers
+     * Trigger Manual Sync & Import for Vouchers with UniFi Controller
      */
     public function syncNow()
     {
-        $stats = $this->uniFiService->syncPendingVouchers();
-        $totalSynced = $stats['created'] + $stats['revoked'];
+        $pendingStats = $this->uniFiService->syncPendingVouchers();
+        $fullStats    = $this->uniFiService->syncAllVouchersFromUniFi();
 
-        if ($totalSynced > 0) {
-            return redirect()->back()->with('success', "UniFi Sync Completed! Synced {$stats['created']} new vouchers and {$stats['revoked']} revoked vouchers to UniFi Controller.");
+        $msgParts = [];
+        if ($fullStats['updated'] > 0) {
+            $msgParts[] = "Updated {$fullStats['updated']} voucher status(es)";
+        }
+        if ($fullStats['imported'] > 0) {
+            $msgParts[] = "Imported {$fullStats['imported']} new voucher(s) from UniFi";
+        }
+        if ($pendingStats['created'] > 0) {
+            $msgParts[] = "Uploaded {$pendingStats['created']} pending creation(s)";
+        }
+        if ($pendingStats['revoked'] > 0) {
+            $msgParts[] = "Processed {$pendingStats['revoked']} pending revocation(s)";
         }
 
-        return redirect()->back()->with('error', 'UniFi Controller is still unreachable or no pending sync items found.');
+        if (!empty($msgParts)) {
+            $details = implode(', ', $msgParts);
+            return redirect()->back()->with('success', "UniFi Controller Sync Completed! {$details}. (Total UniFi: {$fullStats['total_unifi']})");
+        }
+
+        return redirect()->back()->with('info', "UniFi Sync Completed. All {$fullStats['total_unifi']} vouchers are up-to-date with UniFi Controller.");
     }
 
     /**

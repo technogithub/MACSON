@@ -362,4 +362,96 @@ class UniFiService
 
         return $stats;
     }
+
+    /**
+     * Fetch all vouchers from UniFi Controller API and sync usage status (used_count, status, used_at)
+     */
+    public function syncAllVouchersFromUniFi(): array
+    {
+        $stats = ['imported' => 0, 'updated' => 0, 'total_unifi' => 0];
+
+        $config = $this->getConfig();
+        if (!$this->login()) {
+            return $stats;
+        }
+
+        $baseUrl = rtrim($config->controller_url, '/');
+        $endpointPath = $this->isUnifiOs
+            ? '/proxy/network/api/s/' . $config->site_id . '/stat/voucher'
+            : '/api/s/' . $config->site_id . '/stat/voucher';
+
+        $headers = ['Cookie' => $this->cookie];
+        if ($this->csrfToken) {
+            $headers['X-CSRF-Token'] = $this->csrfToken;
+        }
+
+        try {
+            $response = Http::withHeaders($headers)
+                ->withOptions(['verify' => (bool)$config->verify_ssl, 'timeout' => 15])
+                ->get($baseUrl . $endpointPath);
+
+            if ($response->successful() && isset($response['data']) && is_array($response['data'])) {
+                $unifiVouchers = $response['data'];
+                $stats['total_unifi'] = count($unifiVouchers);
+
+                foreach ($unifiVouchers as $uVoucher) {
+                    $rawCode   = $uVoucher['code'] ?? '';
+                    $cleanCode = str_replace('-', '', $rawCode);
+                    $unifiId   = $uVoucher['_id'] ?? null;
+                    $usedCount = (int)($uVoucher['used'] ?? 0);
+                    $quotaLimit = (int)($uVoucher['quota'] ?? 0);
+                    $duration  = (int)($uVoucher['duration'] ?? 1440);
+                    $note      = $uVoucher['note'] ?? 'Synced from UniFi';
+                    $usedAt    = isset($uVoucher['used_time']) && $uVoucher['used_time'] > 0 
+                                  ? \Carbon\Carbon::createFromTimestamp($uVoucher['used_time']) 
+                                  : null;
+
+                    // Status detection based on UniFi Controller fields
+                    $status = 'unused';
+                    if ($usedCount > 0 && ($quotaLimit === 0 || $usedCount >= $quotaLimit)) {
+                        $status = 'used';
+                    } elseif (isset($uVoucher['status']) && strtolower($uVoucher['status']) === 'expired') {
+                        $status = 'expired';
+                    }
+
+                    $existing = \App\Models\UnifiVoucher::where('code', $cleanCode)
+                        ->orWhere('unifi_id', $unifiId)
+                        ->first();
+
+                    if ($existing) {
+                        $existing->update([
+                            'unifi_id'   => $unifiId ?: $existing->unifi_id,
+                            'used_count' => $usedCount,
+                            'status'     => ($existing->status === 'revoked') ? 'revoked' : $status,
+                            'used_at'    => $usedAt ?: $existing->used_at,
+                            'sync_status'=> 'synced',
+                        ]);
+                        $stats['updated']++;
+                    } else {
+                        // Import voucher created directly inside UniFi Controller UI
+                        \App\Models\UnifiVoucher::create([
+                            'unifi_id'         => $unifiId,
+                            'code'             => $cleanCode,
+                            'duration_minutes' => $duration,
+                            'quota_mb'         => isset($uVoucher['qos_usage_quota']) ? (int)$uVoucher['qos_usage_quota'] : null,
+                            'down_kbps'        => isset($uVoucher['qos_rate_max_down']) ? (int)$uVoucher['qos_rate_max_down'] : null,
+                            'up_kbps'          => isset($uVoucher['qos_rate_max_up']) ? (int)$uVoucher['qos_rate_max_up'] : null,
+                            'use_limit'        => $quotaLimit ?: 1,
+                            'used_count'       => $usedCount,
+                            'note'             => $note,
+                            'batch_id'         => 'unifi_import_' . date('Ymd'),
+                            'status'           => $status,
+                            'sync_status'      => 'synced',
+                            'used_at'          => $usedAt,
+                        ]);
+                        $stats['imported']++;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Full UniFi Voucher Sync Error: ' . $e->getMessage());
+        }
+
+        return $stats;
+    }
 }

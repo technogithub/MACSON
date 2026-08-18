@@ -28,9 +28,10 @@ Schedule::command('radius:prune-logs --days=30')->dailyAt('02:00');
  * Automatically syncs pending created or revoked vouchers to UniFi Controller when online
  */
 Artisan::command('unifi:sync-vouchers', function (\App\Services\UniFiService $uniFiService) {
-    $stats = $uniFiService->syncPendingVouchers();
-    $this->info("UniFi Sync Completed. Created: {$stats['created']}, Revoked: {$stats['revoked']}, Failed: {$stats['failed']}");
-})->purpose('Sync pending vouchers with UniFi Controller');
+    $pendingStats = $uniFiService->syncPendingVouchers();
+    $fullStats    = $uniFiService->syncAllVouchersFromUniFi();
+    $this->info("UniFi Sync Completed. Imported: {$fullStats['imported']}, Status Updated: {$fullStats['updated']}, Pending Created: {$pendingStats['created']}, Pending Revoked: {$pendingStats['revoked']}");
+})->purpose('Sync pending vouchers and update usage status with UniFi Controller');
 
 // Schedule automatic background sync every 5 minutes
 Schedule::command('unifi:sync-vouchers')->everyFiveMinutes();
