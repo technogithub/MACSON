@@ -183,113 +183,177 @@
 </form>
 
 <!-- Vouchers Table -->
-<div class="voucher-card">
-    <div class="table-responsive">
-        <table class="table voucher-table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Voucher Code</th>
-                    <th>Duration</th>
-                    <th>Quota Limit</th>
-                    <th>Speed Limit</th>
-                    <th>Batch / Note</th>
-                    <th>Status</th>
-                    <th>UniFi Sync</th>
-                    <th>Created At</th>
-                    <th class="text-center">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($vouchers as $v)
+<form id="batchRevokeForm" action="{{ route('vouchers.batchRevoke') }}" method="POST">
+    @csrf
+    <div class="voucher-card">
+        <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-secondary" id="batchActionBar" style="display: none !important; background: rgba(239,68,68,0.08);">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-square-check text-danger fs-5"></i>
+                <span class="fw-semibold text-light small"><span id="selectedCount">0</span> Voucher(s) Selected</span>
+            </div>
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke all selected vouchers?')">
+                <i class="fa-solid fa-ban me-1"></i> Revoke Selected Vouchers
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table voucher-table align-middle mb-0">
+                <thead>
                     <tr>
-                        <td>
-                            <span class="voucher-code-badge">{{ $v->formatted_code }}</span>
-                        </td>
-                        <td>
-                            <span class="fw-semibold text-light">
-                                @if($v->duration_minutes >= 1440)
-                                    {{ round($v->duration_minutes / 1440, 1) }} Day(s)
-                                @elseif($v->duration_minutes >= 60)
-                                    {{ round($v->duration_minutes / 60, 1) }} Hour(s)
+                        <th style="width:40px;" class="text-center">
+                            <input type="checkbox" id="selectAllVouchers" class="form-check-input" title="Select All Vouchers">
+                        </th>
+                        <th>Voucher Code</th>
+                        <th>Duration</th>
+                        <th>Quota Limit</th>
+                        <th>Speed Limit</th>
+                        <th>Batch / Note</th>
+                        <th>Status</th>
+                        <th>UniFi Sync</th>
+                        <th>Created At</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($vouchers as $v)
+                        <tr>
+                            <td class="text-center">
+                                @if($v->status === 'unused')
+                                    <input type="checkbox" name="voucher_ids[]" value="{{ $v->id }}" class="form-check-input voucher-checkbox">
                                 @else
-                                    {{ $v->duration_minutes }} Min(s)
+                                    <input type="checkbox" disabled class="form-check-input opacity-25">
                                 @endif
-                            </span>
-                        </td>
-                        <td>
-                            @if($v->quota_mb)
-                                <span class="badge bg-secondary">{{ $v->quota_mb }} MB</span>
-                            @else
-                                <span class="text-muted small">Unlimited</span>
-                            @endif
-                        </td>
-                        <td>
-                            @if($v->down_kbps || $v->up_kbps)
-                                <span class="badge bg-info-subtle text-info">
-                                    ↓ {{ $v->down_kbps ? round($v->down_kbps/1024,1).'M' : '∞' }} / 
-                                    ↑ {{ $v->up_kbps ? round($v->up_kbps/1024,1).'M' : '∞' }}
+                            </td>
+                            <td>
+                                <span class="voucher-code-badge">{{ $v->formatted_code }}</span>
+                            </td>
+                            <td>
+                                <span class="fw-semibold text-light">
+                                    @if($v->duration_minutes >= 1440)
+                                        {{ round($v->duration_minutes / 1440, 1) }} Day(s)
+                                    @elseif($v->duration_minutes >= 60)
+                                        {{ round($v->duration_minutes / 60, 1) }} Hour(s)
+                                    @else
+                                        {{ $v->duration_minutes }} Min(s)
+                                    @endif
                                 </span>
-                            @else
-                                <span class="text-muted small">Full Speed</span>
-                            @endif
-                        </td>
-                        <td>
-                            <div class="fw-semibold text-light small">{{ $v->note ?? 'No Note' }}</div>
-                            <div class="text-secondary" style="font-size:0.75rem;">{{ $v->batch_id }}</div>
-                        </td>
-                        <td>
-                            @if($v->status === 'unused')
-                                <span class="badge bg-success" style="font-size:0.75rem;">Unused</span>
-                            @elseif($v->status === 'used')
-                                <span class="badge bg-primary" style="font-size:0.75rem;">Used</span>
-                            @elseif($v->status === 'revoked')
-                                <span class="badge bg-danger" style="font-size:0.75rem;">Revoked</span>
-                            @else
-                                <span class="badge bg-secondary" style="font-size:0.75rem;">Expired</span>
-                            @endif
-                        </td>
-                        <td>
-                            @if(($v->sync_status ?? 'synced') === 'synced')
-                                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.72rem;"><i class="fa-solid fa-cloud-check me-1"></i>Synced</span>
-                            @else
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:0.72rem;" title="Pending Sync to UniFi Controller"><i class="fa-solid fa-clock-rotate-left me-1"></i>Pending Sync</span>
-                            @endif
-                        </td>
-                        <td class="text-secondary small">
-                            {{ $v->created_at ? $v->created_at->format('Y-m-d H:i') : '—' }}
-                        </td>
-                        <td class="text-center">
-                            @if($v->status === 'unused')
-                                <form action="{{ route('vouchers.destroy', $v->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Revoke voucher {{ $v->code }}?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Revoke Voucher">
+                            </td>
+                            <td>
+                                @if($v->quota_mb)
+                                    <span class="badge bg-secondary">{{ $v->quota_mb }} MB</span>
+                                @else
+                                    <span class="text-muted small">Unlimited</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($v->down_kbps || $v->up_kbps)
+                                    <span class="badge bg-info-subtle text-info">
+                                        ↓ {{ $v->down_kbps ? round($v->down_kbps/1024,1).'M' : '∞' }} / 
+                                        ↑ {{ $v->up_kbps ? round($v->up_kbps/1024,1).'M' : '∞' }}
+                                    </span>
+                                @else
+                                    <span class="text-muted small">Full Speed</span>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-light small">{{ $v->note ?? 'No Note' }}</div>
+                                <div class="text-secondary" style="font-size:0.75rem;">{{ $v->batch_id }}</div>
+                            </td>
+                            <td>
+                                @if($v->status === 'unused')
+                                    <span class="badge bg-success" style="font-size:0.75rem;">Unused</span>
+                                @elseif($v->status === 'used')
+                                    <span class="badge bg-primary" style="font-size:0.75rem;">Used</span>
+                                @elseif($v->status === 'revoked')
+                                    <span class="badge bg-danger" style="font-size:0.75rem;">Revoked</span>
+                                @else
+                                    <span class="badge bg-secondary" style="font-size:0.75rem;">Expired</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if(($v->sync_status ?? 'synced') === 'synced')
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.72rem;"><i class="fa-solid fa-cloud-check me-1"></i>Synced</span>
+                                @else
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:0.72rem;" title="Pending Sync to UniFi Controller"><i class="fa-solid fa-clock-rotate-left me-1"></i>Pending Sync</span>
+                                @endif
+                            </td>
+                            <td class="text-secondary small">
+                                {{ $v->created_at ? $v->created_at->format('Y-m-d H:i') : '—' }}
+                            </td>
+                            <td class="text-center">
+                                @if($v->status === 'unused')
+                                    <button type="submit" form="singleRevokeForm{{ $v->id }}" class="btn btn-sm btn-outline-danger" title="Revoke Voucher" onclick="return confirm('Revoke voucher {{ $v->code }}?')">
                                         <i class="fa-solid fa-ban"></i>
                                     </button>
-                                </form>
-                            @else
-                                <span class="text-muted small">—</span>
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="8" class="text-center py-5">
-                            <div class="text-muted mb-2" style="font-size:2rem;"><i class="fa-solid fa-ticket text-secondary"></i></div>
-                            <p class="fw-semibold text-secondary mb-1">No UniFi Vouchers Generated Yet</p>
-                            <p class="text-muted small">Click "Generate Vouchers" to create guest access voucher codes.</p>
-                        </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-    @if($vouchers->hasPages())
-        <div class="px-4 py-3 border-top" style="border-color:#334155 !important;">
-            {{ $vouchers->links() }}
+                                @else
+                                    <span class="text-muted small">—</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="10" class="text-center py-5">
+                                <div class="text-muted mb-2" style="font-size:2rem;"><i class="fa-solid fa-ticket text-secondary"></i></div>
+                                <p class="fw-semibold text-secondary mb-1">No Active UniFi Vouchers Found</p>
+                                <p class="text-muted small">All active vouchers are clean. Select "All Status" or "Revoked" to view revoked history.</p>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
+        @if($vouchers->hasPages())
+            <div class="px-4 py-3 border-top" style="border-color:#334155 !important;">
+                {{ $vouchers->links() }}
+            </div>
+        @endif
+    </div>
+</form>
+
+<!-- Forms for single voucher revocation -->
+@foreach($vouchers as $v)
+    @if($v->status === 'unused')
+        <form id="singleRevokeForm{{ $v->id }}" action="{{ route('vouchers.destroy', $v->id) }}" method="POST" style="display:none;">
+            @csrf
+            @method('DELETE')
+        </form>
     @endif
-</div>
+@endforeach
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAll = document.getElementById('selectAllVouchers');
+    const checkboxes = document.querySelectorAll('.voucher-checkbox');
+    const batchBar = document.getElementById('batchActionBar');
+    const countDisplay = document.getElementById('selectedCount');
+
+    function updateBatchBar() {
+        const checked = document.querySelectorAll('.voucher-checkbox:checked');
+        const count = checked.length;
+        if (count > 0) {
+            batchBar.style.setProperty('display', 'flex', 'important');
+            countDisplay.textContent = count;
+        } else {
+            batchBar.style.setProperty('display', 'none', 'important');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateBatchBar();
+        });
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', function () {
+            if (!this.checked && selectAll) {
+                selectAll.checked = false;
+            }
+            updateBatchBar();
+        });
+    });
+});
+</script>
 
 <!-- MODAL: Generate Vouchers -->
 <div class="modal fade" id="createVoucherModal" tabindex="-1">

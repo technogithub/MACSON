@@ -34,9 +34,14 @@ class VoucherController extends Controller
             });
         }
 
-        // Status Filter
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        // Status Filter (Default: hide revoked vouchers unless explicitly requested)
+        if ($request->filled('status')) {
+            if ($request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+        } else {
+            // Default view: exclude revoked vouchers to keep list clean
+            $query->where('status', '!=', 'revoked');
         }
 
         $vouchers = $query->orderBy('id', 'desc')->paginate(20)->withQueryString();
@@ -199,6 +204,31 @@ class VoucherController extends Controller
         }
 
         return redirect()->back()->with('info', "UniFi Sync Completed. All {$fullStats['total_unifi']} vouchers are up-to-date with UniFi Controller.");
+    }
+
+    /**
+     * Batch Revoke Selected Vouchers via Checklist
+     */
+    public function batchRevoke(Request $request)
+    {
+        $request->validate([
+            'voucher_ids'   => 'required|array',
+            'voucher_ids.*' => 'integer|exists:unifi_vouchers,id',
+        ]);
+
+        $vouchers = UnifiVoucher::whereIn('id', $request->voucher_ids)->get();
+        $revokedCount = 0;
+
+        foreach ($vouchers as $v) {
+            $revokedOnUnifi = $this->uniFiService->revokeVoucher($v->unifi_id, $v->code);
+            $v->update([
+                'status'      => 'revoked',
+                'sync_status' => $revokedOnUnifi ? 'synced' : 'pending_revoke',
+            ]);
+            $revokedCount++;
+        }
+
+        return redirect()->back()->with('success', "Successfully revoked {$revokedCount} selected voucher(s)!");
     }
 
     /**

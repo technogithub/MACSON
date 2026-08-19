@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function () {
     // UniFi Hotspot Voucher Routes (Accessible to both Super Admin & Operator)
     Route::get('vouchers/print', [VoucherController::class, 'print'])->name('vouchers.print');
     Route::post('vouchers/sync', [VoucherController::class, 'syncNow'])->name('vouchers.sync');
+    Route::post('vouchers/batch-revoke', [VoucherController::class, 'batchRevoke'])->name('vouchers.batchRevoke');
     Route::resource('vouchers', VoucherController::class)->only(['index', 'store', 'destroy']);
 
     // ── Super Admin Only Restricted Routes ─────────────────────────────
