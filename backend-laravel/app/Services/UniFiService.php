@@ -402,28 +402,39 @@ class UniFiService
                     $quotaLimit = (int)($uVoucher['quota'] ?? 0);
                     $duration  = (int)($uVoucher['duration'] ?? 1440);
                     $note      = $uVoucher['note'] ?? 'Synced from UniFi';
-                    $usedAt    = isset($uVoucher['used_time']) && $uVoucher['used_time'] > 0 
-                                  ? \Carbon\Carbon::createFromTimestamp($uVoucher['used_time']) 
-                                  : null;
+                    
+                    // Determine time of usage (check used_time, start_time, or create_time if used)
+                    $usedTimestamp = $uVoucher['used_time'] ?? $uVoucher['start_time'] ?? null;
+                    $usedAt = ($usedTimestamp && $usedTimestamp > 0)
+                              ? \Carbon\Carbon::createFromTimestamp($usedTimestamp) 
+                              : null;
 
-                    // Status detection based on UniFi Controller fields
+                    // Robust status detection based on UniFi Controller response fields
+                    // UniFi marks vouchers as used when used > 0 OR status_expires is set OR start_time is set
                     $status = 'unused';
-                    if ($usedCount > 0 && ($quotaLimit === 0 || $usedCount >= $quotaLimit)) {
+                    $uStatus = strtolower($uVoucher['status'] ?? '');
+                    
+                    if ($usedCount > 0 || !empty($uVoucher['start_time']) || !empty($uVoucher['status_expires']) || $uStatus === 'used' || $uStatus === 'consumed' || $uStatus === 'active') {
                         $status = 'used';
-                    } elseif (isset($uVoucher['status']) && strtolower($uVoucher['status']) === 'expired') {
+                        if (!$usedAt) {
+                            $usedAt = now();
+                        }
+                    } elseif ($uStatus === 'expired') {
                         $status = 'expired';
                     }
 
-                    $existing = \App\Models\UnifiVoucher::where('code', $cleanCode)
-                        ->orWhere('unifi_id', $unifiId)
-                        ->first();
+                    $existing = \App\Models\UnifiVoucher::where('code', $cleanCode);
+                    if ($unifiId) {
+                        $existing->orWhere('unifi_id', $unifiId);
+                    }
+                    $existingModel = $existing->first();
 
-                    if ($existing) {
-                        $existing->update([
-                            'unifi_id'   => $unifiId ?: $existing->unifi_id,
-                            'used_count' => $usedCount,
-                            'status'     => ($existing->status === 'revoked') ? 'revoked' : $status,
-                            'used_at'    => $usedAt ?: $existing->used_at,
+                    if ($existingModel) {
+                        $existingModel->update([
+                            'unifi_id'   => $unifiId ?: $existingModel->unifi_id,
+                            'used_count' => $usedCount > 0 ? $usedCount : ($status === 'used' ? 1 : $existingModel->used_count),
+                            'status'     => ($existingModel->status === 'revoked') ? 'revoked' : $status,
+                            'used_at'    => $usedAt ?: $existingModel->used_at,
                             'sync_status'=> 'synced',
                         ]);
                         $stats['updated']++;
@@ -437,7 +448,7 @@ class UniFiService
                             'down_kbps'        => isset($uVoucher['qos_rate_max_down']) ? (int)$uVoucher['qos_rate_max_down'] : null,
                             'up_kbps'          => isset($uVoucher['qos_rate_max_up']) ? (int)$uVoucher['qos_rate_max_up'] : null,
                             'use_limit'        => $quotaLimit ?: 1,
-                            'used_count'       => $usedCount,
+                            'used_count'       => $usedCount > 0 ? $usedCount : ($status === 'used' ? 1 : 0),
                             'note'             => $note,
                             'batch_id'         => 'unifi_import_' . date('Ymd'),
                             'status'           => $status,
