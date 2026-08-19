@@ -34,14 +34,12 @@ class VoucherController extends Controller
             });
         }
 
-        // Status Filter (Default: hide revoked vouchers unless explicitly requested)
-        if ($request->filled('status')) {
-            if ($request->status !== 'all') {
-                $query->where('status', $request->status);
-            }
-        } else {
-            // Default view: exclude revoked vouchers to keep list clean
+        // Status Filter (Default: 'active' which shows Unused, Used, & Expired, excluding Revoked)
+        $selectedStatus = $request->input('status', 'active');
+        if ($selectedStatus === 'active') {
             $query->where('status', '!=', 'revoked');
+        } elseif ($selectedStatus !== 'all') {
+            $query->where('status', $selectedStatus);
         }
 
         $vouchers = $query->orderBy('id', 'desc')->paginate(20)->withQueryString();

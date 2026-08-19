@@ -410,11 +410,12 @@ class UniFiService
                               : null;
 
                     // Robust status detection based on UniFi Controller response fields
-                    // UniFi marks vouchers as used when used > 0 OR status_expires is set OR start_time is set
                     $status = 'unused';
                     $uStatus = strtolower($uVoucher['status'] ?? '');
                     
-                    if ($usedCount > 0 || !empty($uVoucher['start_time']) || !empty($uVoucher['status_expires']) || $uStatus === 'used' || $uStatus === 'consumed' || $uStatus === 'active') {
+                    if ($uStatus === 'revoked' || $uStatus === 'canceled' || $uStatus === 'deleted' || !empty($uVoucher['forfeit'])) {
+                        $status = 'revoked';
+                    } elseif ($usedCount > 0 || !empty($uVoucher['start_time']) || !empty($uVoucher['status_expires']) || $uStatus === 'used' || $uStatus === 'consumed' || $uStatus === 'active') {
                         $status = 'used';
                         if (!$usedAt) {
                             $usedAt = now();

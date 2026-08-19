@@ -171,11 +171,12 @@
                placeholder="Search Voucher Code, Note, or Batch ID..."
                value="{{ request('search') }}" autocomplete="off">
     </div>
-    <select name="status" class="form-select search-input" style="width:160px;" onchange="this.form.submit()">
-        <option value="all" {{ request('status','all') === 'all' ? 'selected' : '' }}>All Status</option>
-        <option value="unused" {{ request('status') === 'unused' ? 'selected' : '' }}>Unused</option>
-        <option value="used" {{ request('status') === 'used' ? 'selected' : '' }}>Used</option>
-        <option value="revoked" {{ request('status') === 'revoked' ? 'selected' : '' }}>Revoked</option>
+    <select name="status" class="form-select search-input" style="width:170px;" onchange="this.form.submit()">
+        <option value="active" {{ request('status','active') === 'active' ? 'selected' : '' }}>Active Vouchers</option>
+        <option value="unused" {{ request('status') === 'unused' ? 'selected' : '' }}>Unused Only</option>
+        <option value="used" {{ request('status') === 'used' ? 'selected' : '' }}>Used Only</option>
+        <option value="revoked" {{ request('status') === 'revoked' ? 'selected' : '' }}>Revoked Only</option>
+        <option value="all" {{ request('status') === 'all' ? 'selected' : '' }}>All Status</option>
     </select>
     @if(request()->hasAny(['search','status']))
         <a href="{{ route('vouchers.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
