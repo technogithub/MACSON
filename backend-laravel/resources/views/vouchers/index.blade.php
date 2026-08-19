@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Quantity (Count) *</label>
-                            <input type="number" name="count" class="form-control form-control-dark" value="10" min="1" max="500" required>
+                            <input type="number" name="count" class="form-control form-control-dark" value="1" min="1" max="500" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Duration *</label>
