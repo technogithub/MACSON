@@ -126,7 +126,7 @@ class UniFiService
             'cmd'    => 'create-voucher',
             'n'      => $count,
             'expire' => $durationMinutes,
-            'quota'  => $useLimit === 1 ? 0 : $useLimit,
+            'quota'  => $useLimit <= 0 ? 0 : $useLimit,
         ];
 
         if ($note) {
