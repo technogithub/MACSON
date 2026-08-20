@@ -178,7 +178,13 @@
         <option value="revoked" {{ request('status') === 'revoked' ? 'selected' : '' }}>Revoked Only</option>
         <option value="all" {{ request('status') === 'all' ? 'selected' : '' }}>All Status</option>
     </select>
-    @if(request()->hasAny(['search','status']))
+    <select name="per_page" class="form-select search-input" style="width:130px;" onchange="this.form.submit()">
+        <option value="20" {{ request('per_page', '20') == '20' ? 'selected' : '' }}>20 / page</option>
+        <option value="50" {{ request('per_page') == '50' ? 'selected' : '' }}>50 / page</option>
+        <option value="100" {{ request('per_page') == '100' ? 'selected' : '' }}>100 / page</option>
+        <option value="200" {{ request('per_page') == '200' ? 'selected' : '' }}>200 / page</option>
+    </select>
+    @if(request()->hasAny(['search','status','per_page']))
         <a href="{{ route('vouchers.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
     @endif
 </form>

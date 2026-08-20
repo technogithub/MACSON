@@ -42,7 +42,9 @@ class VoucherController extends Controller
             $query->where('status', $selectedStatus);
         }
 
-        $vouchers = $query->orderBy('id', 'desc')->paginate(20)->withQueryString();
+        $perPage = in_array((int)$request->input('per_page'), [20, 50, 100, 200]) ? (int)$request->input('per_page') : 20;
+
+        $vouchers = $query->orderBy('id', 'desc')->paginate($perPage)->withQueryString();
         $config   = $this->uniFiService->getConfig();
 
         // Voucher Stats
