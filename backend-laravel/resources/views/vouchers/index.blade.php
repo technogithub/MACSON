@@ -191,9 +191,14 @@
                 <i class="fa-solid fa-square-check text-danger fs-5"></i>
                 <span class="fw-semibold text-light small"><span id="selectedCount">0</span> Voucher(s) Selected</span>
             </div>
-            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke all selected vouchers?')">
-                <i class="fa-solid fa-ban me-1"></i> Revoke Selected Vouchers
-            </button>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-warning btn-sm" id="btnPrintSelected">
+                    <i class="fa-solid fa-print me-1"></i> Print Selected
+                </button>
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke all selected vouchers?')">
+                    <i class="fa-solid fa-ban me-1"></i> Revoke Selected Vouchers
+                </button>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table voucher-table align-middle mb-0">
@@ -223,7 +228,13 @@
                                 @endif
                             </td>
                             <td>
-                                <span class="voucher-code-badge">{{ $v->formatted_code }}</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="voucher-code-badge">{{ $v->formatted_code }}</span>
+                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 btn-copy-code" 
+                                            data-code="{{ $v->code }}" title="Copy Code" style="border-radius:6px; font-size:0.75rem;">
+                                        <i class="fa-regular fa-copy"></i>
+                                    </button>
+                                </div>
                             </td>
                             <td>
                                 <span class="fw-semibold text-light">
@@ -270,13 +281,16 @@
                                 {{ $v->created_at ? $v->created_at->format('Y-m-d H:i') : '—' }}
                             </td>
                             <td class="text-center">
-                                @if($v->status !== 'revoked')
-                                    <button type="submit" form="singleRevokeForm{{ $v->id }}" class="btn btn-sm btn-outline-danger" title="Revoke Voucher" onclick="return confirm('Revoke voucher {{ $v->code }}?')">
-                                        <i class="fa-solid fa-ban"></i>
-                                    </button>
-                                @else
-                                    <span class="text-muted small">—</span>
-                                @endif
+                                <div class="d-flex justify-content-center gap-1">
+                                    <a href="{{ route('vouchers.print') }}?ids={{ $v->id }}" target="_blank" class="btn btn-sm btn-outline-warning" title="Print Slip">
+                                        <i class="fa-solid fa-print"></i>
+                                    </a>
+                                    @if($v->status !== 'revoked')
+                                        <button type="submit" form="singleRevokeForm{{ $v->id }}" class="btn btn-sm btn-outline-danger" title="Revoke Voucher" onclick="return confirm('Revoke voucher {{ $v->code }}?')">
+                                            <i class="fa-solid fa-ban"></i>
+                                        </button>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @empty
@@ -315,6 +329,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const checkboxes = document.querySelectorAll('.voucher-checkbox');
     const batchBar = document.getElementById('batchActionBar');
     const countDisplay = document.getElementById('selectedCount');
+    const btnPrintSelected = document.getElementById('btnPrintSelected');
 
     function updateBatchBar() {
         const checked = document.querySelectorAll('.voucher-checkbox:checked');
@@ -340,6 +355,34 @@ document.addEventListener('DOMContentLoaded', function () {
                 selectAll.checked = false;
             }
             updateBatchBar();
+        });
+    });
+
+    // Print Selected Vouchers
+    if (btnPrintSelected) {
+        btnPrintSelected.addEventListener('click', function () {
+            const checked = document.querySelectorAll('.voucher-checkbox:checked');
+            const ids = Array.from(checked).map(cb => cb.value);
+            if (ids.length === 0) return;
+            const url = `{{ route('vouchers.print') }}?ids=${ids.join(',')}`;
+            window.open(url, '_blank');
+        });
+    }
+
+    // Copy Voucher Code Button
+    document.querySelectorAll('.btn-copy-code').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const code = this.dataset.code;
+            if (!code) return;
+            navigator.clipboard.writeText(code).then(() => {
+                const icon = this.querySelector('i');
+                icon.className = 'fa-solid fa-check text-success';
+                setTimeout(() => {
+                    icon.className = 'fa-regular fa-copy';
+                }, 1500);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
         });
     });
 });
