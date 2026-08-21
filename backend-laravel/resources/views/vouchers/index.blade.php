@@ -144,18 +144,13 @@
 <div class="stats-strip">
     <div class="stat-chip">
         <i class="fa-solid fa-ticket text-info"></i>
-        <span>Total:</span>
+        <span>Active Vouchers:</span>
         <span class="num text-info">{{ $stats['total'] }}</span>
     </div>
     <div class="stat-chip">
-        <i class="fa-solid fa-circle-check text-success"></i>
-        <span>Unused:</span>
-        <span class="num text-success">{{ $stats['unused'] }}</span>
-    </div>
-    <div class="stat-chip">
-        <i class="fa-solid fa-user-check" style="color:#818cf8;"></i>
-        <span>Used:</span>
-        <span class="num" style="color:#818cf8;">{{ $stats['used'] }}</span>
+        <i class="fa-solid fa-clock-rotate-left text-warning"></i>
+        <span>Pending Push:</span>
+        <span class="num text-warning">{{ $stats['pending_push'] }}</span>
     </div>
     <div class="stat-chip">
         <i class="fa-solid fa-ban text-danger"></i>
@@ -173,10 +168,8 @@
     </div>
     <select name="status" class="form-select search-input" style="width:170px;" onchange="this.form.submit()">
         <option value="active" {{ request('status','active') === 'active' ? 'selected' : '' }}>Active Vouchers</option>
-        <option value="unused" {{ request('status') === 'unused' ? 'selected' : '' }}>Unused Only</option>
-        <option value="used" {{ request('status') === 'used' ? 'selected' : '' }}>Used Only</option>
         <option value="revoked" {{ request('status') === 'revoked' ? 'selected' : '' }}>Revoked Only</option>
-        <option value="all" {{ request('status') === 'all' ? 'selected' : '' }}>All Status</option>
+        <option value="all" {{ request('status') === 'all' ? 'selected' : '' }}>All Vouchers</option>
     </select>
     <select name="per_page" class="form-select search-input" style="width:130px;" onchange="this.form.submit()">
         <option value="20" {{ request('per_page', '20') == '20' ? 'selected' : '' }}>20 / page</option>
@@ -214,7 +207,6 @@
                         <th>Quota Limit</th>
                         <th>Speed Limit</th>
                         <th>Batch / Note</th>
-                        <th>Status</th>
                         <th>UniFi Sync</th>
                         <th>Created At</th>
                         <th class="text-center">Actions</th>
@@ -224,7 +216,7 @@
                     @forelse($vouchers as $v)
                         <tr>
                             <td class="text-center">
-                                @if($v->status === 'unused')
+                                @if($v->status !== 'revoked')
                                     <input type="checkbox" name="voucher_ids[]" value="{{ $v->id }}" class="form-check-input voucher-checkbox">
                                 @else
                                     <input type="checkbox" disabled class="form-check-input opacity-25">
@@ -266,18 +258,9 @@
                                 <div class="text-secondary" style="font-size:0.75rem;">{{ $v->batch_id }}</div>
                             </td>
                             <td>
-                                @if($v->status === 'unused')
-                                    <span class="badge bg-success" style="font-size:0.75rem;">Unused</span>
-                                @elseif($v->status === 'used')
-                                    <span class="badge bg-primary" style="font-size:0.75rem;">Used</span>
-                                @elseif($v->status === 'revoked')
-                                    <span class="badge bg-danger" style="font-size:0.75rem;">Revoked</span>
-                                @else
-                                    <span class="badge bg-secondary" style="font-size:0.75rem;">Expired</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if(($v->sync_status ?? 'synced') === 'synced')
+                                @if($v->status === 'revoked')
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.72rem;"><i class="fa-solid fa-ban me-1"></i>Revoked</span>
+                                @elseif(($v->sync_status ?? 'synced') === 'synced')
                                     <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.72rem;"><i class="fa-solid fa-cloud-check me-1"></i>Synced</span>
                                 @else
                                     <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:0.72rem;" title="Pending Sync to UniFi Controller"><i class="fa-solid fa-clock-rotate-left me-1"></i>Pending Sync</span>
@@ -287,7 +270,7 @@
                                 {{ $v->created_at ? $v->created_at->format('Y-m-d H:i') : '—' }}
                             </td>
                             <td class="text-center">
-                                @if($v->status === 'unused')
+                                @if($v->status !== 'revoked')
                                     <button type="submit" form="singleRevokeForm{{ $v->id }}" class="btn btn-sm btn-outline-danger" title="Revoke Voucher" onclick="return confirm('Revoke voucher {{ $v->code }}?')">
                                         <i class="fa-solid fa-ban"></i>
                                     </button>
@@ -298,10 +281,10 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center py-5">
+                            <td colspan="9" class="text-center py-5">
                                 <div class="text-muted mb-2" style="font-size:2rem;"><i class="fa-solid fa-ticket text-secondary"></i></div>
-                                <p class="fw-semibold text-secondary mb-1">No Active UniFi Vouchers Found</p>
-                                <p class="text-muted small">All active vouchers are clean. Select "All Status" or "Revoked" to view revoked history.</p>
+                                <p class="fw-semibold text-secondary mb-1">No UniFi Vouchers Found</p>
+                                <p class="text-muted small">No vouchers match your current filter criteria.</p>
                             </td>
                         </tr>
                     @endforelse
@@ -318,7 +301,7 @@
 
 <!-- Forms for single voucher revocation -->
 @foreach($vouchers as $v)
-    @if($v->status === 'unused')
+    @if($v->status !== 'revoked')
         <form id="singleRevokeForm{{ $v->id }}" action="{{ route('vouchers.destroy', $v->id) }}" method="POST" style="display:none;">
             @csrf
             @method('DELETE')

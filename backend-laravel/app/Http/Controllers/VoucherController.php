@@ -34,12 +34,12 @@ class VoucherController extends Controller
             });
         }
 
-        // Status Filter (Default: 'active' which shows Unused, Used, & Expired, excluding Revoked)
+        // Filter Revoked or Non-Revoked
         $selectedStatus = $request->input('status', 'active');
         if ($selectedStatus === 'active') {
             $query->where('status', '!=', 'revoked');
-        } elseif ($selectedStatus !== 'all') {
-            $query->where('status', $selectedStatus);
+        } elseif ($selectedStatus === 'revoked') {
+            $query->where('status', 'revoked');
         }
 
         $perPage = in_array((int)$request->input('per_page'), [20, 50, 100, 200]) ? (int)$request->input('per_page') : 20;
@@ -47,13 +47,11 @@ class VoucherController extends Controller
         $vouchers = $query->orderBy('id', 'desc')->paginate($perPage)->withQueryString();
         $config   = $this->uniFiService->getConfig();
 
-        // Voucher Stats
+        // Simplified Voucher Stats (Option C - Issuer Focus)
         $stats = [
-            'total'    => UnifiVoucher::count(),
-            'unused'   => UnifiVoucher::where('status', 'unused')->count(),
-            'used'     => UnifiVoucher::where('status', 'used')->count(),
-            'expired'  => UnifiVoucher::where('status', 'expired')->count(),
-            'revoked'  => UnifiVoucher::where('status', 'revoked')->count(),
+            'total'         => UnifiVoucher::where('status', '!=', 'revoked')->count(),
+            'pending_push'  => UnifiVoucher::where('sync_status', 'pending_create')->count(),
+            'revoked'       => UnifiVoucher::where('status', 'revoked')->count(),
         ];
 
         return view('vouchers.index', compact('vouchers', 'config', 'stats'));
@@ -177,20 +175,13 @@ class VoucherController extends Controller
     }
 
     /**
-     * Trigger Manual Sync & Import for Vouchers with UniFi Controller
+     * Trigger Push for Pending Vouchers to UniFi Controller
      */
     public function syncNow()
     {
         $pendingStats = $this->uniFiService->syncPendingVouchers();
-        $fullStats    = $this->uniFiService->syncAllVouchersFromUniFi();
 
         $msgParts = [];
-        if ($fullStats['updated'] > 0) {
-            $msgParts[] = "Updated {$fullStats['updated']} voucher status(es)";
-        }
-        if ($fullStats['imported'] > 0) {
-            $msgParts[] = "Imported {$fullStats['imported']} new voucher(s) from UniFi";
-        }
         if ($pendingStats['created'] > 0) {
             $msgParts[] = "Uploaded {$pendingStats['created']} pending creation(s)";
         }
@@ -200,10 +191,10 @@ class VoucherController extends Controller
 
         if (!empty($msgParts)) {
             $details = implode(', ', $msgParts);
-            return redirect()->back()->with('success', "UniFi Controller Sync Completed! {$details}. (Total UniFi: {$fullStats['total_unifi']})");
+            return redirect()->back()->with('success', "UniFi Push Sync Completed! {$details}.");
         }
 
-        return redirect()->back()->with('info', "UniFi Sync Completed. All {$fullStats['total_unifi']} vouchers are up-to-date with UniFi Controller.");
+        return redirect()->back()->with('info', "All pending local vouchers are already synchronized with UniFi Controller.");
     }
 
     /**
