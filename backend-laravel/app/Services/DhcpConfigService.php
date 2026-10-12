@@ -17,8 +17,9 @@ class DhcpConfigService
 
     public function __construct()
     {
-        $this->configPath = env('KEA_CONFIG_PATH', base_path('../dhcp/kea-dhcp4.conf'));
-        $this->leasesPath = env('KEA_LEASES_PATH', base_path('../dhcp/leases/kea-leases4.csv'));
+        // Gunakan storage_path() agar www-data selalu punya akses tulis
+        $this->configPath = env('KEA_CONFIG_PATH', storage_path('dhcp/kea-dhcp4.conf'));
+        $this->leasesPath = env('KEA_LEASES_PATH', storage_path('dhcp/leases/kea-leases4.csv'));
     }
 
     /**

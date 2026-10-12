@@ -72,7 +72,6 @@ services:
       REDIS_PORT: 6379
     volumes:
       - ../backend-laravel:/var/www/html
-      - ../dhcp:/var/www/dhcp
       - /var/www/html/vendor
     depends_on:
       mariadb:
@@ -192,8 +191,8 @@ services:
     restart: always
     network_mode: host
     volumes:
-      - ../dhcp/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
-      - ../dhcp/leases:/var/lib/kea
+      - ../backend-laravel/storage/dhcp/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
+      - ../backend-laravel/storage/dhcp/leases:/var/lib/kea
 
 networks:
   radius_net:
