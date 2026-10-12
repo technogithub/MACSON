@@ -21,13 +21,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-# 1. Siapkan folder direktori leases & permissions
+# 1. Siapkan folder direktori leases & permissions (host)
 echo -e "\n${YELLOW}[1/6] Menyiapkan folder runtime DHCP...${NC}"
 mkdir -p "$PROJECT_ROOT/dhcp/leases"
 chmod -R 777 "$PROJECT_ROOT/dhcp"
 if [ ! -f "$PROJECT_ROOT/dhcp/leases/kea-leases4.csv" ]; then
     touch "$PROJECT_ROOT/dhcp/leases/kea-leases4.csv"
-    chmod 666 "$PROJECT_ROOT/dhcp/leases/kea-leases4.csv"
+fi
+chmod 666 "$PROJECT_ROOT/dhcp/kea-dhcp4.conf" 2>/dev/null || true
+
+# Fix permission di DALAM container Laravel (www-data butuh akses tulis)
+if docker ps --format '{{.Names}}' | grep -q "^radius_laravel_app$"; then
+    echo -e "Memperbaiki permission /var/www/dhcp di dalam container..."
+    docker exec radius_laravel_app chmod -R 777 /var/www/dhcp || true
+    docker exec radius_laravel_app chown -R www-data:www-data /var/www/dhcp || true
 fi
 
 # 2. Jalankan migration database Laravel
