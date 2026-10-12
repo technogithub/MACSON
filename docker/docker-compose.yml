@@ -72,6 +72,7 @@ services:
       REDIS_PORT: 6379
     volumes:
       - ../backend-laravel:/var/www/html
+      - ../dhcp:/var/www/dhcp
       - /var/www/html/vendor
     depends_on:
       mariadb:
@@ -179,6 +180,20 @@ services:
         condition: service_healthy
     networks:
       - radius_net
+
+  # ----------------------------------------------------------------------------
+  # 8. DHCP Engine: Kea DHCPv4 Server (Multi-VLAN & DHCP Relay Ready)
+  # ----------------------------------------------------------------------------
+  dhcp:
+    build:
+      context: ..
+      dockerfile: docker/dhcp.Dockerfile
+    container_name: radius_dhcp
+    restart: always
+    network_mode: host
+    volumes:
+      - ../dhcp/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
+      - ../dhcp/leases:/var/lib/kea
 
 networks:
   radius_net:

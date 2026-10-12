@@ -327,6 +327,10 @@
                             <i class="fa-solid fa-wifi"></i>
                             <span>SSID & VLAN</span>
                         </a>
+                        <a class="nav-item-macson {{ request()->routeIs('dhcp.*') ? 'active' : '' }}" href="{{ route('dhcp.index') }}">
+                            <i class="fa-solid fa-network-wired"></i>
+                            <span>DHCP Server</span>
+                        </a>
                     @endif
                     <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">
                         <i class="fa-solid fa-ticket"></i>
@@ -361,6 +365,10 @@
                             <a class="nav-item-macson {{ request()->routeIs('ssids.*') ? 'active' : '' }}" href="{{ route('ssids.index') }}">
                                 <i class="fa-solid fa-wifi"></i>
                                 <span>SSID & VLAN</span>
+                            </a>
+                            <a class="nav-item-macson {{ request()->routeIs('dhcp.*') ? 'active' : '' }}" href="{{ route('dhcp.index') }}">
+                                <i class="fa-solid fa-network-wired"></i>
+                                <span>DHCP Server</span>
                             </a>
                         @endif
                         <a class="nav-item-macson {{ request()->routeIs('vouchers.*') ? 'active' : '' }}" href="{{ route('vouchers.index') }}">

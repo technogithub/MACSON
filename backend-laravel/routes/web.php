@@ -8,6 +8,7 @@ use App\Http\Controllers\SsidController;
 use App\Http\Controllers\LogController;
 
 use App\Http\Controllers\VoucherController;
+use App\Http\Controllers\DhcpController;
 
 use App\Http\Middleware\EnsureSuperAdmin;
 
@@ -49,6 +50,17 @@ Route::middleware('auth')->group(function () {
 
         // UniFi Controller Config
         Route::post('vouchers/config', [VoucherController::class, 'updateConfig'])->name('vouchers.config');
+
+        // DHCP Server Management Routes
+        Route::get('/dhcp', [DhcpController::class, 'index'])->name('dhcp.index');
+        Route::post('/dhcp/subnets', [DhcpController::class, 'storeSubnet'])->name('dhcp.subnets.store');
+        Route::put('/dhcp/subnets/{id}', [DhcpController::class, 'updateSubnet'])->name('dhcp.subnets.update');
+        Route::delete('/dhcp/subnets/{id}', [DhcpController::class, 'destroySubnet'])->name('dhcp.subnets.destroy');
+
+        Route::post('/dhcp/static-leases', [DhcpController::class, 'storeStaticLease'])->name('dhcp.static.store');
+        Route::put('/dhcp/static-leases/{id}', [DhcpController::class, 'updateStaticLease'])->name('dhcp.static.update');
+        Route::delete('/dhcp/static-leases/{id}', [DhcpController::class, 'destroyStaticLease'])->name('dhcp.static.destroy');
+        Route::post('/dhcp/sync', [DhcpController::class, 'syncConfig'])->name('dhcp.sync');
 
         // RADIUS & Audit Access Log Routes
         Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
