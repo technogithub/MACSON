@@ -568,15 +568,8 @@ mark.search-hl {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">VLAN Override <span class="text-muted fw-normal">(optional)</span></label>
-                            <select name="vlan_id" class="form-select form-control-dark">
-                                <option value="">Auto (Use SSID Default VLAN)</option>
-                                @foreach($masterSsids as $mSsid)
-                                    <option value="{{ $mSsid->vlan_id }}">
-                                        VLAN {{ $mSsid->vlan_id }} — {{ $mSsid->ssid_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="form-text">Overrides SSID's VLAN for this MAC</div>
+                            <input type="number" name="vlan_id" class="form-control form-control-dark" placeholder="e.g. 10 (Leave blank for Auto)" min="1" max="4094">
+                            <div class="form-text">Enter VLAN ID manually (1-4094), or leave empty for Auto</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Location <span class="text-muted fw-normal">(optional)</span></label>
@@ -637,15 +630,8 @@ mark.search-hl {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">VLAN Override <span class="text-muted fw-normal">(optional)</span></label>
-                            <select name="vlan_id" id="editVlanId" class="form-select form-control-dark">
-                                <option value="">Auto (Use SSID Default VLAN)</option>
-                                @foreach($masterSsids as $mSsid)
-                                    <option value="{{ $mSsid->vlan_id }}">
-                                        VLAN {{ $mSsid->vlan_id }} — {{ $mSsid->ssid_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="form-text">Clear to use SSID's default VLAN</div>
+                            <input type="number" name="vlan_id" id="editVlanId" class="form-control form-control-dark" placeholder="e.g. 10 (Leave blank for Auto)" min="1" max="4094">
+                            <div class="form-text">Enter VLAN ID manually (1-4094), or clear for Auto</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Location <span class="text-muted fw-normal">(optional)</span></label>
