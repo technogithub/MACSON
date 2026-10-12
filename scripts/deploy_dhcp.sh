@@ -24,7 +24,7 @@ cd "$PROJECT_ROOT"
 # 1. Siapkan folder direktori leases & permissions
 echo -e "\n${YELLOW}[1/6] Menyiapkan folder runtime DHCP...${NC}"
 mkdir -p "$PROJECT_ROOT/dhcp/leases"
-chmod -R 777 "$PROJECT_ROOT/dhcp/leases"
+chmod -R 777 "$PROJECT_ROOT/dhcp"
 if [ ! -f "$PROJECT_ROOT/dhcp/leases/kea-leases4.csv" ]; then
     touch "$PROJECT_ROOT/dhcp/leases/kea-leases4.csv"
     chmod 666 "$PROJECT_ROOT/dhcp/leases/kea-leases4.csv"
