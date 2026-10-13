@@ -18,16 +18,109 @@ class DhcpController extends Controller
     }
 
     /**
-     * Halaman Utama DHCP: Menampilkan Subnets, Static Leases, & Active Dynamic Leases
+     * Halaman Utama DHCP: Menampilkan Subnets, Static Leases, & Active Dynamic Leases dengan Filter Pool & Pagination
      */
     public function index(Request $request)
     {
-        $subnets = DhcpSubnet::withCount('staticLeases')->orderBy('id', 'asc')->get();
-        $staticLeases = DhcpStaticLease::with(['subnet', 'device'])->orderBy('id', 'desc')->get();
-        $devices = Device::select('id', 'mac_address', 'device_name')->orderBy('device_name')->get();
-        $activeLeases = $this->dhcpService->getActiveLeases();
+        $currentTab   = $request->input('tab', 'subnets');
+        $selectedPool = $request->input('pool_id', 'all');
+        $perPage      = in_array((int)$request->input('per_page'), [15, 50, 100]) ? (int)$request->input('per_page') : 15;
+        $search       = $request->input('search');
 
-        return view('dhcp.index', compact('subnets', 'staticLeases', 'devices', 'activeLeases'));
+        $subnets = DhcpSubnet::withCount('staticLeases')->orderBy('id', 'asc')->get();
+
+        // 1. Static IP Leases Query with pool filter & search
+        $staticQuery = DhcpStaticLease::with(['subnet', 'device']);
+        if ($selectedPool !== 'all') {
+            $staticQuery->where('dhcp_subnet_id', $selectedPool);
+        }
+        if ($request->filled('search')) {
+            $s = trim($search);
+            $staticQuery->where(function($q) use ($s) {
+                $q->where('ip_address', 'like', "%{$s}%")
+                  ->orWhere('mac_address', 'like', "%{$s}%")
+                  ->orWhere('hostname', 'like', "%{$s}%")
+                  ->orWhere('description', 'like', "%{$s}%")
+                  ->orWhereHas('device', function($dq) use ($s) {
+                      $dq->where('device_name', 'like', "%{$s}%");
+                  });
+            });
+        }
+        $staticLeases = $staticQuery->orderBy('id', 'desc')->paginate($perPage, ['*'], 'static_page')->withQueryString();
+
+        // 2. Active Dynamic Leases from Kea CSV
+        $rawLeases = $this->dhcpService->getActiveLeases();
+
+        // Enrich each active lease with matched subnet
+        $enrichedLeases = collect($rawLeases)->map(function ($al) use ($subnets) {
+            $matchedSubnet = null;
+            if (!empty($al['subnet_id'])) {
+                $matchedSubnet = $subnets->firstWhere('id', (int)$al['subnet_id']);
+            }
+            if (!$matchedSubnet && !empty($al['ip']) && filter_var($al['ip'], FILTER_VALIDATE_IP)) {
+                $ipLong = ip2long($al['ip']);
+                foreach ($subnets as $s) {
+                    $startLong = ip2long($s->pool_start);
+                    $endLong   = ip2long($s->pool_end);
+                    if ($startLong !== false && $endLong !== false && $ipLong >= min($startLong, $endLong) && $ipLong <= max($startLong, $endLong)) {
+                        $matchedSubnet = $s;
+                        break;
+                    }
+                }
+            }
+
+            $al['subnet_id']   = $matchedSubnet ? $matchedSubnet->id : ($al['subnet_id'] ?? 0);
+            $al['subnet_name'] = $matchedSubnet ? $matchedSubnet->name : 'Unknown Pool';
+            $al['vlan_id']     = $matchedSubnet ? $matchedSubnet->vlan_id : null;
+            return $al;
+        });
+
+        // Calculate count of active dynamic leases per subnet
+        $activeLeaseCounts = $enrichedLeases->groupBy('subnet_id')->map->count()->toArray();
+        $totalActiveLeases = $enrichedLeases->count();
+
+        // Filter active dynamic leases by selected pool
+        $filteredLeases = $enrichedLeases;
+        if ($selectedPool !== 'all') {
+            $poolId = (int)$selectedPool;
+            $filteredLeases = $filteredLeases->filter(fn($al) => (int)$al['subnet_id'] === $poolId);
+        }
+
+        // Filter active dynamic leases by search
+        if ($request->filled('search')) {
+            $s = strtolower(trim($search));
+            $filteredLeases = $filteredLeases->filter(function ($al) use ($s) {
+                return str_contains(strtolower($al['ip']), $s)
+                    || str_contains(strtolower($al['mac']), $s)
+                    || str_contains(strtolower($al['hostname']), $s)
+                    || str_contains(strtolower($al['subnet_name']), $s);
+            });
+        }
+
+        // Paginate active dynamic leases collection
+        $leasePage = (int)$request->input('lease_page', 1);
+        $totalFilteredLeases = $filteredLeases->count();
+        $activeLeases = new \Illuminate\Pagination\LengthAwarePaginator(
+            $filteredLeases->forPage($leasePage, $perPage)->values(),
+            $totalFilteredLeases,
+            $perPage,
+            $leasePage,
+            ['path' => route('dhcp.index'), 'pageName' => 'lease_page', 'query' => $request->query()]
+        );
+
+        $devices = Device::select('id', 'mac_address', 'device_name', 'location', 'ssid')->orderBy('device_name')->get();
+
+        return view('dhcp.index', compact(
+            'subnets',
+            'staticLeases',
+            'devices',
+            'activeLeases',
+            'activeLeaseCounts',
+            'totalActiveLeases',
+            'selectedPool',
+            'perPage',
+            'currentTab'
+        ));
     }
 
     /**

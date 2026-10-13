@@ -118,6 +118,44 @@
     background: #1e293b;
     border-bottom: 2px solid #38bdf8;
 }
+
+/* IP Pool Filter Buttons / Cards */
+.pool-btn-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: #cbd5e1;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+.pool-btn-card:hover {
+    background: #24344d;
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #f8fafc;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+.pool-btn-card.active {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(99, 102, 241, 0.16) 100%);
+    border: 1.5px solid #38bdf8;
+    color: #38bdf8;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+}
+.pool-btn-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
 </style>
 
 <!-- ===================== PAGE HEADER ===================== -->
@@ -168,7 +206,7 @@
             </div>
             <div>
                 <div class="text-secondary small">Static IP Reservations</div>
-                <div class="fs-4 fw-bold text-white">{{ $staticLeases->count() }} <span class="fs-6 fw-normal text-muted">Reserved</span></div>
+                <div class="fs-4 fw-bold text-white">{{ $staticLeases->total() }} <span class="fs-6 fw-normal text-muted">Reserved</span></div>
             </div>
         </div>
     </div>
@@ -179,9 +217,72 @@
             </div>
             <div>
                 <div class="text-secondary small">Active Dynamic Leases</div>
-                <div class="fs-4 fw-bold text-white">{{ count($activeLeases) }} <span class="fs-6 fw-normal text-muted">Online</span></div>
+                <div class="fs-4 fw-bold text-white">{{ $totalActiveLeases ?? $activeLeases->total() }} <span class="fs-6 fw-normal text-muted">Online</span></div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- ===================== TOMBOL PILIHAN IP POOL ===================== -->
+<div class="mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-2.5 flex-wrap gap-2">
+        <div class="text-uppercase text-secondary fw-bold" style="font-size:0.75rem; letter-spacing:1px;">
+            <i class="fa-solid fa-server me-1.5 text-info"></i>Pilihan IP Pool Subnet:
+        </div>
+        @if($selectedPool !== 'all')
+            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}" class="text-info small text-decoration-none">
+                <i class="fa-solid fa-rotate-left me-1"></i>Tampilkan Semua Pool
+            </a>
+        @endif
+    </div>
+    <div class="d-flex gap-2.5 flex-wrap align-items-stretch">
+        <!-- Tombol Semua Pool -->
+        <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}"
+           class="pool-btn-card {{ $selectedPool === 'all' ? 'active' : '' }}">
+            <div class="pool-btn-icon" style="background:rgba(56,189,248,0.12); color:#38bdf8;">
+                <i class="fa-solid fa-network-wired"></i>
+            </div>
+            <div>
+                <div class="fw-bold text-light" style="font-size:0.88rem;">SEMUA POOL</div>
+                <div class="text-secondary" style="font-size:0.72rem;">{{ $subnets->count() }} Subnet Terdaftar</div>
+            </div>
+            <div class="ms-1">
+                <span class="badge {{ $selectedPool === 'all' ? 'bg-info text-dark fw-bold' : 'bg-dark text-info border border-secondary' }}" style="font-size:0.75rem;">
+                    {{ $totalActiveLeases ?? $activeLeases->total() }} Live
+                </span>
+            </div>
+        </a>
+
+        <!-- Tombol Tiap Pool Subnet -->
+        @foreach($subnets as $subnet)
+            @php
+                $isActivePool = (string)$selectedPool === (string)$subnet->id;
+                $activeCountForSubnet = $activeLeaseCounts[$subnet->id] ?? 0;
+            @endphp
+            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => $subnet->id])) }}"
+               class="pool-btn-card {{ $isActivePool ? 'active' : '' }}">
+                <div class="pool-btn-icon" style="background:rgba(99,102,241,0.15); color:#a5b4fc;">
+                    <i class="fa-solid fa-layer-group"></i>
+                </div>
+                <div>
+                    <div class="fw-bold text-light d-flex align-items-center gap-1.5" style="font-size:0.88rem;">
+                        <span>{{ $subnet->name }}</span>
+                        @if($subnet->vlan_id)
+                            <span class="badge rounded-pill" style="font-size:0.65rem; background:rgba(165,180,252,0.15); color:#a5b4fc; border:1px solid rgba(165,180,252,0.3);">VLAN {{ $subnet->vlan_id }}</span>
+                        @endif
+                    </div>
+                    <div class="text-secondary font-monospace" style="font-size:0.72rem;">{{ $subnet->subnet }}</div>
+                </div>
+                <div class="d-flex flex-column gap-1 ms-1 text-end">
+                    <span class="badge {{ $isActivePool ? 'bg-info text-dark fw-bold' : 'bg-dark text-light border border-secondary' }}" style="font-size:0.7rem;">
+                        {{ $subnet->static_leases_count }} Static
+                    </span>
+                    <span class="badge {{ $activeCountForSubnet > 0 ? 'bg-success-subtle text-success border border-success' : 'bg-dark text-secondary border border-secondary' }}" style="font-size:0.68rem;">
+                        {{ $activeCountForSubnet }} Live
+                    </span>
+                </div>
+            </a>
+        @endforeach
     </div>
 </div>
 
@@ -191,19 +292,19 @@
 @endphp
 <ul class="nav nav-tabs nav-tabs-dhcp mb-3" id="dhcpTabs" role="tablist">
     <li class="nav-item">
-        <button class="nav-link {{ $currentTab === 'subnets' ? 'active' : '' }}" id="subnets-tab" data-bs-toggle="tab" data-bs-target="#subnets-pane" type="button">
-            <i class="fa-solid fa-layer-group"></i> Subnets & IP Pools
-        </button>
+        <a class="nav-link {{ $currentTab === 'subnets' ? 'active' : '' }}" href="{{ route('dhcp.index', array_merge(request()->except(['tab', 'static_page', 'lease_page']), ['tab' => 'subnets'])) }}">
+            <i class="fa-solid fa-layer-group"></i> Subnets & IP Pools ({{ $subnets->count() }})
+        </a>
     </li>
     <li class="nav-item">
-        <button class="nav-link {{ $currentTab === 'static' ? 'active' : '' }}" id="static-tab" data-bs-toggle="tab" data-bs-target="#static-pane" type="button">
-            <i class="fa-solid fa-thumbtack"></i> Static IP Reservations
-        </button>
+        <a class="nav-link {{ $currentTab === 'static' ? 'active' : '' }}" href="{{ route('dhcp.index', array_merge(request()->except(['tab', 'static_page', 'lease_page']), ['tab' => 'static'])) }}">
+            <i class="fa-solid fa-thumbtack"></i> Static IP Reservations ({{ $staticLeases->total() }})
+        </a>
     </li>
     <li class="nav-item">
-        <button class="nav-link {{ $currentTab === 'leases' ? 'active' : '' }}" id="leases-tab" data-bs-toggle="tab" data-bs-target="#leases-pane" type="button">
-            <i class="fa-solid fa-clock-rotate-left"></i> Active Leases
-        </button>
+        <a class="nav-link {{ $currentTab === 'leases' ? 'active' : '' }}" href="{{ route('dhcp.index', array_merge(request()->except(['tab', 'static_page', 'lease_page']), ['tab' => 'leases'])) }}">
+            <i class="fa-solid fa-clock-rotate-left"></i> Active Leases ({{ $activeLeases->total() }})
+        </a>
     </li>
 </ul>
 
@@ -299,12 +400,50 @@
     <!-- ===================== TAB 2: STATIC LEASES ===================== -->
     <div class="tab-pane fade {{ $currentTab === 'static' ? 'show active' : '' }}" id="static-pane" role="tabpanel">
         <div class="dhcp-card">
-            <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
-                <span class="fw-bold text-white"><i class="fa-solid fa-thumbtack me-2"></i>Daftar Static IP Reservations</span>
+            <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-white"><i class="fa-solid fa-thumbtack text-info me-2"></i>Daftar Static IP Reservations</span>
+                    <span class="badge bg-dark border border-secondary text-info">{{ $staticLeases->total() }} Reserved</span>
+                </div>
                 <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#addStaticModal">
                     <i class="fa-solid fa-plus me-1"></i>Reservasi IP Baru
                 </button>
             </div>
+
+            <!-- Filter & Search Toolbar (Static Leases) -->
+            <form method="GET" action="{{ route('dhcp.index') }}" class="d-flex gap-2 p-3 border-bottom border-secondary flex-wrap align-items-center" style="background:rgba(15,23,42,0.4);">
+                <input type="hidden" name="tab" value="static">
+                <div class="flex-grow-1" style="min-width:220px; max-width:360px;">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" name="search" class="form-control form-control-dark form-control-sm"
+                               placeholder="Cari IP, MAC, hostname, device..."
+                               value="{{ request('search') }}">
+                    </div>
+                </div>
+                <select name="pool_id" class="form-select form-control-dark form-select-sm" style="width:190px;" onchange="this.form.submit()">
+                    <option value="all" {{ $selectedPool === 'all' ? 'selected' : '' }}>Semua Subnet Pool</option>
+                    @foreach($subnets as $s)
+                        <option value="{{ $s->id }}" {{ (string)$selectedPool === (string)$s->id ? 'selected' : '' }}>
+                            {{ $s->name }} ({{ $s->subnet }})
+                        </option>
+                    @endforeach
+                </select>
+                <div class="d-flex align-items-center gap-1.5 ms-auto">
+                    <label class="text-secondary small text-nowrap mb-0" style="font-size:0.78rem;">Limit:</label>
+                    <select name="per_page" class="form-select form-control-dark form-select-sm" style="width:115px;" onchange="this.form.submit()">
+                        <option value="15" {{ (int)request('per_page', 15) === 15 ? 'selected' : '' }}>15 / hal</option>
+                        <option value="50" {{ (int)request('per_page', 15) === 50 ? 'selected' : '' }}>50 / hal</option>
+                        <option value="100" {{ (int)request('per_page', 15) === 100 ? 'selected' : '' }}>100 / hal</option>
+                    </select>
+                </div>
+                @if(request()->hasAny(['search', 'pool_id']) && (request('pool_id', 'all') !== 'all' || request('search')))
+                    <a href="{{ route('dhcp.index', ['tab' => 'static', 'per_page' => $perPage]) }}" class="btn btn-sm btn-outline-secondary" title="Reset Filter">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </a>
+                @endif
+            </form>
+
             <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0 dhcp-table">
                     <thead>
@@ -373,28 +512,109 @@
                             <tr>
                                 <td colspan="7" class="text-center py-4 text-secondary">
                                     <i class="fa-solid fa-circle-info fs-3 mb-2 d-block text-muted"></i>
-                                    Belum ada Static IP reservation. Klik <strong>Reservasi IP Baru</strong> untuk memetakan MAC ke IP tertentu.
+                                    Belum ada Static IP reservation yang sesuai filter.
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Footer (Static Leases) -->
+            @if($staticLeases->total() > 0)
+            <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top flex-wrap gap-3" style="border-color:#334155 !important;">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <span class="text-secondary small">
+                        Showing <strong class="text-light">{{ $staticLeases->firstItem() ?? 0 }}–{{ $staticLeases->lastItem() ?? 0 }}</strong> of <strong class="text-info">{{ $staticLeases->total() }}</strong> reservasi
+                    </span>
+                    <div class="d-flex align-items-center gap-1.5 ms-2">
+                        <span class="text-muted" style="font-size:0.75rem;">Limit:</span>
+                        <div class="btn-group btn-group-sm">
+                            @foreach([15, 50, 100] as $size)
+                                <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'static', 'per_page' => $size, 'static_page' => 1])) }}"
+                                   class="btn btn-sm {{ (int)request('per_page', 15) === $size ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
+                                   style="font-size:0.75rem; padding: 2px 9px;">
+                                    {{ $size }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    @if($staticLeases->hasPages())
+                        {{ $staticLeases->links() }}
+                    @endif
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 
     <!-- ===================== TAB 3: ACTIVE LEASES ===================== -->
     <div class="tab-pane fade {{ $currentTab === 'leases' ? 'show active' : '' }}" id="leases-pane" role="tabpanel">
         <div class="dhcp-card">
-            <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
-                <span class="fw-bold text-white"><i class="fa-solid fa-clock-rotate-left me-2"></i>Active Dynamic Leases (Live from Kea)</span>
-                <span class="badge bg-secondary">{{ count($activeLeases) }} Active Clients</span>
+            <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-white"><i class="fa-solid fa-clock-rotate-left text-success me-2"></i>Active Dynamic Leases (Live from Kea)</span>
+                    <span class="badge bg-success-subtle text-success border border-success">{{ $totalActiveLeases ?? $activeLeases->total() }} Active Clients</span>
+                </div>
             </div>
+
+            <!-- Filter & Search Toolbar (Active Leases) dengan Tombol Pilihan Pool -->
+            <form method="GET" action="{{ route('dhcp.index') }}" class="p-3 border-bottom border-secondary" style="background:rgba(15,23,42,0.4);">
+                <input type="hidden" name="tab" value="leases">
+                <div class="d-flex gap-2 flex-wrap align-items-center justify-content-between">
+                    <!-- Tombol Pilihan Pool Khusus Active Leases -->
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                        <span class="text-secondary small me-1"><i class="fa-solid fa-filter text-info me-1"></i>Pool:</span>
+                        <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => 'all', 'lease_page' => 1])) }}"
+                           class="btn btn-sm {{ $selectedPool === 'all' ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
+                           style="font-size:0.75rem; padding:3px 10px; border-radius:20px;">
+                            Semua ({{ $totalActiveLeases }})
+                        </a>
+                        @foreach($subnets as $s)
+                            @php $countInS = $activeLeaseCounts[$s->id] ?? 0; @endphp
+                            <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => $s->id, 'lease_page' => 1])) }}"
+                               class="btn btn-sm {{ (string)$selectedPool === (string)$s->id ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
+                               style="font-size:0.75rem; padding:3px 10px; border-radius:20px;">
+                                {{ $s->name }} ({{ $countInS }})
+                            </a>
+                        @endforeach
+                    </div>
+
+                    <!-- Search & Limit -->
+                    <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+                        <div style="min-width:200px; max-width:280px;">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                <input type="text" name="search" class="form-control form-control-dark form-control-sm"
+                                       placeholder="Cari IP, MAC, host..."
+                                       value="{{ request('search') }}">
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1.5">
+                            <label class="text-secondary small text-nowrap mb-0" style="font-size:0.78rem;">Limit:</label>
+                            <select name="per_page" class="form-select form-control-dark form-select-sm" style="width:115px;" onchange="this.form.submit()">
+                                <option value="15" {{ (int)request('per_page', 15) === 15 ? 'selected' : '' }}>15 / hal</option>
+                                <option value="50" {{ (int)request('per_page', 15) === 50 ? 'selected' : '' }}>50 / hal</option>
+                                <option value="100" {{ (int)request('per_page', 15) === 100 ? 'selected' : '' }}>100 / hal</option>
+                            </select>
+                        </div>
+                        @if(request()->hasAny(['search', 'pool_id']) && (request('pool_id', 'all') !== 'all' || request('search')))
+                            <a href="{{ route('dhcp.index', ['tab' => 'leases', 'per_page' => $perPage]) }}" class="btn btn-sm btn-outline-secondary" title="Reset Filter">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            </form>
+
             <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0 dhcp-table">
                     <thead>
                         <tr>
                             <th>Leased IP</th>
+                            <th>Subnet Pool</th>
                             <th>Client MAC Address</th>
                             <th>Client Hostname</th>
                             <th>Lease Expiration</th>
@@ -404,7 +624,15 @@
                     <tbody>
                         @forelse($activeLeases as $al)
                             <tr>
-                                <td><span class="ip-tag">{{ $al['ip'] }}</span></td>
+                                <td><span class="ip-tag fw-bold">{{ $al['ip'] }}</span></td>
+                                <td>
+                                    <span class="badge bg-dark border border-secondary text-info">
+                                        {{ $al['subnet_name'] }}
+                                        @if(!empty($al['vlan_id']))
+                                            <span class="text-secondary">(VLAN {{ $al['vlan_id'] }})</span>
+                                        @endif
+                                    </span>
+                                </td>
                                 <td><span class="mac-tag">{{ $al['mac'] }}</span></td>
                                 <td><span class="text-light">{{ $al['hostname'] }}</span></td>
                                 <td><span class="text-secondary small font-monospace">{{ $al['expire_at'] }}</span></td>
@@ -418,15 +646,43 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-secondary">
+                                <td colspan="6" class="text-center py-4 text-secondary">
                                     <i class="fa-solid fa-network-wired fs-3 mb-2 d-block text-muted"></i>
-                                    Belum ada active dynamic lease yang tercatat saat ini.
+                                    Belum ada active dynamic lease yang sesuai filter.
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Footer (Active Leases) -->
+            @if($activeLeases->total() > 0)
+            <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top flex-wrap gap-3" style="border-color:#334155 !important;">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <span class="text-secondary small">
+                        Showing <strong class="text-light">{{ $activeLeases->firstItem() ?? 0 }}–{{ $activeLeases->lastItem() ?? 0 }}</strong> of <strong class="text-info">{{ $activeLeases->total() }}</strong> active clients
+                    </span>
+                    <div class="d-flex align-items-center gap-1.5 ms-2">
+                        <span class="text-muted" style="font-size:0.75rem;">Limit:</span>
+                        <div class="btn-group btn-group-sm">
+                            @foreach([15, 50, 100] as $size)
+                                <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'per_page' => $size, 'lease_page' => 1])) }}"
+                                   class="btn btn-sm {{ (int)request('per_page', 15) === $size ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
+                                   style="font-size:0.75rem; padding: 2px 9px;">
+                                    {{ $size }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    @if($activeLeases->hasPages())
+                        {{ $activeLeases->links() }}
+                    @endif
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>
@@ -572,15 +828,34 @@
                             </select>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Pilih Device Terdaftar <span class="text-muted fw-normal">(opsional)</span></label>
-                            <select id="pickDeviceSelect" name="device_id" class="form-select form-control-dark">
-                                <option value="">-- Manual Input / Tidak Dikaitkan --</option>
-                                @foreach($devices as $d)
-                                    <option value="{{ $d->id }}" data-mac="{{ $d->mac_address }}" data-name="{{ $d->device_name }}">
-                                        {{ $d->device_name }} ({{ $d->mac_address }})
-                                    </option>
-                                @endforeach
-                            </select>
+                            <label class="form-label d-flex justify-content-between align-items-center">
+                                <span>Pilih Device Terdaftar <span class="text-muted fw-normal">(opsional)</span></span>
+                                <span class="text-info small" style="font-size:0.75rem;"><i class="fa-solid fa-keyboard me-1"></i>Bisa ketik nama / MAC</span>
+                            </label>
+
+                            <!-- Live Search Input Box -->
+                            <div class="position-relative">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-secondary text-info"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                    <input type="text" id="deviceSearchInput" class="form-control form-control-dark" placeholder="Ketik nama device, MAC address, atau lokasi untuk mencari..." autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" id="clearDeviceSearch" title="Clear search"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <input type="hidden" name="device_id" id="selectedDeviceId" value="">
+
+                                <!-- Dropdown Live Results List -->
+                                <div id="deviceSearchResults" class="list-group shadow-lg position-absolute w-100 mt-1" style="display:none; max-height:220px; overflow-y:auto; z-index:1060; background:#0f172a; border:1px solid #334155; border-radius:10px;">
+                                </div>
+                            </div>
+
+                            <!-- Selected Device Chip / Badge -->
+                            <div id="selectedDeviceBadge" class="mt-2" style="display:none;">
+                                <span class="badge bg-info-subtle text-info border border-info px-2.5 py-1.5 d-inline-flex align-items-center gap-2" style="font-size:0.8rem;">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span id="selectedDeviceName"></span>
+                                    <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.55rem;" id="unselectDeviceBtn" title="Lepas kaitan device"></button>
+                                </span>
+                            </div>
+                            <div class="form-text">Cari perangkat untuk mengisi MAC & Hostname secara otomatis, atau ketik langsung di bawah.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">MAC Address *</label>
@@ -630,6 +905,29 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="col-12">
+                            <label class="form-label d-flex justify-content-between align-items-center">
+                                <span>Kaitkan Device Terdaftar <span class="text-muted fw-normal">(opsional)</span></span>
+                                <span class="text-info small" style="font-size:0.75rem;"><i class="fa-solid fa-keyboard me-1"></i>Bisa ketik nama / MAC</span>
+                            </label>
+                            <div class="position-relative">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-secondary text-info"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                    <input type="text" id="editDeviceSearchInput" class="form-control form-control-dark" placeholder="Ketik nama device atau MAC untuk ganti kaitan..." autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" id="editClearDeviceSearch" title="Clear"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <input type="hidden" name="device_id" id="editSelectedDeviceId" value="">
+                                <div id="editDeviceSearchResults" class="list-group shadow-lg position-absolute w-100 mt-1" style="display:none; max-height:220px; overflow-y:auto; z-index:1060; background:#0f172a; border:1px solid #334155; border-radius:10px;">
+                                </div>
+                            </div>
+                            <div id="editSelectedDeviceBadge" class="mt-2" style="display:none;">
+                                <span class="badge bg-info-subtle text-info border border-info px-2.5 py-1.5 d-inline-flex align-items-center gap-2" style="font-size:0.8rem;">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span id="editSelectedDeviceName"></span>
+                                    <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.55rem;" id="editUnselectDeviceBtn" title="Lepas kaitan"></button>
+                                </span>
+                            </div>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label">MAC Address *</label>
                             <input type="text" name="mac_address" id="editStaticMac" class="form-control form-control-dark font-monospace" required>
@@ -666,6 +964,8 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const registeredDevices = @json($devices);
+
     // Edit Subnet Modal Handler
     document.querySelectorAll('.btn-edit-subnet').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -687,17 +987,113 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Auto-fill MAC & Hostname saat memilih Device terdaftar
-    const pickDevice = document.getElementById('pickDeviceSelect');
-    if (pickDevice) {
-        pickDevice.addEventListener('change', function () {
-            const selected = this.options[this.selectedIndex];
-            if (selected.value) {
-                document.getElementById('staticMacInput').value = selected.dataset.mac || '';
-                document.getElementById('staticHostnameInput').value = selected.dataset.name || '';
+    // Helper: Setup Searchable Device Picker
+    function setupDevicePicker(inputId, resultsId, hiddenId, badgeId, badgeNameId, clearId, unselectId, macTargetId, hostnameTargetId) {
+        const input       = document.getElementById(inputId);
+        const results     = document.getElementById(resultsId);
+        const hidden      = document.getElementById(hiddenId);
+        const badge       = document.getElementById(badgeId);
+        const badgeName   = document.getElementById(badgeNameId);
+        const clearBtn    = document.getElementById(clearId);
+        const unselectBtn = document.getElementById(unselectId);
+        const macInput    = document.getElementById(macTargetId);
+        const hostInput   = document.getElementById(hostnameTargetId);
+
+        if (!input || !results) return;
+
+        function renderResults(query) {
+            const q = (query || '').toLowerCase().trim();
+            const filtered = registeredDevices.filter(d => {
+                const name = (d.device_name || '').toLowerCase();
+                const mac  = (d.mac_address || '').toLowerCase();
+                const loc  = (d.location || '').toLowerCase();
+                const ssid = (d.ssid || '').toLowerCase();
+                return name.includes(q) || mac.includes(q) || loc.includes(q) || ssid.includes(q);
+            }).slice(0, 20);
+
+            if (filtered.length === 0) {
+                results.innerHTML = `
+                    <div class="p-3 text-secondary small text-center">
+                        <i class="fa-solid fa-circle-question me-1"></i> Tidak ada perangkat yang cocok "${query}"
+                    </div>
+                `;
+                results.style.display = 'block';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(d => {
+                html += `
+                    <button type="button" class="list-group-item list-group-item-action text-light border-secondary d-flex justify-content-between align-items-center pick-item"
+                            style="background:#0f172a;"
+                            data-id="${d.id}" data-name="${d.device_name}" data-mac="${d.mac_address}">
+                        <div>
+                            <div class="fw-semibold text-white small"><i class="fa-solid fa-laptop text-info me-1.5"></i>${d.device_name}</div>
+                            <div class="font-monospace text-secondary" style="font-size:0.75rem;">${d.mac_address} ${d.location ? ' • ' + d.location : ''}</div>
+                        </div>
+                        <span class="badge bg-dark border border-secondary text-info small" style="font-size:0.7rem;">Pilih</span>
+                    </button>
+                `;
+            });
+            results.innerHTML = html;
+            results.style.display = 'block';
+
+            results.querySelectorAll('.pick-item').forEach(item => {
+                item.addEventListener('click', function () {
+                    const id   = this.dataset.id;
+                    const name = this.dataset.name;
+                    const mac  = this.dataset.mac;
+
+                    if (hidden) hidden.value = id;
+                    if (macInput) macInput.value = mac;
+                    if (hostInput && (!hostInput.value || hostInput.value.trim() === '')) hostInput.value = name;
+
+                    if (badge && badgeName) {
+                        badgeName.textContent = `${name} (${mac})`;
+                        badge.style.display = 'block';
+                    }
+                    input.value = '';
+                    results.style.display = 'none';
+                });
+            });
+        }
+
+        input.addEventListener('input', function () {
+            if (this.value.trim().length > 0) {
+                renderResults(this.value);
+            } else {
+                results.style.display = 'none';
             }
         });
+
+        input.addEventListener('focus', function () {
+            renderResults(this.value);
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!input.contains(e.target) && !results.contains(e.target)) {
+                results.style.display = 'none';
+            }
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                input.value = '';
+                results.style.display = 'none';
+            });
+        }
+
+        if (unselectBtn) {
+            unselectBtn.addEventListener('click', function () {
+                if (hidden) hidden.value = '';
+                if (badge) badge.style.display = 'none';
+            });
+        }
     }
+
+    // Initialize Searchable Pickers for Add and Edit Modals
+    setupDevicePicker('deviceSearchInput', 'deviceSearchResults', 'selectedDeviceId', 'selectedDeviceBadge', 'selectedDeviceName', 'clearDeviceSearch', 'unselectDeviceBtn', 'staticMacInput', 'staticHostnameInput');
+    setupDevicePicker('editDeviceSearchInput', 'editDeviceSearchResults', 'editSelectedDeviceId', 'editSelectedDeviceBadge', 'editSelectedDeviceName', 'editClearDeviceSearch', 'editUnselectDeviceBtn', 'editStaticMac', 'editStaticHostname');
 
     // Edit Static Lease Modal Handler
     document.querySelectorAll('.btn-edit-static').forEach(btn => {
@@ -712,6 +1108,23 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('editStaticHostname').value = this.dataset.hostname || '';
             document.getElementById('editStaticDesc').value     = this.dataset.desc || '';
             document.getElementById('editStaticActive').checked = this.dataset.active == '1';
+
+            const deviceId = this.dataset.device;
+            const editHidden = document.getElementById('editSelectedDeviceId');
+            const editBadge  = document.getElementById('editSelectedDeviceBadge');
+            const editBadgeName = document.getElementById('editSelectedDeviceName');
+
+            if (deviceId && editHidden) {
+                editHidden.value = deviceId;
+                const dev = registeredDevices.find(d => d.id == deviceId);
+                if (dev && editBadge && editBadgeName) {
+                    editBadgeName.textContent = `${dev.device_name} (${dev.mac_address})`;
+                    editBadge.style.display = 'block';
+                }
+            } else {
+                if (editHidden) editHidden.value = '';
+                if (editBadge) editBadge.style.display = 'none';
+            }
 
             new bootstrap.Modal(document.getElementById('editStaticModal')).show();
         });
