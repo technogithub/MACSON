@@ -174,7 +174,7 @@ class DhcpConfigService
 
         $headers = str_getcsv(array_shift($lines));
         $now = time();
-        $leases = [];
+        $leasesByIp = [];
 
         foreach ($lines as $line) {
             $row = str_getcsv($line);
@@ -182,27 +182,48 @@ class DhcpConfigService
 
             $record = array_combine(array_slice($headers, 0, count($row)), $row);
             
-            $ip       = $record['address'] ?? '-';
-            $mac      = strtoupper($record['hwaddr'] ?? '-');
+            $ip       = trim($record['address'] ?? '');
+            if (empty($ip) || $ip === '-' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+                continue;
+            }
+
+            $mac      = strtoupper(trim($record['hwaddr'] ?? '-'));
             $expire   = (int)($record['expire'] ?? 0);
-            $hostname = $record['hostname'] ?? '-';
+            $hostname = trim($record['hostname'] ?? '');
             $subnetId = (int)($record['subnet_id'] ?? 0);
+            $state    = isset($record['state']) ? (int)$record['state'] : 0;
 
-            // Filter hanya lease yang belum expire
-            $isActive = $expire > $now;
+            // Di Kea memfile CSV: state 0 = default (active lease)
+            // State 1 = declined, state 2 = expired-reclaimed
+            $isActive = ($state === 0 && $expire > $now);
 
-            $leases[] = [
-                'ip'         => $ip,
-                'mac'        => $mac,
-                'hostname'   => $hostname !== '' ? $hostname : '-',
-                'expire_at'  => $expire > 0 ? date('Y-m-d H:i:s', $expire) : '-',
-                'is_active'  => $isActive,
-                'subnet_id'  => $subnetId,
-            ];
+            // Jika baris kronologis baru ini bukan active lease (misal expired / reclaimed / declined)
+            if (!$isActive) {
+                // Jika sebelumnya ada di list dan baris baru ini memiliki expire >= atau sama
+                if (isset($leasesByIp[$ip]) && $expire >= $leasesByIp[$ip]['expire_raw']) {
+                    unset($leasesByIp[$ip]);
+                }
+                continue;
+            }
+
+            // Kea CSV adalah append log: ambil atau update entri jika lebih baru
+            if (!isset($leasesByIp[$ip]) || $expire >= $leasesByIp[$ip]['expire_raw']) {
+                $leasesByIp[$ip] = [
+                    'ip'         => $ip,
+                    'mac'        => $mac,
+                    'hostname'   => ($hostname !== '' && $hostname !== '(none)') ? $hostname : '-',
+                    'expire_at'  => date('Y-m-d H:i:s', $expire),
+                    'expire_raw' => $expire,
+                    'is_active'  => true,
+                    'subnet_id'  => $subnetId,
+                ];
+            }
         }
 
-        // Urutkan dari yang terbaru
-        usort($leases, fn($a, $b) => strcmp($b['expire_at'], $a['expire_at']));
+        $leases = array_values($leasesByIp);
+
+        // Urutkan dari expiration yang paling akhir (paling baru di-renew / masa aktif terlama)
+        usort($leases, fn($a, $b) => $b['expire_raw'] <=> $a['expire_raw']);
 
         return $leases;
     }

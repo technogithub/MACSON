@@ -124,14 +124,15 @@
     background: #1e293b;
     border: 1px solid #334155;
     border-radius: 12px;
-    padding: 10px 14px;
-    display: inline-flex;
+    padding: 12px 14px;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
     text-decoration: none;
     color: #cbd5e1;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    white-space: nowrap;
+    box-sizing: border-box;
 }
 .pool-btn-card:hover {
     background: #24344d;
@@ -147,8 +148,8 @@
     box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
 }
 .pool-btn-icon {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -226,32 +227,41 @@
 <!-- ===================== TOMBOL PILIHAN IP POOL ===================== -->
 <div class="mb-4">
     <div class="d-flex align-items-center justify-content-between mb-2.5 flex-wrap gap-2">
-        <div class="text-uppercase text-secondary fw-bold" style="font-size:0.75rem; letter-spacing:1px;">
-            <i class="fa-solid fa-server me-1.5 text-info"></i>Pilihan IP Pool Subnet:
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-uppercase text-secondary fw-bold" style="font-size:0.75rem; letter-spacing:1px;">
+                <i class="fa-solid fa-server me-1.5 text-info"></i>Pilihan IP Pool Subnet:
+            </span>
+            <span class="badge bg-dark text-secondary border border-secondary" style="font-size:0.7rem;">
+                {{ $subnets->count() }} Subnet Pools
+            </span>
         </div>
         @if($selectedPool !== 'all')
-            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}" class="text-info small text-decoration-none">
+            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:0.75rem;">
                 <i class="fa-solid fa-rotate-left me-1"></i>Tampilkan Semua Pool
             </a>
         @endif
     </div>
-    <div class="d-flex gap-2.5 flex-wrap align-items-stretch">
+    <div class="row g-2.5 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-4 align-items-stretch">
         <!-- Tombol Semua Pool -->
-        <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}"
-           class="pool-btn-card {{ $selectedPool === 'all' ? 'active' : '' }}">
-            <div class="pool-btn-icon" style="background:rgba(56,189,248,0.12); color:#38bdf8;">
-                <i class="fa-solid fa-network-wired"></i>
-            </div>
-            <div>
-                <div class="fw-bold text-light" style="font-size:0.88rem;">SEMUA POOL</div>
-                <div class="text-secondary" style="font-size:0.72rem;">{{ $subnets->count() }} Subnet Terdaftar</div>
-            </div>
-            <div class="ms-1">
-                <span class="badge {{ $selectedPool === 'all' ? 'bg-info text-dark fw-bold' : 'bg-dark text-info border border-secondary' }}" style="font-size:0.75rem;">
-                    {{ $totalActiveLeases ?? $activeLeases->total() }} Live
-                </span>
-            </div>
-        </a>
+        <div class="col">
+            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}"
+               class="pool-btn-card w-100 h-100 {{ $selectedPool === 'all' ? 'active' : '' }}">
+                <div class="d-flex align-items-center gap-2.5 overflow-hidden">
+                    <div class="pool-btn-icon" style="background:rgba(56,189,248,0.12); color:#38bdf8;">
+                        <i class="fa-solid fa-network-wired"></i>
+                    </div>
+                    <div class="text-truncate">
+                        <div class="fw-bold text-light text-truncate" style="font-size:0.88rem;">SEMUA POOL</div>
+                        <div class="text-secondary small text-truncate" style="font-size:0.72rem;">{{ $subnets->count() }} Subnet Terdaftar</div>
+                    </div>
+                </div>
+                <div class="ms-2 flex-shrink-0">
+                    <span class="badge {{ $selectedPool === 'all' ? 'bg-info text-dark fw-bold' : 'bg-dark text-info border border-secondary' }}" style="font-size:0.75rem;">
+                        {{ $totalActiveLeases ?? $activeLeases->total() }} Live
+                    </span>
+                </div>
+            </a>
+        </div>
 
         <!-- Tombol Tiap Pool Subnet -->
         @foreach($subnets as $subnet)
@@ -259,29 +269,33 @@
                 $isActivePool = (string)$selectedPool === (string)$subnet->id;
                 $activeCountForSubnet = $activeLeaseCounts[$subnet->id] ?? 0;
             @endphp
-            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => $subnet->id])) }}"
-               class="pool-btn-card {{ $isActivePool ? 'active' : '' }}">
-                <div class="pool-btn-icon" style="background:rgba(99,102,241,0.15); color:#a5b4fc;">
-                    <i class="fa-solid fa-layer-group"></i>
-                </div>
-                <div>
-                    <div class="fw-bold text-light d-flex align-items-center gap-1.5" style="font-size:0.88rem;">
-                        <span>{{ $subnet->name }}</span>
-                        @if($subnet->vlan_id)
-                            <span class="badge rounded-pill" style="font-size:0.65rem; background:rgba(165,180,252,0.15); color:#a5b4fc; border:1px solid rgba(165,180,252,0.3);">VLAN {{ $subnet->vlan_id }}</span>
-                        @endif
+            <div class="col">
+                <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => $subnet->id])) }}"
+                   class="pool-btn-card w-100 h-100 {{ $isActivePool ? 'active' : '' }}">
+                    <div class="d-flex align-items-center gap-2.5 overflow-hidden">
+                        <div class="pool-btn-icon" style="background:rgba(99,102,241,0.15); color:#a5b4fc;">
+                            <i class="fa-solid fa-layer-group"></i>
+                        </div>
+                        <div class="text-truncate">
+                            <div class="fw-bold text-light d-flex align-items-center gap-1.5 text-truncate" style="font-size:0.88rem;">
+                                <span class="text-truncate">{{ $subnet->name }}</span>
+                                @if($subnet->vlan_id)
+                                    <span class="badge rounded-pill flex-shrink-0" style="font-size:0.62rem; background:rgba(165,180,252,0.15); color:#a5b4fc; border:1px solid rgba(165,180,252,0.3);">V{{ $subnet->vlan_id }}</span>
+                                @endif
+                            </div>
+                            <div class="text-secondary font-monospace text-truncate" style="font-size:0.72rem;">{{ $subnet->subnet }}</div>
+                        </div>
                     </div>
-                    <div class="text-secondary font-monospace" style="font-size:0.72rem;">{{ $subnet->subnet }}</div>
-                </div>
-                <div class="d-flex flex-column gap-1 ms-1 text-end">
-                    <span class="badge {{ $isActivePool ? 'bg-info text-dark fw-bold' : 'bg-dark text-light border border-secondary' }}" style="font-size:0.7rem;">
-                        {{ $subnet->static_leases_count }} Static
-                    </span>
-                    <span class="badge {{ $activeCountForSubnet > 0 ? 'bg-success-subtle text-success border border-success' : 'bg-dark text-secondary border border-secondary' }}" style="font-size:0.68rem;">
-                        {{ $activeCountForSubnet }} Live
-                    </span>
-                </div>
-            </a>
+                    <div class="d-flex flex-column gap-1 ms-2 text-end flex-shrink-0">
+                        <span class="badge {{ $isActivePool ? 'bg-info text-dark fw-bold' : 'bg-dark text-light border border-secondary' }}" style="font-size:0.68rem;">
+                            {{ $subnet->static_leases_count }} Static
+                        </span>
+                        <span class="badge {{ $activeCountForSubnet > 0 ? 'bg-success-subtle text-success border border-success' : 'bg-dark text-secondary border border-secondary' }}" style="font-size:0.68rem;">
+                            {{ $activeCountForSubnet }} Live
+                        </span>
+                    </div>
+                </a>
+            </div>
         @endforeach
     </div>
 </div>
@@ -560,38 +574,50 @@
                 </div>
             </div>
 
-            <!-- Filter & Search Toolbar (Active Leases) dengan Tombol Pilihan Pool -->
+            <!-- Filter & Search Toolbar (Active Leases) dengan Tombol Pilihan Pool yang Rapi -->
             <form method="GET" action="{{ route('dhcp.index') }}" class="p-3 border-bottom border-secondary" style="background:rgba(15,23,42,0.4);">
                 <input type="hidden" name="tab" value="leases">
-                <div class="d-flex gap-2 flex-wrap align-items-center justify-content-between">
-                    <!-- Tombol Pilihan Pool Khusus Active Leases -->
+                
+                <!-- 1. Row Pilihan Pool Pills -->
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-3 pb-3 border-bottom border-secondary border-opacity-25">
+                    <span class="text-secondary small fw-bold text-uppercase d-flex align-items-center me-1" style="font-size:0.75rem; letter-spacing:0.5px;">
+                        <i class="fa-solid fa-filter text-info me-1.5"></i>Pilihan Subnet:
+                    </span>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                        <span class="text-secondary small me-1"><i class="fa-solid fa-filter text-info me-1"></i>Pool:</span>
                         <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => 'all', 'lease_page' => 1])) }}"
-                           class="btn btn-sm {{ $selectedPool === 'all' ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
-                           style="font-size:0.75rem; padding:3px 10px; border-radius:20px;">
-                            Semua ({{ $totalActiveLeases }})
+                           class="btn btn-sm {{ $selectedPool === 'all' ? 'btn-info text-white fw-bold shadow-sm' : 'btn-outline-secondary text-secondary' }}"
+                           style="font-size:0.75rem; padding:4px 12px; border-radius:20px;">
+                            Semua Pool <span class="badge ms-1 {{ $selectedPool === 'all' ? 'bg-dark text-info' : 'bg-dark text-secondary' }}">{{ $totalActiveLeases }}</span>
                         </a>
                         @foreach($subnets as $s)
-                            @php $countInS = $activeLeaseCounts[$s->id] ?? 0; @endphp
+                            @php
+                                $countInS = $activeLeaseCounts[$s->id] ?? 0;
+                                $isThisPool = (string)$selectedPool === (string)$s->id;
+                            @endphp
                             <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => $s->id, 'lease_page' => 1])) }}"
-                               class="btn btn-sm {{ (string)$selectedPool === (string)$s->id ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
-                               style="font-size:0.75rem; padding:3px 10px; border-radius:20px;">
-                                {{ $s->name }} ({{ $countInS }})
+                               class="btn btn-sm {{ $isThisPool ? 'btn-info text-white fw-bold shadow-sm' : 'btn-outline-secondary text-secondary' }}"
+                               style="font-size:0.75rem; padding:4px 12px; border-radius:20px;">
+                                {{ $s->name }}
+                                @if($s->vlan_id)
+                                    <span class="opacity-75" style="font-size:0.7rem;">(VLAN {{ $s->vlan_id }})</span>
+                                @endif
+                                <span class="badge ms-1 {{ $isThisPool ? 'bg-dark text-info' : ($countInS > 0 ? 'bg-success-subtle text-success' : 'bg-dark text-secondary') }}">{{ $countInS }}</span>
                             </a>
                         @endforeach
                     </div>
+                </div>
 
-                    <!-- Search & Limit -->
-                    <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
-                        <div style="min-width:200px; max-width:280px;">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
-                                <input type="text" name="search" class="form-control form-control-dark form-control-sm"
-                                       placeholder="Cari IP, MAC, host..."
-                                       value="{{ request('search') }}">
-                            </div>
+                <!-- 2. Row Search & Controls -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width:400px; min-width:220px;">
+                        <div class="input-group input-group-sm w-100">
+                            <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                            <input type="text" name="search" class="form-control form-control-dark form-control-sm"
+                                   placeholder="Cari IP, MAC, host..."
+                                   value="{{ request('search') }}">
                         </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto">
                         <div class="d-flex align-items-center gap-1.5">
                             <label class="text-secondary small text-nowrap mb-0" style="font-size:0.78rem;">Limit:</label>
                             <select name="per_page" class="form-select form-control-dark form-select-sm" style="width:115px;" onchange="this.form.submit()">
@@ -602,7 +628,7 @@
                         </div>
                         @if(request()->hasAny(['search', 'pool_id']) && (request('pool_id', 'all') !== 'all' || request('search')))
                             <a href="{{ route('dhcp.index', ['tab' => 'leases', 'per_page' => $perPage]) }}" class="btn btn-sm btn-outline-secondary" title="Reset Filter">
-                                <i class="fa-solid fa-rotate-left"></i>
+                                <i class="fa-solid fa-rotate-left me-1"></i>Reset
                             </a>
                         @endif
                     </div>
