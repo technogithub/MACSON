@@ -241,6 +241,57 @@ mark.search-hl {
     color: #fef3c7;
     border-radius: 3px;
     padding: 1px 2px;
+/* Big SSID Menu Tabs / Cards */
+.ssid-menu-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-decoration: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+.ssid-menu-card:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: #24344d;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35);
+}
+.ssid-menu-card.active {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(99, 102, 241, 0.16) 100%);
+    border: 1.5px solid #38bdf8;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.22), inset 0 0 12px rgba(56, 189, 248, 0.08);
+}
+.ssid-menu-card.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #38bdf8 0%, #818cf8 100%);
+}
+.ssid-menu-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+.ssid-menu-card .badge-counter {
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
 }
 
 /* Pagination styling */
@@ -375,6 +426,107 @@ mark.search-hl {
     <div class="stat-chip ms-auto text-secondary" style="font-size:0.78rem;"></div>
 </div>
 
+<!-- ===================== MENU BESAR: NAVIGASI WIFI SSID ===================== -->
+<div class="row g-3 mb-4">
+    <!-- Tab 1: SEMUA MAC -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'all'])) }}"
+           class="ssid-menu-card {{ $selectedSsid === 'all' ? 'active' : '' }}">
+            <div class="d-flex align-items-center gap-3">
+                <div class="ssid-menu-icon" style="background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.25);">
+                    <i class="fa-solid fa-layer-group"></i>
+                </div>
+                <div>
+                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">SEMUA MAC</div>
+                    <div class="text-secondary small" style="font-size:0.75rem;">Semua Network SSID</div>
+                </div>
+            </div>
+            <div>
+                <span class="badge {{ $selectedSsid === 'all' ? 'bg-info text-dark fw-bold' : 'bg-dark text-info border border-secondary' }} badge-counter">
+                    {{ $totalCount }}
+                </span>
+            </div>
+        </a>
+    </div>
+
+    <!-- Tab 2: SJA REG -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'SJA REG'])) }}"
+           class="ssid-menu-card {{ $selectedSsid === 'SJA REG' ? 'active' : '' }}">
+            <div class="d-flex align-items-center gap-3">
+                <div class="ssid-menu-icon" style="background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.25);">
+                    <i class="fa-solid fa-wifi"></i>
+                </div>
+                <div>
+                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">SJA REG</div>
+                    <div class="text-secondary small" style="font-size:0.75rem;">Wifi Staff & Reguler</div>
+                </div>
+            </div>
+            <div>
+                <span class="badge {{ $selectedSsid === 'SJA REG' ? 'bg-success text-white fw-bold' : 'bg-dark text-success border border-secondary' }} badge-counter">
+                    {{ $ssidCounts['SJA REG'] ?? 0 }}
+                </span>
+            </div>
+        </a>
+    </div>
+
+    <!-- Tab 3: SJA AP -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'SJA AP'])) }}"
+           class="ssid-menu-card {{ $selectedSsid === 'SJA AP' ? 'active' : '' }}">
+            <div class="d-flex align-items-center gap-3">
+                <div class="ssid-menu-icon" style="background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.25);">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                </div>
+                <div>
+                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">SJA AP</div>
+                    <div class="text-secondary small" style="font-size:0.75rem;">Access Point Backbone</div>
+                </div>
+            </div>
+            <div>
+                <span class="badge {{ $selectedSsid === 'SJA AP' ? 'bg-warning text-dark fw-bold' : 'bg-dark text-warning border border-secondary' }} badge-counter">
+                    {{ $ssidCounts['SJA AP'] ?? 0 }}
+                </span>
+            </div>
+        </a>
+    </div>
+
+    <!-- Tab 4: DEVICE OPS AP -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'DEVICE OPS AP'])) }}"
+           class="ssid-menu-card {{ $selectedSsid === 'DEVICE OPS AP' ? 'active' : '' }}">
+            <div class="d-flex align-items-center gap-3">
+                <div class="ssid-menu-icon" style="background:rgba(168,85,247,0.12); color:#c084fc; border:1px solid rgba(168,85,247,0.25);">
+                    <i class="fa-solid fa-microchip"></i>
+                </div>
+                <div>
+                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">DEVICE OPS AP</div>
+                    <div class="text-secondary small" style="font-size:0.75rem;">Operasional & POS</div>
+                </div>
+            </div>
+            <div>
+                <span class="badge {{ $selectedSsid === 'DEVICE OPS AP' ? 'text-white fw-bold' : 'bg-dark border border-secondary' }} badge-counter" style="{{ $selectedSsid === 'DEVICE OPS AP' ? 'background:#a855f7;' : 'color:#c084fc;' }}">
+                    {{ $ssidCounts['DEVICE OPS AP'] ?? 0 }}
+                </span>
+            </div>
+        </a>
+    </div>
+</div>
+
+@if(!empty($otherSsids) && count($otherSsids) > 0)
+<!-- Other SSIDs Quick Selector (if present) -->
+<div class="d-flex align-items-center gap-2 mb-3 px-1 flex-wrap">
+    <span class="text-secondary small" style="font-size:0.78rem;"><i class="fa-solid fa-tags me-1"></i>SSID Lainnya:</span>
+    @foreach($otherSsids as $oSsid)
+        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => $oSsid])) }}"
+           class="btn btn-sm {{ $selectedSsid === $oSsid ? 'btn-info text-white fw-semibold' : 'btn-outline-secondary text-secondary' }} py-0 px-2.5 rounded-pill"
+           style="font-size:0.75rem;">
+            {{ $oSsid }} ({{ $ssidCounts[$oSsid] ?? 0 }})
+        </a>
+    @endforeach
+</div>
+@endif
+
 <!-- Search & Filter Bar (server-side submit) -->
 <form method="GET" action="{{ route('devices.index') }}" id="searchFilterForm" class="d-flex gap-3 mb-3 flex-wrap align-items-center">
     <div class="search-wrapper flex-grow-1" style="min-width:240px; max-width:420px;">
@@ -395,12 +547,27 @@ mark.search-hl {
     </select>
     <select name="ssid" id="filterSsid" class="form-select filter-select" style="width:180px;" onchange="this.form.submit()">
         <option value="all" {{ request('ssid','all') === 'all' ? 'selected' : '' }}>All SSIDs</option>
-        @foreach($availableSsids as $s)
-            <option value="{{ $s }}" {{ request('ssid') === $s ? 'selected' : '' }}>{{ $s }}</option>
+        @php
+            $dropdownSsids = array_unique(array_merge($primarySsids, $availableSsids, $masterNames ?? []));
+        @endphp
+        @foreach($dropdownSsids as $s)
+            @if(!empty($s))
+                <option value="{{ $s }}" {{ request('ssid') === $s ? 'selected' : '' }}>{{ $s }}</option>
+            @endif
         @endforeach
     </select>
-    @if(request()->hasAny(['search','status','ssid']))
-    <a href="{{ route('devices.index') }}" class="btn btn-sm btn-outline-secondary" title="Reset semua filter">
+    <div class="d-flex align-items-center gap-2">
+        <label for="filterPerPage" class="text-secondary small text-nowrap mb-0 d-none d-md-inline" style="font-size:0.82rem;">
+            <i class="fa-solid fa-list-ol me-1 text-info"></i>Tampilkan:
+        </label>
+        <select name="per_page" id="filterPerPage" class="form-select filter-select" style="width:125px;" onchange="this.form.submit()">
+            <option value="15" {{ (int)request('per_page', 15) === 15 ? 'selected' : '' }}>15 / hal</option>
+            <option value="50" {{ (int)request('per_page', 15) === 50 ? 'selected' : '' }}>50 / hal</option>
+            <option value="100" {{ (int)request('per_page', 15) === 100 ? 'selected' : '' }}>100 / hal</option>
+        </select>
+    </div>
+    @if(request()->hasAny(['search','status','ssid']) && (request('ssid','all') !== 'all' || request('status','all') !== 'all' || request('search')))
+    <a href="{{ route('devices.index', request()->has('per_page') ? ['per_page' => request('per_page')] : []) }}" class="btn btn-sm btn-outline-secondary" title="Reset semua filter">
         <i class="fa-solid fa-rotate-left me-1"></i>Reset
     </a>
     <span class="text-secondary small" style="white-space:nowrap;">{{ $devices->total() }} result(s)</span>
@@ -519,13 +686,31 @@ mark.search-hl {
             </tbody>
         </table>
     </div>
-    <!-- Pagination -->
-    @if($devices->hasPages())
-    <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top" style="border-color:#334155 !important;">
-        <div class="text-secondary small">
-            Showing {{ $devices->firstItem() }}–{{ $devices->lastItem() }} of {{ $devices->total() }} devices
+    <!-- Pagination Footer -->
+    @if($devices->total() > 0)
+    <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top flex-wrap gap-3" style="border-color:#334155 !important;">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="text-secondary small">
+                Showing <strong class="text-light">{{ $devices->firstItem() ?? 0 }}–{{ $devices->lastItem() ?? 0 }}</strong> of <strong class="text-info">{{ $devices->total() }}</strong> devices
+            </span>
+            <div class="d-flex align-items-center gap-1.5 ms-2">
+                <span class="text-muted" style="font-size:0.75rem;">Limit:</span>
+                <div class="btn-group btn-group-sm">
+                    @foreach([15, 50, 100] as $size)
+                        <a href="{{ route('devices.index', array_merge(request()->query(), ['per_page' => $size, 'page' => 1])) }}"
+                           class="btn btn-sm {{ (int)request('per_page', 15) === $size ? 'btn-info text-white fw-bold' : 'btn-outline-secondary text-secondary' }}"
+                           style="font-size:0.75rem; padding: 2px 9px;">
+                            {{ $size }}
+                        </a>
+                    @endforeach
+                </div>
+            </div>
         </div>
-        <div>{{ $devices->links() }}</div>
+        <div>
+            @if($devices->hasPages())
+                {{ $devices->links() }}
+            @endif
+        </div>
     </div>
     @endif
 </div>
@@ -555,13 +740,26 @@ mark.search-hl {
                             <div class="form-text">Accepted formats: AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, aabbccddeeff</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Target SSID *</label>
-                            <select name="ssid" class="form-select form-control-dark" required>
-                                <option value="ALL" selected>ALL (Authorized for Any SSID)</option>
-                                @foreach($masterSsids as $mSsid)
-                                    <option value="{{ $mSsid->ssid_name }}">
-                                        {{ $mSsid->ssid_name }} (VLAN {{ $mSsid->vlan_id ?? 'Native' }})
-                                    </option>
+                            <label class="form-label d-flex justify-content-between align-items-center">
+                                <span>Target SSID *</span>
+                                @if($selectedSsid !== 'all')
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:0.7rem;">Auto: {{ $selectedSsid }}</span>
+                                @endif
+                            </label>
+                            <select name="ssid" id="addDeviceSsid" class="form-select form-control-dark" required>
+                                <option value="ALL" {{ $selectedSsid === 'all' ? 'selected' : '' }}>ALL (Authorized for Any SSID)</option>
+                                @php
+                                    $allModalSsids = array_unique(array_merge($primarySsids, $masterSsids->pluck('ssid_name')->toArray(), $availableSsids));
+                                @endphp
+                                @foreach($allModalSsids as $sName)
+                                    @if($sName !== 'ALL' && !empty($sName))
+                                        @php
+                                            $mMatch = $masterSsids->firstWhere('ssid_name', $sName);
+                                        @endphp
+                                        <option value="{{ $sName }}" {{ $selectedSsid === $sName ? 'selected' : '' }}>
+                                            {{ $sName }} {{ $mMatch && $mMatch->vlan_id ? '(VLAN ' . $mMatch->vlan_id . ')' : '' }}
+                                        </option>
+                                    @endif
                                 @endforeach
                             </select>
                             <div class="form-text">Select target SSID or <strong>ALL</strong></div>
@@ -620,10 +818,15 @@ mark.search-hl {
                             <label class="form-label">Target SSID *</label>
                             <select name="ssid" id="editSsid" class="form-select form-control-dark" required>
                                 <option value="ALL">ALL (Authorized for Any SSID)</option>
-                                @foreach($masterSsids as $mSsid)
-                                    <option value="{{ $mSsid->ssid_name }}">
-                                        {{ $mSsid->ssid_name }} (VLAN {{ $mSsid->vlan_id ?? 'Native' }})
-                                    </option>
+                                @foreach($allModalSsids as $sName)
+                                    @if($sName !== 'ALL' && !empty($sName))
+                                        @php
+                                            $mMatch = $masterSsids->firstWhere('ssid_name', $sName);
+                                        @endphp
+                                        <option value="{{ $sName }}">
+                                            {{ $sName }} {{ $mMatch && $mMatch->vlan_id ? '(VLAN ' . $mMatch->vlan_id . ')' : '' }}
+                                        </option>
+                                    @endif
                                 @endforeach
                             </select>
                             <div class="form-text">Select target SSID or <strong>ALL</strong></div>

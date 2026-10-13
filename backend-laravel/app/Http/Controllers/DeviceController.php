@@ -38,7 +38,10 @@ class DeviceController extends Controller
             $query->where('status', $request->status);
         }
 
-        $devices        = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
+        // Per Page selection (15, 50, 100 - default 15)
+        $perPage = in_array((int)$request->input('per_page'), [15, 50, 100]) ? (int)$request->input('per_page') : 15;
+
+        $devices        = $query->orderBy('id', 'desc')->paginate($perPage)->withQueryString();
         $availableSsids = Device::distinct()->pluck('ssid')->toArray();
         $masterSsids    = Ssid::orderBy('vlan_id', 'asc')->get();
 
@@ -47,7 +50,37 @@ class DeviceController extends Controller
         $activeCount   = Device::where('status', 'active')->count();
         $inactiveCount = Device::where('status', 'inactive')->count();
 
-        return view('devices.index', compact('devices', 'availableSsids', 'masterSsids', 'totalCount', 'activeCount', 'inactiveCount'));
+        // Primary SSIDs requested for big menu navigation tabs
+        $primarySsids = ['SJA REG', 'SJA AP', 'DEVICE OPS AP'];
+
+        // Real-time device counts grouped by SSID
+        $ssidCounts = Device::selectRaw('ssid, count(*) as count')
+            ->groupBy('ssid')
+            ->pluck('count', 'ssid')
+            ->toArray();
+
+        // Additional SSIDs outside the primary list (if any exist)
+        $masterNames = $masterSsids->pluck('ssid_name')->toArray();
+        $otherSsids  = array_values(array_filter(
+            array_unique(array_merge($availableSsids, $masterNames)),
+            fn($s) => !in_array($s, $primarySsids) && $s !== 'ALL' && !empty($s)
+        ));
+
+        $selectedSsid = $request->input('ssid', 'all');
+
+        return view('devices.index', compact(
+            'devices',
+            'availableSsids',
+            'masterSsids',
+            'totalCount',
+            'activeCount',
+            'inactiveCount',
+            'primarySsids',
+            'ssidCounts',
+            'otherSsids',
+            'perPage',
+            'selectedSsid'
+        ));
     }
 
     /**
