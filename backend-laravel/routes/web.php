@@ -43,6 +43,8 @@ Route::middleware('auth')->group(function () {
         Route::get('devices/export', [DeviceController::class, 'exportCsv'])->name('devices.export');
         Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
         Route::patch('devices/{device}/toggle', [DeviceController::class, 'toggleStatus'])->name('devices.toggle');
+        // Suggest free IP in subnet
+        Route::get('/devices/suggest-ip', [DeviceController::class, 'suggestIp'])->name('devices.suggest-ip');
         Route::resource('devices', DeviceController::class);
 
         // Multi-SSID Management Routes

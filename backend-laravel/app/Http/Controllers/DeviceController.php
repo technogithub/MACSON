@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Device;
+use App\Models\DhcpStaticLease;
+use App\Models\DhcpSubnet;
 use App\Models\Ssid;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
 
 class DeviceController extends Controller
@@ -68,6 +71,8 @@ class DeviceController extends Controller
 
         $selectedSsid = $request->input('ssid', 'all');
 
+        $dhcpSubnets = DhcpSubnet::where('is_active', true)->orderBy('name')->get(['id', 'name', 'vlan_id', 'pool_start', 'pool_end', 'subnet']);
+
         return view('devices.index', compact(
             'devices',
             'availableSsids',
@@ -79,7 +84,8 @@ class DeviceController extends Controller
             'ssidCounts',
             'otherSsids',
             'perPage',
-            'selectedSsid'
+            'selectedSsid',
+            'dhcpSubnets'
         ));
     }
 
@@ -109,7 +115,7 @@ class DeviceController extends Controller
             'status'      => 'required|in:active,inactive',
         ]);
 
-        Device::create([
+        $device = Device::create([
             'mac_address' => $formattedMac,
             'raw_mac'     => $rawMac,
             'ssid'        => $ssid,
@@ -119,6 +125,31 @@ class DeviceController extends Controller
             'vlan_id'     => $request->vlan_id ?: null,
             'status'      => $request->status,
         ]);
+
+        // Proses reservasi IP jika diminta
+        $noReserveSsids = ['SJA REG', 'ALL'];
+        if ($request->boolean('reserve_ip') && !in_array(strtoupper($ssid), $noReserveSsids)) {
+            $subnetId  = $request->input('reserve_subnet_id');
+            $ipAddress = trim($request->input('reserve_ip_address', ''));
+            $hostname  = trim($request->input('reserve_hostname', $request->device_name));
+            $desc      = trim($request->input('reserve_description', ''));
+
+            if ($subnetId && $ipAddress && filter_var($ipAddress, FILTER_VALIDATE_IP)) {
+                // Cek duplikat IP di tabel
+                $duplicate = DhcpStaticLease::where('ip_address', $ipAddress)->first();
+                if (!$duplicate) {
+                    DhcpStaticLease::create([
+                        'dhcp_subnet_id' => $subnetId,
+                        'device_id'      => $device->id,
+                        'mac_address'    => $formattedMac,
+                        'ip_address'     => $ipAddress,
+                        'hostname'       => $hostname ?: $request->device_name,
+                        'description'    => $desc ?: null,
+                        'is_active'      => true,
+                    ]);
+                }
+            }
+        }
 
         return redirect()->route('devices.index')->with('success', "Device {$formattedMac} ({$ssid}) successfully added.");
     }
@@ -149,6 +180,13 @@ class DeviceController extends Controller
             'vlan_id'     => 'nullable|integer|between:1,4094',
             'status'      => 'required|in:active,inactive',
         ]);
+
+        $oldSsid = $device->ssid;
+        $noReserveSsids = ['SJA REG', 'ALL'];
+        if (in_array(strtoupper($ssid), $noReserveSsids) && !in_array(strtoupper($oldSsid), $noReserveSsids)) {
+            // Auto-delete reservasi yang terhubung ke device ini
+            DhcpStaticLease::where('device_id', $device->id)->delete();
+        }
 
         $device->update([
             'mac_address' => $formattedMac,
@@ -449,5 +487,45 @@ class DeviceController extends Controller
         };
 
         return Response::stream($callback, 200, $headers);
+    }
+
+    /**
+     * Suggest IP kosong dalam range subnet
+     */
+    public function suggestIp(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $subnetId = (int)$request->input('subnet_id');
+        if (!$subnetId) {
+            return response()->json(['suggested_ip' => null, 'error' => 'No subnet_id']);
+        }
+
+        $subnet = DhcpSubnet::find($subnetId);
+        if (!$subnet || !$subnet->pool_start || !$subnet->pool_end) {
+            return response()->json(['suggested_ip' => null, 'error' => 'Subnet not found']);
+        }
+
+        $startLong = ip2long($subnet->pool_start);
+        $endLong   = ip2long($subnet->pool_end);
+
+        if ($startLong === false || $endLong === false || $endLong < $startLong) {
+            return response()->json(['suggested_ip' => null]);
+        }
+
+        // Ambil semua IP yang sudah terpakai di subnet ini
+        $usedIps = DhcpStaticLease::where('dhcp_subnet_id', $subnetId)
+            ->pluck('ip_address')
+            ->map(fn($ip) => ip2long($ip))
+            ->filter(fn($v) => $v !== false)
+            ->toArray();
+
+        $suggested = null;
+        for ($i = $startLong; $i <= $endLong; $i++) {
+            if (!in_array($i, $usedIps)) {
+                $suggested = long2ip($i);
+                break;
+            }
+        }
+
+        return response()->json(['suggested_ip' => $suggested]);
     }
 }
