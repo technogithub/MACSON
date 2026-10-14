@@ -602,6 +602,13 @@ mark.search-hl {
                             @if($device->location)
                                 <div class="text-muted" style="font-size:0.75rem;"><i class="fa-solid fa-location-dot me-1"></i><span class="searchable">{{ $device->location }}</span></div>
                             @endif
+                            @if($device->staticLease)
+                                <div class="mt-1">
+                                    <span class="badge" style="font-size:0.7rem; background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); font-family:monospace;" title="Reserved IP in {{ $device->staticLease->subnet->name ?? 'DHCP' }}">
+                                        <i class="fa-solid fa-thumbtack me-1 text-info"></i>{{ $device->staticLease->ip_address }}
+                                    </span>
+                                </div>
+                            @endif
                         </td>
                         <td>
                             <span class="mac-badge searchable">{{ $device->mac_address }}</span>
@@ -639,7 +646,12 @@ mark.search-hl {
                                     data-location="{{ $device->location }}"
                                     data-description="{{ $device->description }}"
                                     data-status="{{ $device->status }}"
-                                    data-vlan="{{ $device->vlan_id }}">
+                                    data-vlan="{{ $device->vlan_id }}"
+                                    data-has-reserve="{{ $device->staticLease ? '1' : '0' }}"
+                                    data-reserve-subnet="{{ $device->staticLease->dhcp_subnet_id ?? '' }}"
+                                    data-reserve-ip="{{ $device->staticLease->ip_address ?? '' }}"
+                                    data-reserve-hostname="{{ $device->staticLease->hostname ?? '' }}"
+                                    data-reserve-desc="{{ $device->staticLease->description ?? '' }}">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
                                 <!-- Toggle Status -->
@@ -799,6 +811,7 @@ mark.search-hl {
                                                 @foreach($dhcpSubnets as $sn)
                                                     <option value="{{ $sn->id }}"
                                                         data-name="{{ strtolower($sn->name) }}"
+                                                        data-vlan="{{ $sn->vlan_id }}"
                                                         data-start="{{ $sn->pool_start }}"
                                                         data-end="{{ $sn->pool_end }}">
                                                         {{ $sn->name }}
@@ -807,6 +820,7 @@ mark.search-hl {
                                                     </option>
                                                 @endforeach
                                             </select>
+                                            <div class="form-text" id="addPoolHint"></div>
                                         </div>
                                         <div class="col-12">
                                             <label class="form-label">IP Address *</label>
@@ -909,6 +923,69 @@ mark.search-hl {
                                 <option value="inactive">Inactive</option>
                             </select>
                         </div>
+
+                        <!-- Bagian Reservasi IP Edit Modal (hanya muncul untuk SSID selain SJA REG & ALL) -->
+                        <div id="editReserveSection" class="col-12 d-none">
+                            <div class="p-3 rounded-3" style="background:rgba(56,189,248,0.05); border:1px solid rgba(56,189,248,0.2);">
+                                <div class="d-flex align-items-center justify-content-between mb-3">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="fa-solid fa-thumbtack text-info"></i>
+                                        <span class="fw-bold text-info" style="font-size:0.9rem;">Reservasi Static IP (Opsional)</span>
+                                        <span id="editReserveBadge" class="badge bg-success-subtle text-success border border-success d-none" style="font-size:0.7rem;">Sudah Ter-reservasi</span>
+                                    </div>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="editReserveCheck" name="reserve_ip" value="1">
+                                        <label class="form-check-label text-secondary small" for="editReserveCheck">Aktifkan</label>
+                                    </div>
+                                </div>
+                                <div id="editReserveFields" class="d-none">
+                                    <div class="row g-2">
+                                        <div class="col-12">
+                                            <label class="form-label">Subnet / IP Pool *</label>
+                                            <select name="reserve_subnet_id" id="editReserveSubnet" class="form-select form-control-dark">
+                                                <option value="">-- Pilih Subnet Pool --</option>
+                                                @foreach($dhcpSubnets as $sn)
+                                                    <option value="{{ $sn->id }}"
+                                                        data-name="{{ strtolower($sn->name) }}"
+                                                        data-vlan="{{ $sn->vlan_id }}"
+                                                        data-start="{{ $sn->pool_start }}"
+                                                        data-end="{{ $sn->pool_end }}">
+                                                        {{ $sn->name }}
+                                                        @if($sn->vlan_id) (VLAN {{ $sn->vlan_id }}) @endif
+                                                        — {{ $sn->pool_start }} ~ {{ $sn->pool_end }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            <div class="form-text" id="editPoolHint"></div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">IP Address *</label>
+                                            <div class="input-group">
+                                                <input type="text" name="reserve_ip_address" id="editReserveIp"
+                                                       class="form-control form-control-dark font-monospace"
+                                                       placeholder="e.g. 10.14.27.50">
+                                                <button type="button" class="btn btn-outline-info btn-sm" id="editSuggestIpBtn" title="Auto-suggest IP kosong">
+                                                    <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest
+                                                </button>
+                                            </div>
+                                            <div class="form-text" id="editSuggestInfo">Pilih subnet dulu, lalu klik Suggest untuk IP kosong otomatis.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Hostname <span class="text-muted fw-normal">(optional)</span></label>
+                                            <input type="text" name="reserve_hostname" id="editReserveHostname"
+                                                   class="form-control form-control-dark"
+                                                   placeholder="Otomatis dari Device Name">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Keterangan <span class="text-muted fw-normal">(optional)</span></label>
+                                            <input type="text" name="reserve_description" id="editReserveDescription" class="form-control form-control-dark"
+                                                   placeholder="Catatan reservasi">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Info: Reservasi auto-hapus jika SSID berubah ke REG/ALL -->
                         <div id="editReserveWarning" class="col-12 d-none">
                             <div class="alert mb-0 py-2" style="background:rgba(251,146,60,0.1); border:1px solid rgba(251,146,60,0.3); border-radius:8px;">
@@ -1037,6 +1114,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 5000);
     });
 
+    // ===== RESERVASI IP HELPER =====
+    const NO_RESERVE_SSIDS = ['SJA REG', 'ALL', ''];
+
+    function findSjaApOption(selectEl) {
+        if (!selectEl) return null;
+        return Array.from(selectEl.options).find(o => {
+            const name = o.dataset.name || '';
+            const vlan = String(o.dataset.vlan || '');
+            return name.includes('sja ap') || (vlan === '25' && name.includes('ap')) || vlan === '25';
+        });
+    }
+
     // ===== ADD DEVICE: Reservasi IP Logic =====
     const addSsidEl          = document.getElementById('addDeviceSsid');
     const addReserveSection  = document.getElementById('addReserveSection');
@@ -1046,28 +1135,30 @@ document.addEventListener('DOMContentLoaded', function () {
     const addReserveIp       = document.getElementById('addReserveIp');
     const addReserveHostname = document.getElementById('addReserveHostname');
     const addSuggestBtn      = document.getElementById('addSuggestIpBtn');
+    const addPoolHint        = document.getElementById('addPoolHint');
     const addDeviceNameEl    = document.querySelector('#addDeviceModal input[name="device_name"]');
 
-    const NO_RESERVE_SSIDS = ['SJA REG', 'ALL', ''];
-
     function toggleAddReserveSection(ssid) {
+        if (!addReserveSection) return;
         if (NO_RESERVE_SSIDS.includes(ssid)) {
             addReserveSection.classList.add('d-none');
-            addReserveCheck.checked = false;
-            addReserveFields.classList.add('d-none');
+            if (addReserveCheck) addReserveCheck.checked = false;
+            if (addReserveFields) addReserveFields.classList.add('d-none');
+            if (addPoolHint) addPoolHint.innerHTML = '';
         } else {
             addReserveSection.classList.remove('d-none');
-            // Auto-select pool untuk SJA AP
             if (ssid === 'SJA AP') {
-                const sjaApOption = Array.from(addReserveSubnet.options).find(
-                    o => o.dataset.name && o.dataset.name.includes('sja ap')
-                );
+                const sjaApOption = findSjaApOption(addReserveSubnet);
                 if (sjaApOption) {
-                    addReserveSubnet.value    = sjaApOption.value;
-                    addReserveSubnet.disabled = true;
+                    addReserveSubnet.value = sjaApOption.value;
+                    if (addPoolHint) {
+                        addPoolHint.innerHTML = `<span class="text-success small"><i class="fa-solid fa-check me-1"></i>Otomatis memilih pool SJA AP (VLAN ${sjaApOption.dataset.vlan || '25'}).</span>`;
+                    }
+                } else if (addPoolHint) {
+                    addPoolHint.innerHTML = `<span class="text-warning small"><i class="fa-solid fa-triangle-exclamation me-1"></i>Subnet pool untuk <strong>SJA AP (VLAN 25)</strong> belum dibuat di menu <a href="{{ route('dhcp.index') }}" class="text-info text-decoration-underline" target="_blank">DHCP Server Management</a>. Silakan buat subnet pool di menu DHCP terlebih dahulu atau pilih pool yang tersedia.</span>`;
                 }
-            } else {
-                addReserveSubnet.disabled = false;
+            } else if (addPoolHint) {
+                addPoolHint.innerHTML = '';
             }
         }
     }
@@ -1076,44 +1167,40 @@ document.addEventListener('DOMContentLoaded', function () {
         addSsidEl.addEventListener('change', function() {
             toggleAddReserveSection(this.value);
         });
-        // Initial state on modal open
         const addDeviceModal = document.getElementById('addDeviceModal');
-        addDeviceModal.addEventListener('show.bs.modal', function() {
-            toggleAddReserveSection(addSsidEl.value);
-        });
-        addDeviceModal.addEventListener('hidden.bs.modal', function() {
-            // Reset form reservasi
-            addReserveCheck.checked = false;
-            addReserveFields.classList.add('d-none');
-            addReserveSection.classList.add('d-none');
-            addReserveSubnet.disabled = false;
-            addReserveIp.value = '';
-            if (addReserveHostname) addReserveHostname.value = '';
-        });
+        if (addDeviceModal) {
+            addDeviceModal.addEventListener('show.bs.modal', function() {
+                toggleAddReserveSection(addSsidEl.value);
+            });
+            addDeviceModal.addEventListener('hidden.bs.modal', function() {
+                if (addReserveCheck) addReserveCheck.checked = false;
+                if (addReserveFields) addReserveFields.classList.add('d-none');
+                if (addReserveSection) addReserveSection.classList.add('d-none');
+                if (addReserveIp) addReserveIp.value = '';
+                if (addReserveHostname) addReserveHostname.value = '';
+                if (addPoolHint) addPoolHint.innerHTML = '';
+            });
+        }
     }
 
-    // Toggle fields saat checkbox dicentang
     if (addReserveCheck) {
         addReserveCheck.addEventListener('change', function() {
-            addReserveFields.classList.toggle('d-none', !this.checked);
-            // Pre-fill hostname dari device name
-            if (this.checked && addDeviceNameEl && addReserveHostname) {
+            if (addReserveFields) addReserveFields.classList.toggle('d-none', !this.checked);
+            if (this.checked && addDeviceNameEl && addReserveHostname && !addReserveHostname.value) {
                 addReserveHostname.value = addDeviceNameEl.value || '';
             }
         });
     }
 
-    // Update hostname placeholder saat device name berubah
     if (addDeviceNameEl && addReserveHostname) {
         addDeviceNameEl.addEventListener('input', function() {
             addReserveHostname.placeholder = this.value || 'Otomatis dari Device Name';
         });
     }
 
-    // Auto-suggest IP via AJAX
     if (addSuggestBtn) {
         addSuggestBtn.addEventListener('click', function() {
-            const subnetId = addReserveSubnet.value;
+            const subnetId = addReserveSubnet ? addReserveSubnet.value : '';
             if (!subnetId) {
                 alert('Pilih Subnet Pool terlebih dahulu!');
                 return;
@@ -1126,13 +1213,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.suggested_ip) {
                         addReserveIp.value = data.suggested_ip;
-                        document.getElementById('addSuggestInfo').textContent = `✓ IP tersedia: ${data.suggested_ip}`;
+                        const info = document.getElementById('addSuggestInfo');
+                        if (info) info.textContent = `✓ IP tersedia: ${data.suggested_ip}`;
                     } else {
-                        document.getElementById('addSuggestInfo').textContent = 'Tidak ada IP kosong di range pool ini.';
+                        const info = document.getElementById('addSuggestInfo');
+                        if (info) info.textContent = 'Tidak ada IP kosong di range pool ini.';
                     }
                 })
                 .catch(() => {
-                    document.getElementById('addSuggestInfo').textContent = 'Gagal memuat suggestion.';
+                    const info = document.getElementById('addSuggestInfo');
+                    if (info) info.textContent = 'Gagal memuat suggestion.';
                 })
                 .finally(() => {
                     addSuggestBtn.disabled = false;
@@ -1141,32 +1231,157 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ===== EDIT DEVICE: Warning jika SSID berubah ke REG/ALL =====
-    const editSsidEl         = document.getElementById('editSsid');
-    const editReserveWarning = document.getElementById('editReserveWarning');
+    // ===== EDIT DEVICE: Reservasi IP Logic =====
+    const editSsidEl              = document.getElementById('editSsid');
+    const editReserveSection      = document.getElementById('editReserveSection');
+    const editReserveCheck        = document.getElementById('editReserveCheck');
+    const editReserveBadge        = document.getElementById('editReserveBadge');
+    const editReserveFields       = document.getElementById('editReserveFields');
+    const editReserveSubnet       = document.getElementById('editReserveSubnet');
+    const editReserveIp           = document.getElementById('editReserveIp');
+    const editReserveHostname     = document.getElementById('editReserveHostname');
+    const editReserveDescription  = document.getElementById('editReserveDescription');
+    const editSuggestBtn          = document.getElementById('editSuggestIpBtn');
+    const editPoolHint            = document.getElementById('editPoolHint');
+    const editDeviceNameEl        = document.getElementById('editDeviceName');
+    const editReserveWarning      = document.getElementById('editReserveWarning');
+
+    function toggleEditReserveSection(ssid) {
+        if (!editReserveSection) return;
+        if (NO_RESERVE_SSIDS.includes(ssid)) {
+            editReserveSection.classList.add('d-none');
+            if (editReserveFields) editReserveFields.classList.add('d-none');
+            if (editReserveCheck) editReserveCheck.checked = false;
+            if (editPoolHint) editPoolHint.innerHTML = '';
+        } else {
+            editReserveSection.classList.remove('d-none');
+            if (ssid === 'SJA AP') {
+                const sjaApOption = findSjaApOption(editReserveSubnet);
+                if (sjaApOption && (!editReserveSubnet.value || editReserveSubnet.value === '')) {
+                    editReserveSubnet.value = sjaApOption.value;
+                }
+                if (sjaApOption && editPoolHint) {
+                    editPoolHint.innerHTML = `<span class="text-success small"><i class="fa-solid fa-check me-1"></i>Otomatis memilih pool SJA AP (VLAN ${sjaApOption.dataset.vlan || '25'}).</span>`;
+                } else if (!sjaApOption && editPoolHint) {
+                    editPoolHint.innerHTML = `<span class="text-warning small"><i class="fa-solid fa-triangle-exclamation me-1"></i>Subnet pool untuk <strong>SJA AP (VLAN 25)</strong> belum dibuat di menu <a href="{{ route('dhcp.index') }}" class="text-info text-decoration-underline" target="_blank">DHCP Server Management</a>. Silakan buat subnet pool di menu DHCP terlebih dahulu atau pilih pool yang tersedia.</span>`;
+                }
+            } else if (editPoolHint) {
+                editPoolHint.innerHTML = '';
+            }
+        }
+    }
 
     document.querySelectorAll('.btn-edit-device').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const originalSsid = this.dataset.ssid;
-            // Setelah modal population selesai, track perubahan SSID
-            if (editSsidEl && editReserveWarning) {
-                setTimeout(() => {
-                    editSsidEl.addEventListener('change', function() {
-                        const newSsid = this.value;
-                        const originalNoReserve = NO_RESERVE_SSIDS.includes(originalSsid);
-                        const newNoReserve      = NO_RESERVE_SSIDS.includes(newSsid);
-                        if (!originalNoReserve && newNoReserve) {
-                            editReserveWarning.classList.remove('d-none');
-                        } else {
-                            editReserveWarning.classList.add('d-none');
-                        }
-                    }, { once: false });
-                }, 100);
+        btn.addEventListener('click', function () {
+            const id   = this.dataset.id;
+            const form = document.getElementById('editDeviceForm');
+            form.action = `/devices/${id}`;
+
+            document.getElementById('editDeviceName').value  = this.dataset.name || '';
+            document.getElementById('editMacAddress').value  = this.dataset.mac || '';
+            document.getElementById('editSsid').value        = this.dataset.ssid || '';
+            document.getElementById('editLocation').value    = this.dataset.location || '';
+            document.getElementById('editDescription').value = this.dataset.description || '';
+            document.getElementById('editStatus').value      = this.dataset.status || 'active';
+            document.getElementById('editVlanId').value      = this.dataset.vlan || '';
+
+            const originalSsid    = this.dataset.ssid || '';
+            const hasReservation  = this.dataset.hasReserve === '1';
+            const reserveSubnet   = this.dataset.reserveSubnet || '';
+            const reserveIp       = this.dataset.reserveIp || '';
+            const reserveHostname = this.dataset.reserveHostname || '';
+            const reserveDesc     = this.dataset.reserveDesc || '';
+
+            // Tampilkan atau sembunyikan section reservasi
+            toggleEditReserveSection(originalSsid);
+
+            if (!NO_RESERVE_SSIDS.includes(originalSsid)) {
+                if (hasReservation) {
+                    if (editReserveCheck) editReserveCheck.checked = true;
+                    if (editReserveBadge) editReserveBadge.classList.remove('d-none');
+                    if (editReserveFields) editReserveFields.classList.remove('d-none');
+                    if (editReserveSubnet) editReserveSubnet.value = reserveSubnet;
+                    if (editReserveIp) editReserveIp.value = reserveIp;
+                    if (editReserveHostname) editReserveHostname.value = reserveHostname;
+                    if (editReserveDescription) editReserveDescription.value = reserveDesc;
+                } else {
+                    if (editReserveCheck) editReserveCheck.checked = false;
+                    if (editReserveBadge) editReserveBadge.classList.add('d-none');
+                    if (editReserveFields) editReserveFields.classList.add('d-none');
+                    if (editReserveSubnet) editReserveSubnet.value = '';
+                    if (editReserveIp) editReserveIp.value = '';
+                    if (editReserveHostname) editReserveHostname.value = this.dataset.name || '';
+                    if (editReserveDescription) editReserveDescription.value = '';
+                    if (originalSsid === 'SJA AP') {
+                        const opt = findSjaApOption(editReserveSubnet);
+                        if (opt && editReserveSubnet) editReserveSubnet.value = opt.value;
+                    }
+                }
             }
+
+            // Warning jika user mengganti SSID ke REG/ALL
+            if (editSsidEl && editReserveWarning) {
+                editReserveWarning.classList.add('d-none');
+                editSsidEl.onchange = function() {
+                    const newSsid = this.value;
+                    toggleEditReserveSection(newSsid);
+                    const originalNoReserve = NO_RESERVE_SSIDS.includes(originalSsid);
+                    const newNoReserve      = NO_RESERVE_SSIDS.includes(newSsid);
+                    if (!originalNoReserve && newNoReserve && hasReservation) {
+                        editReserveWarning.classList.remove('d-none');
+                    } else {
+                        editReserveWarning.classList.add('d-none');
+                    }
+                };
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('editDeviceModal'));
+            modal.show();
         });
     });
 
-    // Reset edit warning saat modal ditutup
+    if (editReserveCheck) {
+        editReserveCheck.addEventListener('change', function() {
+            if (editReserveFields) editReserveFields.classList.toggle('d-none', !this.checked);
+            if (this.checked && editDeviceNameEl && editReserveHostname && !editReserveHostname.value) {
+                editReserveHostname.value = editDeviceNameEl.value || '';
+            }
+        });
+    }
+
+    if (editSuggestBtn) {
+        editSuggestBtn.addEventListener('click', function() {
+            const subnetId = editReserveSubnet ? editReserveSubnet.value : '';
+            if (!subnetId) {
+                alert('Pilih Subnet Pool terlebih dahulu!');
+                return;
+            }
+            editSuggestBtn.disabled = true;
+            editSuggestBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Loading...';
+
+            fetch(`/devices/suggest-ip?subnet_id=${subnetId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.suggested_ip) {
+                        editReserveIp.value = data.suggested_ip;
+                        const info = document.getElementById('editSuggestInfo');
+                        if (info) info.textContent = `✓ IP tersedia: ${data.suggested_ip}`;
+                    } else {
+                        const info = document.getElementById('editSuggestInfo');
+                        if (info) info.textContent = 'Tidak ada IP kosong di range pool ini.';
+                    }
+                })
+                .catch(() => {
+                    const info = document.getElementById('editSuggestInfo');
+                    if (info) info.textContent = 'Gagal memuat suggestion.';
+                })
+                .finally(() => {
+                    editSuggestBtn.disabled = false;
+                    editSuggestBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest';
+                });
+        });
+    }
+
     const editDeviceModalEl = document.getElementById('editDeviceModal');
     if (editDeviceModalEl) {
         editDeviceModalEl.addEventListener('hidden.bs.modal', function() {

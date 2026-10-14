@@ -38,6 +38,14 @@ class Device extends Model
     }
 
     /**
+     * Relationship: Static DHCP Lease for this device
+     */
+    public function staticLease(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DhcpStaticLease::class, 'device_id');
+    }
+
+    /**
      * Standardize MAC Address format to AA:BB:CC:DD:EE:FF
      * Accepts: AA-BB-CC-DD-EE-FF, aabbccddeeff, AA:BB:CC:DD:EE:FF, etc.
      */

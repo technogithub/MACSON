@@ -17,7 +17,7 @@ class DeviceController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Device::query();
+        $query = Device::with(['staticLease.subnet']);
 
         // Search Filter (MAC, SSID, Name, Location, Description)
         if ($request->filled('search')) {
@@ -183,9 +183,45 @@ class DeviceController extends Controller
 
         $oldSsid = $device->ssid;
         $noReserveSsids = ['SJA REG', 'ALL'];
-        if (in_array(strtoupper($ssid), $noReserveSsids) && !in_array(strtoupper($oldSsid), $noReserveSsids)) {
-            // Auto-delete reservasi yang terhubung ke device ini
+        $isNoReserveTarget = in_array(strtoupper($ssid), $noReserveSsids);
+
+        if ($isNoReserveTarget) {
+            // Jika SSID berubah ke SJA REG atau ALL, hapus reservasi yang terhubung ke device ini
             DhcpStaticLease::where('device_id', $device->id)->delete();
+        } else {
+            // SSID mengizinkan reservasi (misal SJA AP, DEVICE OPS AP, dll)
+            if ($request->boolean('reserve_ip')) {
+                $subnetId  = $request->input('reserve_subnet_id');
+                $ipAddress = trim($request->input('reserve_ip_address', ''));
+                $hostname  = trim($request->input('reserve_hostname', $request->device_name));
+                $desc      = trim($request->input('reserve_description', ''));
+
+                if ($subnetId && $ipAddress && filter_var($ipAddress, FILTER_VALIDATE_IP)) {
+                    // Cek duplikat IP di tabel untuk device lain
+                    $duplicate = DhcpStaticLease::where('ip_address', $ipAddress)
+                        ->where('device_id', '!=', $device->id)
+                        ->first();
+
+                    if ($duplicate) {
+                        return redirect()->back()->with('error', "IP Address {$ipAddress} sudah digunakan oleh device lain!")->withInput();
+                    }
+
+                    DhcpStaticLease::updateOrCreate(
+                        ['device_id' => $device->id],
+                        [
+                            'dhcp_subnet_id' => $subnetId,
+                            'mac_address'    => $formattedMac,
+                            'ip_address'     => $ipAddress,
+                            'hostname'       => $hostname ?: $request->device_name,
+                            'description'    => $desc ?: null,
+                            'is_active'      => true,
+                        ]
+                    );
+                }
+            } else {
+                // User menonaktifkan reservasi IP untuk device ini
+                DhcpStaticLease::where('device_id', $device->id)->delete();
+            }
         }
 
         $device->update([
@@ -209,6 +245,10 @@ class DeviceController extends Controller
     {
         $device = Device::findOrFail($id);
         $mac    = $device->mac_address;
+
+        // Bersihkan Static IP reservation terkait
+        DhcpStaticLease::where('device_id', $device->id)->delete();
+
         $device->delete();
 
         return redirect()->route('devices.index')->with('success', "Device {$mac} deleted successfully.");
