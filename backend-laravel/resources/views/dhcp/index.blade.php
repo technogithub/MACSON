@@ -369,16 +369,28 @@
                                 </td>
                                 <td><span class="ip-tag">{{ $subnet->subnet }}</span></td>
                                 <td>
-                                    <span class="text-light">{{ $subnet->pool_start }}</span>
-                                    <span class="text-muted mx-1">➔</span>
-                                    <span class="text-light">{{ $subnet->pool_end }}</span>
+                                    @if(!empty($subnet->pool_start) && !empty($subnet->pool_end))
+                                        <span class="text-light font-monospace">{{ $subnet->pool_start }}</span>
+                                        <span class="text-muted mx-1">➔</span>
+                                        <span class="text-light font-monospace">{{ $subnet->pool_end }}</span>
+                                    @else
+                                        <span class="badge border" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.3)!important;">
+                                            <i class="fa-solid fa-lock me-1"></i>Static Only (No Dynamic Pool)
+                                        </span>
+                                    @endif
                                 </td>
                                 <td><span class="text-info font-monospace">{{ $subnet->gateway }}</span></td>
                                 <td><span class="text-secondary small">{{ $subnet->dns_servers }}</span></td>
                                 <td>
-                                    <span class="badge bg-dark border border-secondary text-light">
-                                        {{ $subnet->total_pool_ips }} IPs
-                                    </span>
+                                    @if($subnet->total_pool_ips > 0)
+                                        <span class="badge bg-dark border border-secondary text-light">
+                                            {{ $subnet->total_pool_ips }} IPs
+                                        </span>
+                                    @else
+                                        <span class="badge bg-dark border border-secondary text-secondary">
+                                            Static Only
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="text-end">
                                     <button class="btn btn-sm btn-outline-info btn-edit-subnet" 
@@ -748,12 +760,12 @@
                             <input type="text" name="subnet" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.0/24" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Pool Start IP *</label>
-                            <input type="text" name="pool_start" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.50" required>
+                            <label class="form-label">Pool Start IP <span class="text-secondary small fw-normal">(Opsional jika Static-Only)</span></label>
+                            <input type="text" name="pool_start" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.50 (kosongkan jika static only)">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Pool End IP *</label>
-                            <input type="text" name="pool_end" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.200" required>
+                            <label class="form-label">Pool End IP <span class="text-secondary small fw-normal">(Opsional)</span></label>
+                            <input type="text" name="pool_end" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.200">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Default Gateway *</label>
@@ -815,12 +827,12 @@
                             <input type="text" name="subnet" id="editSubnetCidr" class="form-control form-control-dark font-monospace" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Pool Start IP *</label>
-                            <input type="text" name="pool_start" id="editSubnetStart" class="form-control form-control-dark font-monospace" required>
+                            <label class="form-label">Pool Start IP <span class="text-secondary small fw-normal">(Opsional jika Static-Only)</span></label>
+                            <input type="text" name="pool_start" id="editSubnetStart" class="form-control form-control-dark font-monospace" placeholder="Kosongkan jika static only">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Pool End IP *</label>
-                            <input type="text" name="pool_end" id="editSubnetEnd" class="form-control form-control-dark font-monospace" required>
+                            <label class="form-label">Pool End IP <span class="text-secondary small fw-normal">(Opsional)</span></label>
+                            <input type="text" name="pool_end" id="editSubnetEnd" class="form-control form-control-dark font-monospace">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Default Gateway *</label>

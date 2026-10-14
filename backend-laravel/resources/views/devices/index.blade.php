@@ -812,11 +812,15 @@ mark.search-hl {
                                                     <option value="{{ $sn->id }}"
                                                         data-name="{{ strtolower($sn->name) }}"
                                                         data-vlan="{{ $sn->vlan_id }}"
-                                                        data-start="{{ $sn->pool_start }}"
-                                                        data-end="{{ $sn->pool_end }}">
+                                                        data-start="{{ $sn->pool_start ?? '' }}"
+                                                        data-end="{{ $sn->pool_end ?? '' }}">
                                                         {{ $sn->name }}
                                                         @if($sn->vlan_id) (VLAN {{ $sn->vlan_id }}) @endif
-                                                        — {{ $sn->pool_start }} ~ {{ $sn->pool_end }}
+                                                        @if(!empty($sn->pool_start) && !empty($sn->pool_end))
+                                                            — {{ $sn->pool_start }} ~ {{ $sn->pool_end }}
+                                                        @else
+                                                            — (Static Only)
+                                                        @endif
                                                     </option>
                                                 @endforeach
                                             </select>
@@ -948,11 +952,15 @@ mark.search-hl {
                                                     <option value="{{ $sn->id }}"
                                                         data-name="{{ strtolower($sn->name) }}"
                                                         data-vlan="{{ $sn->vlan_id }}"
-                                                        data-start="{{ $sn->pool_start }}"
-                                                        data-end="{{ $sn->pool_end }}">
+                                                        data-start="{{ $sn->pool_start ?? '' }}"
+                                                        data-end="{{ $sn->pool_end ?? '' }}">
                                                         {{ $sn->name }}
                                                         @if($sn->vlan_id) (VLAN {{ $sn->vlan_id }}) @endif
-                                                        — {{ $sn->pool_start }} ~ {{ $sn->pool_end }}
+                                                        @if(!empty($sn->pool_start) && !empty($sn->pool_end))
+                                                            — {{ $sn->pool_start }} ~ {{ $sn->pool_end }}
+                                                        @else
+                                                            — (Static Only)
+                                                        @endif
                                                     </option>
                                                 @endforeach
                                             </select>

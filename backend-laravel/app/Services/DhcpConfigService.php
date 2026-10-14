@@ -68,12 +68,15 @@ class DhcpConfigService
                 $reservations[] = $resItem;
             }
 
+            $pools = [];
+            if (!empty($subnet->pool_start) && !empty($subnet->pool_end)) {
+                $pools[] = ['pool' => "{$subnet->pool_start} - {$subnet->pool_end}"];
+            }
+
             $subnetItem = [
                 'id'             => $subnet->id,
                 'subnet'         => $subnet->subnet,
-                'pools'          => [
-                    ['pool' => "{$subnet->pool_start} - {$subnet->pool_end}"]
-                ],
+                'pools'          => $pools,
                 'valid-lifetime' => $subnet->lease_time ?: 86400,
                 'option-data'    => $options,
             ];
