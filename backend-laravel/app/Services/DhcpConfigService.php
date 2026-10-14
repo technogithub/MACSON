@@ -206,13 +206,18 @@ class DhcpConfigService
                 continue;
             }
 
-            $headers = str_getcsv(array_shift($lines));
+            $headerLine = array_shift($lines);
+            if (!$headerLine) continue;
+            $headers = str_getcsv($headerLine);
 
             foreach ($lines as $line) {
                 $row = str_getcsv($line);
-                if (count($row) < 5) continue;
+                if (empty($row) || count($row) < 5) continue;
 
-                $record = array_combine(array_slice($headers, 0, count($row)), $row);
+                $record = [];
+                foreach ($headers as $idx => $headerName) {
+                    $record[trim($headerName)] = isset($row[$idx]) ? trim($row[$idx]) : '';
+                }
                 
                 $ip       = trim($record['address'] ?? '');
                 if (empty($ip) || $ip === '-' || !filter_var($ip, FILTER_VALIDATE_IP)) {
