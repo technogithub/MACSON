@@ -116,7 +116,7 @@ Modul inti untuk manajemen daftar perangkat yang diizinkan mengakses jaringan Wi
 
 ##### 🔎 Pencarian & Filter
 - **Pencarian real-time**: Filter device berdasarkan MAC Address, SSID, Device Name, Lokasi, atau Deskripsi
-- **Tab SSID Navigation**: Navigasi cepat berdasarkan kelompok SSID utama (SJA REG, SJA AP, DEVICE OPS AP, dan lainnya)
+- **Tab SSID Navigation**: Navigasi cepat berdasarkan kelompok SSID yang terdaftar
 - **Filter Status**: Tampilkan semua / hanya device aktif / hanya device nonaktif
 - **Pagination**: Pilih tampilan 15 / 50 / 100 baris per halaman
 
@@ -129,7 +129,6 @@ Modul inti untuk manajemen daftar perangkat yang diizinkan mengakses jaringan Wi
 - **Reservasi IP Static Opsional**: Langsung reservasi IP DHCP saat menambah device:
   - Pilih **Subnet/Pool IP** dari daftar subnet yang terdaftar
   - Input IP manual **atau** klik tombol **"Saran IP"** untuk saran IP kosong otomatis
-  - SJA AP: dropdown pool otomatis dicocokkan jika ada keyword `SJA AP` dalam nama pool
 
 ##### ✏️ Edit Device (`PUT /devices/{id}`)
 - Semua field yang sama dengan tambah device
@@ -191,13 +190,13 @@ Modul manajemen DHCP terintegrasi dengan **Kea DHCPv4** server. Semua perubahan 
 
 | Fitur | Keterangan |
 |---|---|
-| **Tambah Subnet** | Buat subnet baru dengan nama, CIDR (e.g. `192.168.27.0/24`), pool start/end, gateway, DNS, lease time |
+| **Tambah Subnet** | Buat subnet baru dengan nama, CIDR (e.g. `192.168.10.0/24`), pool start/end, gateway, DNS, lease time |
 | **Edit Subnet** | Perbarui konfigurasi subnet; form dilengkapi toggle **"Subnet Aktif"** |
 | **Hapus Subnet** | Hapus subnet dari sistem |
 | **Status Badge** | Subnet dengan `is_active = false` ditampilkan badge **"Nonaktif"** di tabel |
 | **Kea Sync Otomatis** | Setiap perubahan subnet otomatis men-generate ulang konfigurasi Kea DHCPv4 |
 
-> **Fix Penting**: Status `is_active` subnet kini dipreservasi dengan benar saat edit. Jika form tidak menyertakan toggle, nilai asal dipertahankan (tidak di-reset ke false).
+> **Catatan**: Status `is_active` subnet dipreservasi dengan benar saat edit. Jika form tidak menyertakan toggle, nilai asal dipertahankan (tidak di-reset ke false).
 
 #### 4b. Manajemen Reservasi Static IP (Tab: Reservasi Static IP)
 
@@ -283,7 +282,7 @@ Modul manajemen voucher WiFi tamu yang terintegrasi dengan **Ubiquiti UniFi Cont
 | **Super Admin** | Akses penuh: Dashboard, Device, SSID, DHCP, Log, Voucher, Konfigurasi UniFi |
 | **Operator** | Terbatas: Hanya menu Voucher (generate, cetak, revoke) |
 
-Login menggunakan **username** (contoh: `admin`, `operator`) atau **email** (contoh: `admin@macson.local`).
+Login menggunakan **username** (contoh: `admin`, `operator`) atau **email** (contoh: `admin@example.local`).
 
 ---
 
@@ -293,9 +292,9 @@ Login menggunakan **username** (contoh: `admin`, `operator`) atau **email** (con
 
 ```csv
 MAC Address,SSID,Device Name,Location,Description,Status,VLAN ID,IP Address,Subnet
-00:11:22:33:44:55,SJA AP,AP Warehouse Lt 1,Warehouse,AP Operasional,active,27,10.14.27.50,SJA AP
-AA:BB:CC:DD:EE:FF,SJA REG,Tablet Kasir Pos 1,Kasir,Device POS,active,,10.14.28.10,TAB PWD
-11:22:33:44:55:66,ALL,Laptop Staff IT,Kantor IT,Tanpa IP,active,,,
+00:11:22:33:44:55,CORP-WIFI,AP Lantai 1,Lobby,Access Point Lobby,active,10,192.168.10.50,POOL-CORP
+AA:BB:CC:DD:EE:FF,GUEST-WIFI,Tablet Resepsionis,Resepsionis,Device Resepsionis,active,20,192.168.20.10,POOL-GUEST
+11:22:33:44:55:66,ALL,Laptop Staff IT,Ruang IT,Tanpa IP,active,,,
 ```
 
 | Kolom | Wajib | Keterangan |
@@ -316,9 +315,9 @@ AA:BB:CC:DD:EE:FF,SJA REG,Tablet Kasir Pos 1,Kasir,Device POS,active,,10.14.28.1
 
 ```csv
 mac_address,ip_address,subnet,hostname,description
-00:11:22:33:44:55,10.14.27.50,SJA AP,AP-GUDANG-01,Access Point Gudang 1
-AA:BB:CC:DD:EE:FF,10.14.28.10,TAB PWD,TAB-POS-01,Tablet Kasir Pos 1
-11:22:33:44:55:66,10.14.27.51,,,Auto detect pool dari range IP
+00:11:22:33:44:55,192.168.10.50,POOL-CORP,AP-LOBBY-01,Access Point Lobby Lantai 1
+AA:BB:CC:DD:EE:FF,192.168.20.10,POOL-GUEST,TABLET-RSP-01,Tablet Resepsionis
+11:22:33:44:55:66,192.168.10.51,,,Auto detect pool dari range IP
 ```
 
 | Kolom | Wajib | Keterangan |
@@ -373,7 +372,7 @@ curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/in
 ```
 
 **Prompt yang akan muncul:**
-1. NAS Network Subnet untuk RADIUS (e.g., `192.168.1.0/24`)
+1. NAS Network Subnet untuk RADIUS (e.g., `192.168.0.0/24`)
 2. SSH Allowed Subnet untuk Port 22
 3. Admin Web UI Allowed Subnet
 4. RADIUS Shared Secret Key
@@ -388,12 +387,12 @@ curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/in
 ### Mode 3: One-Liner Custom Parameter
 ```bash
 curl -fsSL https://raw.githubusercontent.com/technogithub/MACSON/main/scripts/install.sh | sudo bash -s -- --auto \
-  --nas-subnet 192.168.1.0/24 \
-  --ssh-subnet 192.168.1.50/32 \
-  --admin-subnet 192.168.1.0/24 \
-  --secret UniFiRadiusSecret2026! \
-  --db-root-password "MyMariaDBRootPass123!" \
-  --admin-password "MySecurePass123!"
+  --nas-subnet 192.168.0.0/24 \
+  --ssh-subnet 192.168.0.10/32 \
+  --admin-subnet 192.168.0.0/24 \
+  --secret YourRadiusSharedSecret! \
+  --db-root-password "YourMariaDBRootPass!" \
+  --admin-password "YourAdminWebPass!"
 ```
 
 ### Mode 4: Git Clone & Manual
@@ -441,14 +440,14 @@ Sistem menggunakan helper `DhcpSubnet::findByHintOrIp()` yang mencari subnet coc
   "Dhcp4": {
     "subnet4": [
       {
-        "subnet": "10.14.27.0/24",
-        "pools": [{ "pool": "10.14.27.50 - 10.14.27.200" }],
+        "subnet": "192.168.10.0/24",
+        "pools": [{ "pool": "192.168.10.50 - 192.168.10.200" }],
         "option-data": [
-          { "name": "routers", "data": "10.14.27.1" },
+          { "name": "routers", "data": "192.168.10.1" },
           { "name": "domain-name-servers", "data": "1.1.1.1, 8.8.8.8" }
         ],
         "reservations": [
-          { "hw-address": "00:11:22:33:44:55", "ip-address": "10.14.27.50" }
+          { "hw-address": "00:11:22:33:44:55", "ip-address": "192.168.10.50" }
         ]
       }
     ]
@@ -551,7 +550,7 @@ MACSON/
 
 ```bash
 # Dari host Ubuntu
-radtest testing testing 127.0.0.1 1812 RadiusSecretKey2026!
+radtest 00:11:22:33:44:55 00:11:22:33:44:55 127.0.0.1 1812 YourRadiusSharedSecret!
 
 # Dari dalam container FreeRADIUS
 docker exec -it radius_freeradius radtest testing testing 127.0.0.1 1812 testing123
@@ -559,10 +558,10 @@ docker exec -it radius_freeradius radtest testing testing 127.0.0.1 1812 testing
 
 **Expected Output (berhasil):**
 ```text
-Sending Access-Request of id 198 to 127.0.0.1 port 1812
-        User-Name = "testing"
-        User-Password = "testing"
-Received Access-Accept Id 198 from 127.0.0.1:1812 in 2ms
+Sending Access-Request of id 1 to 127.0.0.1 port 1812
+        User-Name = "00:11:22:33:44:55"
+        User-Password = "00:11:22:33:44:55"
+Received Access-Accept Id 1 from 127.0.0.1:1812 in 2ms
         Tunnel-Type:0 = VLAN
         Tunnel-Medium-Type:0 = IEEE-802
         Tunnel-Private-Group-Id:0 = "10"
@@ -623,13 +622,15 @@ sudo bash scripts/uninstall.sh --auto
 
 | Versi / Commit | Fitur |
 |---|---|
-| `e1370d6` | **feat**: Import Reservasi Static IP via CSV (DHCP) + Import Device dengan Reservasi IP Sekaligus (Devices) |
-| `3b9b8b5` | **fix**: Semua subnet tampil di dropdown pool device modal; is_active dipreservasi saat edit subnet |
+| `85e60bf` | **fix**: CSV import DHCP — kolom `description` tidak lagi salah terdeteksi sebagai IP |
+| `3cff58e` | **docs**: Rewrite README dengan dokumentasi lengkap semua fitur |
+| `e1370d6` | **feat**: Import Reservasi Static IP via CSV (DHCP) + Import Device dengan Reservasi IP sekaligus |
+| `3b9b8b5` | **fix**: Semua subnet tampil di dropdown pool device modal; `is_active` dipreservasi saat edit subnet |
 | `051f802` | **fix**: Perbaikan layar buram (stuck backdrop) saat modal edit device dibuka/ditutup |
-| `f920c56` | **feat**: Edit reservasi static IP dari modal edit device; auto-match SJA AP pool |
+| `f920c56` | **feat**: Edit reservasi static IP dari modal edit device |
 | `7fb8906` | **feat**: Tambah reservasi static IP opsional saat tambah/edit device |
 | `9d9ea36` | **feat**: Filter pool button, searchable device picker, pagination 15/50/100 di DHCP |
-| `6402752` | **feat**: Tab navigasi SSID besar (SJA REG, SJA AP, DEVICE OPS AP) dan pagination di Devices |
+| `6402752` | **feat**: Tab navigasi SSID dan pagination di halaman Devices |
 | `f3feca7` | **feat**: Integrasi Kea DHCPv4 — multi-subnet pool, static reservations, dan UI manajemen |
 
 ---
