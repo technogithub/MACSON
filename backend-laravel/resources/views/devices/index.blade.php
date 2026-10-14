@@ -241,58 +241,76 @@ mark.search-hl {
     color: #fef3c7;
     border-radius: 3px;
     padding: 1px 2px;
-/* Big SSID Menu Tabs / Cards */
-.ssid-menu-card {
-    background: #1e293b;
+}
+
+/* ===== SSID PILL TAB BAR - Modern Minimalist ===== */
+.ssid-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 4px 2px 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+    flex-wrap: nowrap;
+}
+.ssid-tab-bar::-webkit-scrollbar { height: 3px; }
+.ssid-tab-bar::-webkit-scrollbar-track { background: transparent; }
+.ssid-tab-bar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+.ssid-tab-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.7);
     border: 1px solid #334155;
-    border-radius: 14px;
-    padding: 16px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    color: #94a3b8;
     text-decoration: none;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    height: 100%;
-}
-.ssid-menu-card:hover {
-    border-color: rgba(56, 189, 248, 0.5);
-    background: #24344d;
-    transform: translateY(-3px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35);
-}
-.ssid-menu-card.active {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(99, 102, 241, 0.16) 100%);
-    border: 1.5px solid #38bdf8;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.22), inset 0 0 12px rgba(56, 189, 248, 0.08);
-}
-.ssid-menu-card.active::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: linear-gradient(180deg, #38bdf8 0%, #818cf8 100%);
-}
-.ssid-menu-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.18s ease;
+    letter-spacing: 0.01em;
     flex-shrink: 0;
 }
-.ssid-menu-card .badge-counter {
-    font-size: 0.8rem;
-    font-weight: 700;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-family: 'JetBrains Mono', monospace;
+.ssid-tab-pill:hover {
+    border-color: rgba(56,189,248,0.45);
+    color: #38bdf8;
+    background: rgba(56,189,248,0.06);
 }
+.ssid-tab-pill.active {
+    background: rgba(56,189,248,0.12);
+    border-color: rgba(56,189,248,0.55);
+    color: #e0f2fe;
+    font-weight: 600;
+    box-shadow: 0 0 0 1px rgba(56,189,248,0.2);
+}
+.ssid-tab-pill .pill-count {
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(255,255,255,0.07);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.03em;
+    color: inherit;
+    transition: background 0.18s;
+}
+.ssid-tab-pill.active .pill-count {
+    background: rgba(56,189,248,0.25);
+    color: #7dd3fc;
+}
+.ssid-tab-pill .pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+.ssid-tab-pill.active .pill-dot { opacity: 1; }
 
 /* Pagination styling */
 .pagination {
@@ -426,106 +444,41 @@ mark.search-hl {
     <div class="stat-chip ms-auto text-secondary" style="font-size:0.78rem;"></div>
 </div>
 
-<!-- ===================== MENU BESAR: NAVIGASI WIFI SSID ===================== -->
-<div class="row g-3 mb-4">
-    <!-- Tab 1: SEMUA MAC -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'all'])) }}"
-           class="ssid-menu-card {{ $selectedSsid === 'all' ? 'active' : '' }}">
-            <div class="d-flex align-items-center gap-3">
-                <div class="ssid-menu-icon" style="background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.25);">
-                    <i class="fa-solid fa-layer-group"></i>
-                </div>
-                <div>
-                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">SEMUA MAC</div>
-                    <div class="text-secondary small" style="font-size:0.75rem;">Semua Network SSID</div>
-                </div>
-            </div>
-            <div>
-                <span class="badge {{ $selectedSsid === 'all' ? 'bg-info text-dark fw-bold' : 'bg-dark text-info border border-secondary' }} badge-counter">
-                    {{ $totalCount }}
-                </span>
-            </div>
-        </a>
-    </div>
+<!-- ===== SSID TAB BAR - Minimalist Pill Navigation ===== -->
+<div class="ssid-tab-bar mb-3" id="ssidTabBar">
 
-    <!-- Tab 2: SJA REG -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'SJA REG'])) }}"
-           class="ssid-menu-card {{ $selectedSsid === 'SJA REG' ? 'active' : '' }}">
-            <div class="d-flex align-items-center gap-3">
-                <div class="ssid-menu-icon" style="background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.25);">
-                    <i class="fa-solid fa-wifi"></i>
-                </div>
-                <div>
-                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">SJA REG</div>
-                    <div class="text-secondary small" style="font-size:0.75rem;">Wifi Staff & Reguler</div>
-                </div>
-            </div>
-            <div>
-                <span class="badge {{ $selectedSsid === 'SJA REG' ? 'bg-success text-white fw-bold' : 'bg-dark text-success border border-secondary' }} badge-counter">
-                    {{ $ssidCounts['SJA REG'] ?? 0 }}
-                </span>
-            </div>
-        </a>
-    </div>
+    {{-- SEMUA MAC --}}
+    <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'all'])) }}"
+       class="ssid-tab-pill {{ $selectedSsid === 'all' ? 'active' : '' }}"
+       title="Semua MAC Address">
+        <span class="pill-dot"></span>
+        <span>Semua</span>
+        <span class="pill-count">{{ $totalCount }}</span>
+    </a>
 
-    <!-- Tab 3: SJA AP -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'SJA AP'])) }}"
-           class="ssid-menu-card {{ $selectedSsid === 'SJA AP' ? 'active' : '' }}">
-            <div class="d-flex align-items-center gap-3">
-                <div class="ssid-menu-icon" style="background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.25);">
-                    <i class="fa-solid fa-tower-broadcast"></i>
-                </div>
-                <div>
-                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">SJA AP</div>
-                    <div class="text-secondary small" style="font-size:0.75rem;">Access Point Backbone</div>
-                </div>
-            </div>
-            <div>
-                <span class="badge {{ $selectedSsid === 'SJA AP' ? 'bg-warning text-dark fw-bold' : 'bg-dark text-warning border border-secondary' }} badge-counter">
-                    {{ $ssidCounts['SJA AP'] ?? 0 }}
-                </span>
-            </div>
-        </a>
-    </div>
-
-    <!-- Tab 4: DEVICE OPS AP -->
-    <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => 'DEVICE OPS AP'])) }}"
-           class="ssid-menu-card {{ $selectedSsid === 'DEVICE OPS AP' ? 'active' : '' }}">
-            <div class="d-flex align-items-center gap-3">
-                <div class="ssid-menu-icon" style="background:rgba(168,85,247,0.12); color:#c084fc; border:1px solid rgba(168,85,247,0.25);">
-                    <i class="fa-solid fa-microchip"></i>
-                </div>
-                <div>
-                    <div class="fw-bold text-light" style="font-size:0.95rem; letter-spacing:0.02em;">DEVICE OPS AP</div>
-                    <div class="text-secondary small" style="font-size:0.75rem;">Operasional & POS</div>
-                </div>
-            </div>
-            <div>
-                <span class="badge {{ $selectedSsid === 'DEVICE OPS AP' ? 'text-white fw-bold' : 'bg-dark border border-secondary' }} badge-counter" style="{{ $selectedSsid === 'DEVICE OPS AP' ? 'background:#a855f7;' : 'color:#c084fc;' }}">
-                    {{ $ssidCounts['DEVICE OPS AP'] ?? 0 }}
-                </span>
-            </div>
-        </a>
-    </div>
-</div>
-
-@if(!empty($otherSsids) && count($otherSsids) > 0)
-<!-- Other SSIDs Quick Selector (if present) -->
-<div class="d-flex align-items-center gap-2 mb-3 px-1 flex-wrap">
-    <span class="text-secondary small" style="font-size:0.78rem;"><i class="fa-solid fa-tags me-1"></i>SSID Lainnya:</span>
-    @foreach($otherSsids as $oSsid)
-        <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => $oSsid])) }}"
-           class="btn btn-sm {{ $selectedSsid === $oSsid ? 'btn-info text-white fw-semibold' : 'btn-outline-secondary text-secondary' }} py-0 px-2.5 rounded-pill"
-           style="font-size:0.75rem;">
-            {{ $oSsid }} ({{ $ssidCounts[$oSsid] ?? 0 }})
-        </a>
+    {{-- Primary SSIDs --}}
+    @foreach($primarySsids as $pSsid)
+    <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => $pSsid])) }}"
+       class="ssid-tab-pill {{ $selectedSsid === $pSsid ? 'active' : '' }}"
+       title="{{ $pSsid }}">
+        <span class="pill-dot"></span>
+        <span>{{ $pSsid }}</span>
+        <span class="pill-count">{{ $ssidCounts[$pSsid] ?? 0 }}</span>
+    </a>
     @endforeach
+
+    {{-- Other SSIDs --}}
+    @foreach($otherSsids as $oSsid)
+    <a href="{{ route('devices.index', array_merge(request()->except(['page', 'ssid']), ['ssid' => $oSsid])) }}"
+       class="ssid-tab-pill {{ $selectedSsid === $oSsid ? 'active' : '' }}"
+       title="{{ $oSsid }}">
+        <span class="pill-dot"></span>
+        <span>{{ $oSsid }}</span>
+        <span class="pill-count">{{ $ssidCounts[$oSsid] ?? 0 }}</span>
+    </a>
+    @endforeach
+
 </div>
-@endif
 
 <!-- Search & Filter Bar (server-side submit) -->
 <form method="GET" action="{{ route('devices.index') }}" id="searchFilterForm" class="d-flex gap-3 mb-3 flex-wrap align-items-center">
