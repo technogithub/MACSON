@@ -260,6 +260,218 @@ class DhcpController extends Controller
     }
 
     /**
+     * Download CSV Template untuk Import Reservasi Static IP
+     */
+    public function templateCsv()
+    {
+        $fileName = 'dhcp_static_leases_template.csv';
+        $headers = [
+            "Content-type"        => "text/csv; charset=UTF-8",
+            "Content-Disposition" => "attachment; filename={$fileName}",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0",
+        ];
+
+        return response()->stream(function() {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+
+            fputcsv($file, ['mac_address', 'ip_address', 'subnet', 'hostname', 'description']);
+            fputcsv($file, ['00:11:22:33:44:55', '10.14.27.50', 'SJA AP', 'AP-GUDANG-01', 'Access Point Gudang 1']);
+            fputcsv($file, ['AA:BB:CC:DD:EE:FF', '10.14.28.10', 'TAB PWD', 'TAB-POS-01', 'Tablet Kasir Pos 1']);
+            fputcsv($file, ['11:22:33:44:55:66', '10.14.27.51', '', '', 'Auto detect pool dari range IP']);
+            fclose($file);
+        }, 200, $headers);
+    }
+
+    /**
+     * Import Reservasi Static IP via CSV
+     */
+    public function importCsv(Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|file|max:4096',
+        ]);
+
+        try {
+            $file = $request->file('csv_file');
+            if (!$file) {
+                return redirect()->route('dhcp.index', ['tab' => 'static'])->with('error', 'Tidak ada file CSV yang diunggah.');
+            }
+
+            $path = $file->getRealPath() ?: $file->getPathname();
+            $rawContent = @file_get_contents($path);
+
+            if ($rawContent === false || strlen(trim($rawContent)) === 0) {
+                return redirect()->route('dhcp.index', ['tab' => 'static'])->with('error', 'File CSV kosong atau tidak dapat dibaca.');
+            }
+
+            // Strip UTF-8 BOM
+            $rawContent = preg_replace('/^\xEF\xBB\xBF/', '', $rawContent);
+
+            // Detect & Convert Encoding
+            $encoding = mb_detect_encoding($rawContent, ['UTF-8', 'UTF-16LE', 'UTF-16BE', 'UTF-16', 'ISO-8859-1', 'Windows-1252'], true);
+            if ($encoding && $encoding !== 'UTF-8') {
+                $rawContent = mb_convert_encoding($rawContent, 'UTF-8', $encoding);
+            }
+
+            $rawContent = str_replace("\x00", '', $rawContent);
+            $rawContent = str_replace(["\r\n", "\r"], "\n", $rawContent);
+
+            // Auto-detect delimiter
+            $firstLine = strtok($rawContent, "\n") ?: '';
+            $delimiter = ',';
+            if (substr_count($firstLine, ';') >= substr_count($firstLine, ',')) {
+                $delimiter = ';';
+            } elseif (substr_count($firstLine, "\t") > substr_count($firstLine, ',')) {
+                $delimiter = "\t";
+            }
+
+            $stream = fopen('php://temp', 'r+');
+            fwrite($stream, $rawContent);
+            rewind($stream);
+
+            $rows = [];
+            while (($row = fgetcsv($stream, 0, $delimiter)) !== false) {
+                if (empty($row) || (count($row) === 1 && trim($row[0]) === '')) {
+                    continue;
+                }
+                $rows[] = array_map('trim', $row);
+            }
+            fclose($stream);
+
+            if (empty($rows)) {
+                return redirect()->route('dhcp.index', ['tab' => 'static'])->with('error', 'File CSV tidak memiliki baris data valid.');
+            }
+
+            // Cek apakah baris pertama header
+            $firstRow = $rows[0];
+            $firstCell = $firstRow[0] ?? '';
+            $isMac = (bool) Device::formatMacAddress($firstCell);
+            $isHeader = !$isMac;
+
+            $macIdx  = 0;
+            $ipIdx   = 1;
+            $subIdx  = 2;
+            $hostIdx = 3;
+            $descIdx = 4;
+
+            if ($isHeader) {
+                $headers = array_map(function($h) {
+                    return strtolower(trim(preg_replace('/[\x00-\x1F\x7F\xEF\xBB\xBF]/u', '', $h)));
+                }, $firstRow);
+
+                foreach ($headers as $idx => $hName) {
+                    if (str_contains($hName, 'mac')) {
+                        $macIdx = $idx;
+                    } elseif (str_contains($hName, 'ip') || str_contains($hName, 'address')) {
+                        $ipIdx = $idx;
+                    } elseif (str_contains($hName, 'sub') || str_contains($hName, 'pool') || str_contains($hName, 'vlan')) {
+                        $subIdx = $idx;
+                    } elseif (str_contains($hName, 'host') || str_contains($hName, 'name')) {
+                        $hostIdx = $idx;
+                    } elseif (str_contains($hName, 'desc') || str_contains($hName, 'ket')) {
+                        $descIdx = $idx;
+                    }
+                }
+                array_shift($rows);
+            }
+
+            set_time_limit(300);
+            ini_set('memory_limit', '512M');
+
+            // Preload existing static leases
+            $existingIps = DhcpStaticLease::pluck('ip_address')->mapWithKeys(fn($ip) => [trim($ip) => true])->toArray();
+            $existingMacs = DhcpStaticLease::pluck('mac_address')->mapWithKeys(fn($m) => [strtoupper(str_replace(['-', '.'], ':', trim($m))) => true])->toArray();
+            $allSubnets = DhcpSubnet::all();
+            $devices = Device::select('id', 'mac_address')->get()->mapWithKeys(fn($d) => [$d->mac_address => $d->id])->toArray();
+
+            $importedCount = 0;
+            $skippedDuplicates = 0;
+            $invalidCount = 0;
+            $noSubnetCount = 0;
+
+            $leasesToInsert = [];
+            $now = now();
+
+            foreach ($rows as $row) {
+                $rawMac  = trim($row[$macIdx] ?? '');
+                $rawIp   = trim($row[$ipIdx] ?? '');
+                $rawSub  = isset($row[$subIdx]) ? trim($row[$subIdx]) : '';
+                $rawHost = isset($row[$hostIdx]) ? trim($row[$hostIdx]) : null;
+                $rawDesc = isset($row[$descIdx]) ? trim($row[$descIdx]) : 'CSV Import';
+
+                // Format & validasi MAC
+                $formattedMac = Device::formatMacAddress($rawMac);
+                if (!$formattedMac) {
+                    $invalidCount++;
+                    continue;
+                }
+
+                // Validasi IPv4
+                if (!filter_var($rawIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $invalidCount++;
+                    continue;
+                }
+
+                // Cek duplikat IP atau MAC di static leases
+                if (isset($existingIps[$rawIp]) || isset($existingMacs[$formattedMac])) {
+                    $skippedDuplicates++;
+                    continue;
+                }
+
+                // Cari subnet yang cocok (by hint nama/vlan/cidr atau auto-detect dari IP)
+                $matchedSubnet = DhcpSubnet::findByHintOrIp($rawSub, $rawIp, $allSubnets);
+                if (!$matchedSubnet) {
+                    $noSubnetCount++;
+                    continue;
+                }
+
+                $deviceId = $devices[$formattedMac] ?? null;
+
+                $existingIps[$rawIp] = true;
+                $existingMacs[$formattedMac] = true;
+
+                $leasesToInsert[] = [
+                    'dhcp_subnet_id' => $matchedSubnet->id,
+                    'device_id'      => $deviceId,
+                    'mac_address'    => $formattedMac,
+                    'ip_address'     => $rawIp,
+                    'hostname'       => !empty($rawHost) ? $rawHost : null,
+                    'description'    => !empty($rawDesc) ? $rawDesc : 'CSV Import',
+                    'is_active'      => true,
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ];
+
+                $importedCount++;
+            }
+
+            if (!empty($leasesToInsert)) {
+                \Illuminate\Support\Facades\DB::transaction(function() use ($leasesToInsert) {
+                    foreach (array_chunk($leasesToInsert, 500) as $chunk) {
+                        DhcpStaticLease::insert($chunk);
+                    }
+                });
+
+                $this->dhcpService->syncConfigFile();
+            }
+
+            $msg = "Import static IP selesai! Berhasil ditambahkan: {$importedCount}";
+            if ($skippedDuplicates > 0) $msg .= ", Duplikat dilewati: {$skippedDuplicates}";
+            if ($invalidCount > 0) $msg .= ", Format tidak valid: {$invalidCount}";
+            if ($noSubnetCount > 0) $msg .= ", Gagal cocok subnet: {$noSubnetCount}";
+
+            return redirect()->route('dhcp.index', ['tab' => 'static'])->with('success', $msg);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('DHCP Static Lease CSV Import Error: ' . $e->getMessage());
+            return redirect()->route('dhcp.index', ['tab' => 'static'])->with('error', 'Import gagal: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Manual Trigger Sync Config & Reload Service
      */
     public function syncConfig()

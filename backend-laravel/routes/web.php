@@ -41,6 +41,7 @@ Route::middleware('auth')->group(function () {
 
         // Device MAC Address Management Routes
         Route::get('devices/export', [DeviceController::class, 'exportCsv'])->name('devices.export');
+        Route::get('devices/template-csv', [DeviceController::class, 'templateCsv'])->name('devices.template');
         Route::post('devices/import', [DeviceController::class, 'importCsv'])->name('devices.import');
         Route::patch('devices/{device}/toggle', [DeviceController::class, 'toggleStatus'])->name('devices.toggle');
         // Suggest free IP in subnet
@@ -59,6 +60,8 @@ Route::middleware('auth')->group(function () {
         Route::put('/dhcp/subnets/{id}', [DhcpController::class, 'updateSubnet'])->name('dhcp.subnets.update');
         Route::delete('/dhcp/subnets/{id}', [DhcpController::class, 'destroySubnet'])->name('dhcp.subnets.destroy');
 
+        Route::get('/dhcp/static/template-csv', [DhcpController::class, 'templateCsv'])->name('dhcp.static.template');
+        Route::post('/dhcp/static/import-csv', [DhcpController::class, 'importCsv'])->name('dhcp.static.import');
         Route::post('/dhcp/static-leases', [DhcpController::class, 'storeStaticLease'])->name('dhcp.static.store');
         Route::put('/dhcp/static-leases/{id}', [DhcpController::class, 'updateStaticLease'])->name('dhcp.static.update');
         Route::delete('/dhcp/static-leases/{id}', [DhcpController::class, 'destroyStaticLease'])->name('dhcp.static.destroy');

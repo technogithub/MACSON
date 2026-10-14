@@ -424,9 +424,14 @@
                     <span class="fw-bold text-white"><i class="fa-solid fa-thumbtack text-info me-2"></i>Daftar Static IP Reservations</span>
                     <span class="badge bg-dark border border-secondary text-info">{{ $staticLeases->total() }} Reserved</span>
                 </div>
-                <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#addStaticModal">
-                    <i class="fa-solid fa-plus me-1"></i>Reservasi IP Baru
-                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#importStaticModal">
+                        <i class="fa-solid fa-file-import me-1"></i>Import CSV
+                    </button>
+                    <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#addStaticModal">
+                        <i class="fa-solid fa-plus me-1"></i>Reservasi IP Baru
+                    </button>
+                </div>
             </div>
 
             <!-- Filter & Search Toolbar (Static Leases) -->
@@ -1000,6 +1005,50 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-info"><i class="fa-solid fa-save me-1"></i>Update Reservasi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== MODAL: IMPORT STATIC IP CSV ===================== -->
+<div class="modal fade" id="importStaticModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border border-secondary text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title font-outfit fw-bold"><i class="fa-solid fa-file-import text-info me-2"></i>Import Reservasi Static IP (CSV)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('dhcp.static.import') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+                    <div class="mb-3 p-3 rounded-3" style="background:rgba(56,189,248,0.06); border:1px dashed rgba(56,189,248,0.3);">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold text-info small"><i class="fa-solid fa-circle-info me-1"></i>Format Kolom CSV:</span>
+                            <a href="{{ route('dhcp.static.template') }}" class="btn btn-xs btn-outline-info" style="font-size:0.75rem;">
+                                <i class="fa-solid fa-download me-1"></i>Download Template CSV
+                            </a>
+                        </div>
+                        <code class="text-secondary small d-block font-monospace mb-2" style="font-size:0.78rem;">
+                            mac_address, ip_address, subnet, hostname, description
+                        </code>
+                        <ul class="text-muted small mb-0 ps-3" style="font-size:0.75rem; line-height:1.6;">
+                            <li><code>mac_address</code> & <code>ip_address</code> wajib diisi.</li>
+                            <li><code>subnet</code> opsional (nama subnet / VLAN). Jika kosong, sistem otomatis mencocokkan pool dari range IP.</li>
+                            <li>Jika MAC sudah ada di daftar Device, otomatis terhubung (link device).</li>
+                            <li>Duplikat IP atau MAC di reservasi static akan dilewati secara otomatis.</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Pilih File CSV *</label>
+                        <input type="file" name="csv_file" class="form-control form-control-dark" accept=".csv,.txt" required>
+                        <div class="form-text text-secondary small">Maksimal ukuran file 4MB (.csv)</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-info"><i class="fa-solid fa-upload me-1"></i>Import Sekarang</button>
                 </div>
             </form>
         </div>

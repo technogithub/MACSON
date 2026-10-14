@@ -6,12 +6,20 @@ use App\Models\Device;
 use App\Models\DhcpStaticLease;
 use App\Models\DhcpSubnet;
 use App\Models\Ssid;
+use App\Services\DhcpConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
 
 class DeviceController extends Controller
 {
+    protected DhcpConfigService $dhcpService;
+
+    public function __construct(DhcpConfigService $dhcpService)
+    {
+        $this->dhcpService = $dhcpService;
+    }
+
     /**
      * Display listing of devices with Search, SSID Filter & Pagination
      */
@@ -351,6 +359,8 @@ class DeviceController extends Controller
             $descIdx = 4;
             $statIdx = 5;
             $vlanIdx = 6;
+            $ipIdx   = null;
+            $subIdx  = null;
 
             if ($isHeader) {
                 $headers = array_map(function($h) {
@@ -372,6 +382,10 @@ class DeviceController extends Controller
                         $statIdx = $idx;
                     } elseif (str_contains($hName, 'vlan')) {
                         $vlanIdx = $idx;
+                    } elseif (str_contains($hName, 'ip') || str_contains($hName, 'address')) {
+                        $ipIdx = $idx;
+                    } elseif (str_contains($hName, 'sub') || str_contains($hName, 'pool')) {
+                        $subIdx = $idx;
                     }
                 }
                 array_shift($rows); // Remove header row from dataset
@@ -385,15 +399,20 @@ class DeviceController extends Controller
                 ->mapWithKeys(fn($item) => [$item->mac_address . '___' . $item->ssid => true])
                 ->toArray();
 
-            $existingSsids = Ssid::pluck('ssid_name')->mapWithKeys(fn($s) => [strtoupper($s) => true])->toArray();
+            $existingSsids      = Ssid::pluck('ssid_name')->mapWithKeys(fn($s) => [strtoupper($s) => true])->toArray();
+            $existingStaticIps  = DhcpStaticLease::pluck('ip_address')->mapWithKeys(fn($ip) => [trim($ip) => true])->toArray();
+            $existingStaticMacs = DhcpStaticLease::pluck('mac_address')->mapWithKeys(fn($m) => [strtoupper(str_replace(['-', '.'], ':', trim($m))) => true])->toArray();
+            $allSubnets         = DhcpSubnet::all();
 
-            $importedCount = 0;
-            $skippedCount  = 0;
-            $invalidCount  = 0;
+            $importedCount       = 0;
+            $reservedIpCount     = 0;
+            $skippedCount        = 0;
+            $invalidCount        = 0;
 
-            $devicesToInsert = [];
-            $newSsidsToInsert = [];
-            $now = now();
+            $devicesToInsert     = [];
+            $newSsidsToInsert    = [];
+            $pendingReservations = []; // [$formattedMac => ['ip' => ..., 'subnet_id' => ..., 'hostname' => ..., 'desc' => ...]]
+            $now                 = now();
 
             foreach ($rows as $row) {
                 // Determine raw MAC by first checking designated macIdx, or fallback to searching first cell matching 12 hex chars
@@ -426,11 +445,28 @@ class DeviceController extends Controller
                 $status      = ($statusVal === 'inactive' || $statusVal === 'blocked') ? 'inactive' : 'active';
                 $vlanRaw     = isset($row[$vlanIdx]) ? trim($row[$vlanIdx]) : '';
                 $vlanId      = (is_numeric($vlanRaw) && (int)$vlanRaw >= 1 && (int)$vlanRaw <= 4094) ? (int)$vlanRaw : null;
+                $rawIp       = $ipIdx !== null && isset($row[$ipIdx]) ? trim($row[$ipIdx]) : '';
+                $rawSub      = $subIdx !== null && isset($row[$subIdx]) ? trim($row[$subIdx]) : '';
 
                 $ssidKey = empty($ssid) ? 'ALL' : $ssid;
                 $dupKey  = $formattedMac . '___' . $ssidKey;
+                $isValidIp = !empty($rawIp) && filter_var($rawIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
 
                 if (isset($existingDevices[$dupKey])) {
+                    // Jika device sudah ada, cek apakah user menyertakan IP dan belum memiliki reservasi static
+                    if ($isValidIp && !isset($existingStaticIps[$rawIp]) && !isset($existingStaticMacs[$formattedMac])) {
+                        $matchedSubnet = DhcpSubnet::findByHintOrIp($rawSub ?: (string)$vlanId, $rawIp, $allSubnets);
+                        if ($matchedSubnet) {
+                            $pendingReservations[$formattedMac] = [
+                                'ip'        => $rawIp,
+                                'subnet_id' => $matchedSubnet->id,
+                                'hostname'  => $deviceName,
+                                'desc'      => $description,
+                            ];
+                            $existingStaticIps[$rawIp] = true;
+                            $existingStaticMacs[$formattedMac] = true;
+                        }
+                    }
                     $skippedCount++;
                     continue;
                 }
@@ -463,11 +499,26 @@ class DeviceController extends Controller
                     'updated_at'  => $now,
                 ];
 
+                // Jika IP valid disertakan dan belum direservasi, simpan ke antrian reservasi
+                if ($isValidIp && !isset($existingStaticIps[$rawIp]) && !isset($existingStaticMacs[$formattedMac])) {
+                    $matchedSubnet = DhcpSubnet::findByHintOrIp($rawSub ?: (string)$vlanId, $rawIp, $allSubnets);
+                    if ($matchedSubnet) {
+                        $pendingReservations[$formattedMac] = [
+                            'ip'        => $rawIp,
+                            'subnet_id' => $matchedSubnet->id,
+                            'hostname'  => $deviceName,
+                            'desc'      => $description,
+                        ];
+                        $existingStaticIps[$rawIp] = true;
+                        $existingStaticMacs[$formattedMac] = true;
+                    }
+                }
+
                 $importedCount++;
             }
 
             // Perform DB insertions in a single transaction with chunking
-            \Illuminate\Support\Facades\DB::transaction(function() use ($newSsidsToInsert, $devicesToInsert) {
+            \Illuminate\Support\Facades\DB::transaction(function() use ($newSsidsToInsert, $devicesToInsert, $pendingReservations, &$reservedIpCount, $now) {
                 if (!empty($newSsidsToInsert)) {
                     Ssid::insert(array_values($newSsidsToInsert));
                 }
@@ -477,9 +528,45 @@ class DeviceController extends Controller
                         Device::insert($chunk);
                     }
                 }
+
+                // Buat static leases jika ada antrian reservasi IP
+                if (!empty($pendingReservations)) {
+                    $macs = array_keys($pendingReservations);
+                    $deviceIds = Device::whereIn('mac_address', $macs)->pluck('id', 'mac_address')->toArray();
+
+                    $staticLeasesToInsert = [];
+                    foreach ($pendingReservations as $mac => $res) {
+                        $devId = $deviceIds[$mac] ?? null;
+                        $staticLeasesToInsert[] = [
+                            'dhcp_subnet_id' => $res['subnet_id'],
+                            'device_id'      => $devId,
+                            'mac_address'    => $mac,
+                            'ip_address'     => $res['ip'],
+                            'hostname'       => !empty($res['hostname']) ? $res['hostname'] : null,
+                            'description'    => !empty($res['desc']) ? $res['desc'] : 'Device CSV Import',
+                            'is_active'      => true,
+                            'created_at'     => $now,
+                            'updated_at'     => $now,
+                        ];
+                        $reservedIpCount++;
+                    }
+
+                    foreach (array_chunk($staticLeasesToInsert, 500) as $chunk) {
+                        DhcpStaticLease::insert($chunk);
+                    }
+                }
             });
 
-            $msg = "Import completed! Added: {$importedCount}, Skipped duplicates: {$skippedCount}, Invalid MAC formats: {$invalidCount}.";
+            // Sinkronkan ke Kea DHCP jika ada reservasi static baru yang dibuat
+            if ($reservedIpCount > 0) {
+                $this->dhcpService->syncConfigFile();
+            }
+
+            $msg = "Import completed! Added: {$importedCount} devices";
+            if ($reservedIpCount > 0) {
+                $msg .= ", {$reservedIpCount} static IP reservations created";
+            }
+            $msg .= ", Skipped duplicates: {$skippedCount}, Invalid MAC formats: {$invalidCount}.";
             return redirect()->route('devices.index')->with('success', $msg);
 
         } catch (\Exception $e) {
@@ -489,15 +576,41 @@ class DeviceController extends Controller
     }
 
     /**
-     * Export Devices to CSV including VLAN ID
+     * Download Template CSV untuk Import Devices (dengan opsi Reservasi IP)
+     */
+    public function templateCsv()
+    {
+        $fileName = 'devices_import_template.csv';
+        $headers = [
+            "Content-type"        => "text/csv; charset=UTF-8",
+            "Content-Disposition" => "attachment; filename={$fileName}",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0",
+        ];
+
+        return response()->stream(function() {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+
+            fputcsv($file, ['MAC Address', 'SSID', 'Device Name', 'Location', 'Description', 'Status', 'VLAN ID', 'IP Address', 'Subnet']);
+            fputcsv($file, ['00:11:22:33:44:55', 'SJA AP', 'AP Warehouse Lt 1', 'Warehouse', 'AP Operasional', 'active', '27', '10.14.27.50', 'SJA AP']);
+            fputcsv($file, ['AA:BB:CC:DD:EE:FF', 'SJA REG', 'Tablet Kasir Pos 1', 'Kasir Depan', 'Device POS', 'active', '', '10.14.28.10', 'TAB PWD']);
+            fputcsv($file, ['11:22:33:44:55:66', 'ALL', 'Laptop Staff IT', 'Kantor IT', 'Tanpa Reservasi IP', 'active', '', '', '']);
+            fclose($file);
+        }, 200, $headers);
+    }
+
+    /**
+     * Export Devices to CSV including VLAN ID and Reserved IP
      */
     public function exportCsv()
     {
-        $devices     = Device::all();
+        $devices     = Device::with(['staticLease.subnet'])->get();
         $csvFileName = 'mac_devices_export_' . date('Y-m-d_H-i-s') . '.csv';
 
         $headers = [
-            "Content-type"        => "text/csv",
+            "Content-type"        => "text/csv; charset=UTF-8",
             "Content-Disposition" => "attachment; filename={$csvFileName}",
             "Pragma"              => "no-cache",
             "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
@@ -506,8 +619,10 @@ class DeviceController extends Controller
 
         $callback = function() use ($devices) {
             $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+
             // Header row
-            fputcsv($file, ['MAC Address', 'Target SSID', 'Device Name', 'Location', 'Description', 'Status', 'VLAN ID', 'ID', 'Created At']);
+            fputcsv($file, ['MAC Address', 'Target SSID', 'Device Name', 'Location', 'Description', 'Status', 'VLAN ID', 'Reserved IP', 'Subnet Pool', 'ID', 'Created At']);
 
             foreach ($devices as $d) {
                 fputcsv($file, [
@@ -518,6 +633,8 @@ class DeviceController extends Controller
                     $d->description,
                     $d->status,
                     $d->vlan_id ?? '',
+                    $d->staticLease ? $d->staticLease->ip_address : '',
+                    $d->staticLease && $d->staticLease->subnet ? $d->staticLease->subnet->name : '',
                     $d->id,
                     $d->created_at,
                 ]);

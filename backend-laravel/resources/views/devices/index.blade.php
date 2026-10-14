@@ -1022,14 +1022,20 @@ mark.search-hl {
                 @csrf
                 <div class="modal-body">
                     <div class="mb-4 p-3 rounded-3" style="background:rgba(16,185,129,0.05); border:1px dashed rgba(16,185,129,0.3);">
-                        <p class="mb-1 fw-semibold text-success" style="font-size:0.85rem;"><i class="fa-solid fa-circle-info me-2"></i>CSV Format (with header row):</p>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold text-success small"><i class="fa-solid fa-circle-info me-1"></i>CSV Format (with header row):</span>
+                            <a href="{{ route('devices.template') }}" class="btn btn-xs btn-outline-success" style="font-size:0.75rem;">
+                                <i class="fa-solid fa-download me-1"></i>Download Template CSV
+                            </a>
+                        </div>
                         <code class="text-secondary" style="font-size:0.78rem; display:block; line-height:1.8;">
-                            MAC Address, SSID, Device Name, Location, Description, Status, VLAN ID
+                            MAC Address, SSID, Device Name, Location, Description, Status, VLAN ID, IP Address, Subnet
                         </code>
                         <p class="mt-2 mb-0 text-muted" style="font-size:0.75rem;">
                             • Status: <code>active</code> or <code>inactive</code><br>
                             • SSID: use <code>ALL</code> for any SSID<br>
                             • VLAN ID: optional, 1-4094<br>
+                            • IP Address & Subnet: <em>opsional</em>, jika diisi akan sekaligus dibuatkan reservasi static IP.<br>
                             • Duplicates (MAC + SSID) will be skipped automatically
                         </p>
                     </div>
