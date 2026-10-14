@@ -177,39 +177,53 @@ class DhcpConfigService
     }
 
     /**
-     * Baca dan parse active leases dari file CSV leases Kea
+     * Baca dan parse active leases dari file CSV leases Kea (termasuk file rotasi LFC .2 dan .completed)
      */
     public function getActiveLeases(): array
     {
-        if (!File::exists($this->leasesPath)) {
+        $leasesDir = dirname($this->leasesPath);
+        if (!File::isDirectory($leasesDir)) {
             return [];
         }
 
-        $lines = file($this->leasesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if (empty($lines) || count($lines) <= 1) {
-            return [];
-        }
+        // Kumpulkan semua file lease yang ada (file utama .csv, rotasi .csv.2, dan .csv.completed)
+        $potentialFiles = [
+            $this->leasesPath . '.2',
+            $this->leasesPath . '.completed',
+            $this->leasesPath,
+        ];
 
-        $headers = str_getcsv(array_shift($lines));
         $now = time();
         $leasesByIp = [];
 
-        foreach ($lines as $line) {
-            $row = str_getcsv($line);
-            if (count($row) < 5) continue;
-
-            $record = array_combine(array_slice($headers, 0, count($row)), $row);
-            
-            $ip       = trim($record['address'] ?? '');
-            if (empty($ip) || $ip === '-' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+        foreach ($potentialFiles as $filePath) {
+            if (!File::exists($filePath)) {
                 continue;
             }
 
-            $mac      = strtoupper(trim($record['hwaddr'] ?? '-'));
-            $expire   = (int)($record['expire'] ?? 0);
-            $hostname = trim($record['hostname'] ?? '');
-            $subnetId = (int)($record['subnet_id'] ?? 0);
-            $state    = isset($record['state']) ? (int)$record['state'] : 0;
+            $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (empty($lines) || count($lines) <= 1) {
+                continue;
+            }
+
+            $headers = str_getcsv(array_shift($lines));
+
+            foreach ($lines as $line) {
+                $row = str_getcsv($line);
+                if (count($row) < 5) continue;
+
+                $record = array_combine(array_slice($headers, 0, count($row)), $row);
+                
+                $ip       = trim($record['address'] ?? '');
+                if (empty($ip) || $ip === '-' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+                    continue;
+                }
+
+                $mac      = strtoupper(trim($record['hwaddr'] ?? '-'));
+                $expire   = (int)($record['expire'] ?? 0);
+                $hostname = trim($record['hostname'] ?? '');
+                $subnetId = (int)($record['subnet_id'] ?? 0);
+                $state    = isset($record['state']) ? (int)$record['state'] : 0;
 
             // Di Kea memfile CSV: state 0 = default (active lease)
             // State 1 = declined, state 2 = expired-reclaimed
