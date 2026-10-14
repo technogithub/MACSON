@@ -251,6 +251,7 @@ class DhcpConfigService
                 ];
             }
         }
+    }
 
         $leases = array_values($leasesByIp);
 
