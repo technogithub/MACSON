@@ -13,7 +13,7 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Tabel schema_version (Wajib ada untuk verifikasi integritas oleh Kea DHCP)
-        // Versi skema hosts MySQL untuk Kea DHCP 2.4 - 2.6 adalah versi 3.0
+        // Kea DHCP 2.4.x / 2.6.x (Ubuntu 24.04) membutuhkan schema version 19.0
         if (!Schema::hasTable('schema_version')) {
             DB::statement("
                 CREATE TABLE `schema_version` (
@@ -24,7 +24,12 @@ return new class extends Migration
             ");
 
             DB::table('schema_version')->insertOrIgnore([
-                'version' => 3,
+                'version' => 19,
+                'minor'   => 0,
+            ]);
+        } else {
+            DB::table('schema_version')->update([
+                'version' => 19,
                 'minor'   => 0,
             ]);
         }
