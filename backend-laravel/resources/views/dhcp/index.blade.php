@@ -627,37 +627,9 @@
             <!-- Filter & Search Toolbar (Active Leases) dengan Tombol Pilihan Pool yang Rapi -->
             <form method="GET" action="{{ route('dhcp.index') }}" class="p-3 border-bottom border-secondary" style="background:rgba(15,23,42,0.4);">
                 <input type="hidden" name="tab" value="leases">
-                
-                <!-- 1. Row Pilihan Pool Pills -->
-                <div class="d-flex align-items-center gap-2 flex-wrap mb-3 pb-3 border-bottom border-secondary border-opacity-25">
-                    <span class="text-secondary small fw-bold text-uppercase d-flex align-items-center me-1" style="font-size:0.75rem; letter-spacing:0.5px;">
-                        <i class="fa-solid fa-filter text-info me-1.5"></i>Pilihan Subnet:
-                    </span>
-                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                        <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => 'all', 'lease_page' => 1])) }}"
-                           class="btn btn-sm {{ $selectedPool === 'all' ? 'btn-info text-white fw-bold shadow-sm' : 'btn-outline-secondary text-secondary' }}"
-                           style="font-size:0.75rem; padding:4px 12px; border-radius:20px;">
-                            Semua Pool <span class="badge ms-1 {{ $selectedPool === 'all' ? 'bg-dark text-info' : 'bg-dark text-secondary' }}" id="innerPoolLiveAll">{{ $totalActiveLeases }}</span>
-                        </a>
-                        @foreach($subnets as $s)
-                            @php
-                                $countInS = $activeLeaseCounts[$s->id] ?? 0;
-                                $isThisPool = (string)$selectedPool === (string)$s->id;
-                            @endphp
-                            <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => $s->id, 'lease_page' => 1])) }}"
-                               class="btn btn-sm {{ $isThisPool ? 'btn-info text-white fw-bold shadow-sm' : 'btn-outline-secondary text-secondary' }}"
-                               style="font-size:0.75rem; padding:4px 12px; border-radius:20px;">
-                                {{ $s->name }}
-                                @if($s->vlan_id)
-                                    <span class="opacity-75" style="font-size:0.7rem;">(VLAN {{ $s->vlan_id }})</span>
-                                @endif
-                                <span class="badge ms-1 {{ $isThisPool ? 'bg-dark text-info' : ($countInS > 0 ? 'bg-success-subtle text-success' : 'bg-dark text-secondary') }}" id="innerPoolLive_{{ $s->id }}">{{ $countInS }}</span>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
+                <input type="hidden" name="pool_id" value="{{ request('pool_id', 'all') }}">
 
-                <!-- 2. Row Search & Controls -->
+                <!-- Row Search & Controls -->
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width:400px; min-width:220px;">
                         <div class="input-group input-group-sm w-100">
