@@ -274,7 +274,7 @@
             </div>
             <div>
                 <div class="text-secondary small">Active Dynamic Leases</div>
-                <div class="fs-4 fw-bold text-white">{{ $totalActiveLeases ?? $activeLeases->total() }} <span class="fs-6 fw-normal text-muted">Online</span></div>
+                <div class="fs-4 fw-bold text-white"><span id="statActiveDynamicLeases">{{ $totalActiveLeases ?? $activeLeases->total() }}</span> <span class="fs-6 fw-normal text-muted">Online</span></div>
             </div>
         </div>
     </div>
@@ -293,7 +293,7 @@
        title="Semua Subnet Pool">
         <span class="ptab-dot"></span>
         <span>Semua Pool</span>
-        <span class="ptab-live">{{ $totalActiveLeases ?? $activeLeases->total() }} Live</span>
+        <span class="ptab-live" id="poolLiveAll">{{ $totalActiveLeases ?? $activeLeases->total() }} Live</span>
     </a>
 
     {{-- Per-Subnet Pills --}}
@@ -313,9 +313,9 @@
         @if($subnet->static_leases_count > 0)
             <span class="ptab-count">{{ $subnet->static_leases_count }}s</span>
         @endif
-        @if($activeCountForSubnet > 0)
-            <span class="ptab-live">{{ $activeCountForSubnet }} Live</span>
-        @endif
+        <span class="ptab-live" id="poolLiveSubnet_{{ $subnet->id }}" style="{{ $activeCountForSubnet > 0 ? '' : 'display:none;' }}">
+            {{ $activeCountForSubnet }} Live
+        </span>
     </a>
     @endforeach
 
@@ -615,8 +615,8 @@
                     <span class="badge bg-success-subtle text-success border border-success" id="totalActiveClientsBadge">{{ $totalActiveLeases ?? $activeLeases->total() }} Active Clients</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge" id="livePollingIndicator" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:0.75rem;">
-                        <i class="fa-solid fa-circle text-success me-1 fa-fade" style="font-size:0.55rem;"></i><span id="liveStatusText">Live (5s)</span>
+                    <span class="badge d-inline-flex align-items-center" id="livePollingIndicator" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:0.75rem;" title="Pembaruan realtime aktif">
+                        <i class="fa-solid fa-circle text-success me-1.5 fa-fade" style="font-size:0.5rem;"></i><span id="liveStatusText">Realtime</span>
                     </span>
                     <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btnRefreshLeasesNow" title="Segarkan data leases sekarang" style="font-size:0.75rem; height:26px;">
                         <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh
@@ -637,7 +637,7 @@
                         <a href="{{ route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'pool_id' => 'all', 'lease_page' => 1])) }}"
                            class="btn btn-sm {{ $selectedPool === 'all' ? 'btn-info text-white fw-bold shadow-sm' : 'btn-outline-secondary text-secondary' }}"
                            style="font-size:0.75rem; padding:4px 12px; border-radius:20px;">
-                            Semua Pool <span class="badge ms-1 {{ $selectedPool === 'all' ? 'bg-dark text-info' : 'bg-dark text-secondary' }}">{{ $totalActiveLeases }}</span>
+                            Semua Pool <span class="badge ms-1 {{ $selectedPool === 'all' ? 'bg-dark text-info' : 'bg-dark text-secondary' }}" id="innerPoolLiveAll">{{ $totalActiveLeases }}</span>
                         </a>
                         @foreach($subnets as $s)
                             @php
@@ -651,7 +651,7 @@
                                 @if($s->vlan_id)
                                     <span class="opacity-75" style="font-size:0.7rem;">(VLAN {{ $s->vlan_id }})</span>
                                 @endif
-                                <span class="badge ms-1 {{ $isThisPool ? 'bg-dark text-info' : ($countInS > 0 ? 'bg-success-subtle text-success' : 'bg-dark text-secondary') }}">{{ $countInS }}</span>
+                                <span class="badge ms-1 {{ $isThisPool ? 'bg-dark text-info' : ($countInS > 0 ? 'bg-success-subtle text-success' : 'bg-dark text-secondary') }}" id="innerPoolLive_{{ $s->id }}">{{ $countInS }}</span>
                             </a>
                         @endforeach
                     </div>
@@ -1371,18 +1371,59 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(data => {
                 if (data.success) {
                     tbody.innerHTML = data.html_rows;
+
+                    // 1. Update badge di atas tabel (Active Clients)
                     const totalBadge = document.getElementById('totalActiveClientsBadge');
                     if (totalBadge) {
                         totalBadge.textContent = `${data.total_active} Active Clients`;
                     }
+
+                    // 2. Update Card Besar di atas (Active Dynamic Leases: [X] Online)
+                    const statBig = document.getElementById('statActiveDynamicLeases');
+                    if (statBig) {
+                        statBig.textContent = data.total_active;
+                    }
+
+                    // 3. Update Tombol Pool di Navigasi Baris Atas (#poolTabBar)
+                    const poolAll = document.getElementById('poolLiveAll');
+                    if (poolAll) {
+                        poolAll.textContent = `${data.total_active} Live`;
+                    }
+
+                    if (data.active_counts) {
+                        for (const [subId, count] of Object.entries(data.active_counts)) {
+                            const subPill = document.getElementById(`poolLiveSubnet_${subId}`);
+                            if (subPill) {
+                                subPill.textContent = `${count} Live`;
+                                subPill.style.display = count > 0 ? '' : 'none';
+                            }
+
+                            // 4. Update Tombol Subnet di Toolbar Filter dalam Tab Leases
+                            const innerSubPill = document.getElementById(`innerPoolLive_${subId}`);
+                            if (innerSubPill) {
+                                innerSubPill.textContent = count;
+                            }
+                        }
+                    }
+
+                    const innerAll = document.getElementById('innerPoolLiveAll');
+                    if (innerAll) {
+                        innerAll.textContent = data.total_active;
+                    }
+
+                    // 5. Update status realtime indicator (tetap bersih bertuliskan 'Realtime', jam ditaruh di title tooltip)
+                    const indicator = document.getElementById('livePollingIndicator');
+                    if (indicator) {
+                        indicator.setAttribute('title', `Pembaruan realtime aktif (Terakhir disinkronkan pukul ${data.timestamp})`);
+                    }
                     if (statusText) {
-                        statusText.textContent = `Live (${data.timestamp})`;
+                        statusText.textContent = 'Realtime';
                     }
                 }
             })
             .catch(err => {
                 console.warn('Live leases sync error:', err);
-                if (statusText) statusText.textContent = 'Sync Offline';
+                if (statusText) statusText.textContent = 'Offline';
             })
             .finally(() => {
                 isFetchingLeases = false;
