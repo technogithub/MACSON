@@ -138,8 +138,10 @@ class DhcpController extends Controller
             'dns_servers' => 'nullable|string|max:255',
             'lease_time'  => 'required|integer|min:300',
             'description' => 'nullable|string',
+            'is_active'   => 'nullable|boolean',
         ]);
 
+        $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
         DhcpSubnet::create($validated);
         $this->dhcpService->syncConfigFile();
 
@@ -167,7 +169,7 @@ class DhcpController extends Controller
             'is_active'   => 'nullable|boolean',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
+        $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : ($subnet->is_active ?? true);
         $subnet->update($validated);
         $this->dhcpService->syncConfigFile();
 

@@ -71,7 +71,7 @@ class DeviceController extends Controller
 
         $selectedSsid = $request->input('ssid', 'all');
 
-        $dhcpSubnets = DhcpSubnet::where('is_active', true)->orderBy('name')->get(['id', 'name', 'vlan_id', 'pool_start', 'pool_end', 'subnet']);
+        $dhcpSubnets = DhcpSubnet::orderBy('name')->get(['id', 'name', 'vlan_id', 'pool_start', 'pool_end', 'subnet', 'is_active']);
 
         return view('devices.index', compact(
             'devices',

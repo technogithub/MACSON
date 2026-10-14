@@ -350,7 +350,12 @@
                         @forelse($subnets as $subnet)
                             <tr>
                                 <td>
-                                    <div class="fw-bold text-white">{{ $subnet->name }}</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="fw-bold text-white">{{ $subnet->name }}</span>
+                                        @if(!$subnet->is_active)
+                                            <span class="badge bg-secondary text-warning border border-warning" style="font-size: 0.7rem;">Nonaktif</span>
+                                        @endif
+                                    </div>
                                     @if($subnet->description)
                                         <div class="text-secondary small">{{ $subnet->description }}</div>
                                     @endif
@@ -761,6 +766,13 @@
                             <label class="form-label">Keterangan (opsional)</label>
                             <textarea name="description" class="form-control form-control-dark" rows="2" placeholder="Catatan segmen jaringan"></textarea>
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="hidden" name="is_active" value="0">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="addSubnetActive" value="1" checked>
+                                <label class="form-check-label text-light small" for="addSubnetActive">Subnet Aktif (Melayani DHCP Pool)</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -820,6 +832,13 @@
                         <div class="col-12">
                             <label class="form-label">Keterangan</label>
                             <textarea name="description" id="editSubnetDesc" class="form-control form-control-dark" rows="2"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="hidden" name="is_active" value="0">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="editSubnetActive" value="1">
+                                <label class="form-check-label text-light small" for="editSubnetActive">Subnet Aktif (Melayani DHCP Pool)</label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1008,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('editSubnetDns').value     = this.dataset.dns || '';
             document.getElementById('editSubnetLease').value   = this.dataset.lease || '86400';
             document.getElementById('editSubnetDesc').value    = this.dataset.desc || '';
+            document.getElementById('editSubnetActive').checked = (this.dataset.active == '1');
 
             new bootstrap.Modal(document.getElementById('editSubnetModal')).show();
         });
