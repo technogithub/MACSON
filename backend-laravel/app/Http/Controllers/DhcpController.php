@@ -601,4 +601,26 @@ class DhcpController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Clear Dynamic Leases (Semua atau per-Subnet)
+     */
+    public function clearLeases(Request $request)
+    {
+        try {
+            $poolId = $request->input('pool_id', 'all');
+            $subnetId = ($poolId !== 'all' && is_numeric($poolId)) ? (int)$poolId : null;
+
+            $subnet = $subnetId ? DhcpSubnet::find($subnetId) : null;
+            $clearedCount = $this->dhcpService->clearLeases($subnetId);
+
+            $targetName = $subnet ? "Subnet {$subnet->name}" : "Semua Subnet Pool";
+            $msg = "Berhasil membersihkan {$clearedCount} active dynamic lease pada {$targetName}. Layanan Kea DHCP telah dimuat ulang.";
+
+            return redirect()->route('dhcp.index', ['tab' => 'leases', 'pool_id' => $poolId])->with('success', $msg);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('DHCP Clear Leases Error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal membersihkan leases: ' . $e->getMessage());
+        }
+    }
 }

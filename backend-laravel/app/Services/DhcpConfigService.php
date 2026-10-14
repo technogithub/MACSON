@@ -262,6 +262,124 @@ class DhcpConfigService
     }
 
     /**
+     * Bersihkan dynamic leases (bisa semua atau per subnet) dari file CSV Kea DHCP
+     */
+    public function clearLeases(?int $subnetId = null): int
+    {
+        $potentialFiles = [
+            $this->leasesPath . '.2',
+            $this->leasesPath . '.completed',
+            $this->leasesPath,
+        ];
+
+        $clearedCount = 0;
+        $defaultHeader = "address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context\n";
+
+        // KASUS A: Bersihkan SEMUA lease di semua subnet
+        if ($subnetId === null) {
+            foreach ($potentialFiles as $filePath) {
+                if (File::exists($filePath)) {
+                    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    if (!empty($lines)) {
+                        $clearedCount += max(0, count($lines) - 1);
+                    }
+                    if ($filePath === $this->leasesPath) {
+                        File::put($filePath, $defaultHeader);
+                    } else {
+                        File::delete($filePath);
+                    }
+                }
+            }
+            $this->restartKeaService();
+            return $clearedCount;
+        }
+
+        // KASUS B: Bersihkan lease per subnet tertentu
+        $subnet = DhcpSubnet::find($subnetId);
+        $startLong = (!empty($subnet->pool_start)) ? ip2long(trim($subnet->pool_start)) : false;
+        $endLong   = (!empty($subnet->pool_end))   ? ip2long(trim($subnet->pool_end))   : false;
+
+        $networkLong = false;
+        $broadcastLong = false;
+        if (!empty($subnet->subnet) && str_contains($subnet->subnet, '/')) {
+            [$baseIpStr, $prefixStr] = explode('/', trim($subnet->subnet), 2);
+            $baseLong = ip2long(trim($baseIpStr));
+            $prefix   = (int)trim($prefixStr);
+            if ($baseLong !== false && $prefix >= 8 && $prefix <= 30) {
+                $mask          = $prefix === 0 ? 0 : (-1 << (32 - $prefix));
+                $networkLong   = $baseLong & $mask;
+                $broadcastLong = $networkLong | (~$mask & 0xFFFFFFFF);
+            }
+        }
+
+        foreach ($potentialFiles as $filePath) {
+            if (!File::exists($filePath)) continue;
+
+            $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (empty($lines)) continue;
+
+            $header = array_shift($lines);
+            $headers = str_getcsv($header);
+            $remainingLines = [];
+
+            foreach ($lines as $line) {
+                $row = str_getcsv($line);
+                if (count($row) < 5) {
+                    $remainingLines[] = $line;
+                    continue;
+                }
+
+                $record = array_combine(array_slice($headers, 0, count($row)), $row);
+                $ip = trim($record['address'] ?? '');
+                $rowSubnetId = (int)($record['subnet_id'] ?? 0);
+
+                $matches = false;
+                if ($rowSubnetId === $subnetId) {
+                    $matches = true;
+                } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
+                    $ipLong = ip2long($ip);
+                    if ($startLong !== false && $endLong !== false && $ipLong >= min($startLong, $endLong) && $ipLong <= max($startLong, $endLong)) {
+                        $matches = true;
+                    } elseif ($networkLong !== false && $broadcastLong !== false && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
+                        $matches = true;
+                    }
+                }
+
+                if ($matches) {
+                    $clearedCount++;
+                } else {
+                    $remainingLines[] = $line;
+                }
+            }
+
+            // Tulis kembali file dengan baris yang tersisa
+            $content = $header . "\n" . (empty($remainingLines) ? '' : implode("\n", $remainingLines) . "\n");
+            File::put($filePath, $content);
+        }
+
+        $this->restartKeaService();
+        return $clearedCount;
+    }
+
+    /**
+     * Restart container radius_dhcp / service Kea DHCP agar memori leases direset
+     */
+    public function restartKeaService(): void
+    {
+        try {
+            if (shell_exec('which docker')) {
+                shell_exec('docker restart radius_dhcp 2>/dev/null');
+            } elseif (shell_exec('which systemctl')) {
+                shell_exec('sudo systemctl restart kea-dhcp4-server 2>/dev/null');
+            } else {
+                shell_exec('pkill -HUP kea-dhcp4 2>/dev/null');
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Gagal restart Kea service: " . $e->getMessage());
+        }
+    }
+
+    /**
      * Simpan / Perbarui Reservasi Static IP langsung ke tabel Kea DHCP `hosts` (MySQL Backend)
      */
     public function saveHostToKeaDb(string $mac, string $ip, ?int $subnetId = null, ?string $hostname = null, ?int $leaseId = null): bool

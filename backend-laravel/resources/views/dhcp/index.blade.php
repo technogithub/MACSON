@@ -621,6 +621,12 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btnRefreshLeasesNow" title="Segarkan data leases sekarang" style="font-size:0.75rem; height:26px;">
                         <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh
                     </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2.5 d-inline-flex align-items-center gap-1.5"
+                            data-bs-toggle="modal" data-bs-target="#clearLeaseModal"
+                            title="Bersihkan dynamic leases yang menumpuk / pool penuh" style="font-size:0.75rem; height:26px;">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Clear Leases</span>
+                    </button>
                 </div>
             </div>
 
@@ -1073,6 +1079,64 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-info"><i class="fa-solid fa-upload me-1"></i>Import Sekarang</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== MODAL: CLEAR DYNAMIC LEASES ===================== -->
+<div class="modal fade" id="clearLeaseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border border-danger border-opacity-50 text-light shadow-lg">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title font-outfit fw-bold text-danger">
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i>Clear Dynamic Leases
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('dhcp.leases.clear') }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <div class="p-3 mb-3 rounded-3" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25);">
+                        <div class="d-flex gap-2">
+                            <i class="fa-solid fa-circle-exclamation text-danger mt-1"></i>
+                            <div class="small text-secondary" style="line-height:1.6;">
+                                Tindakan ini akan menghapus catatan <strong>Active Dynamic Lease</strong> dari engine Kea DHCPv4 untuk membebaskan IP Pool yang penuh.
+                                <br><br>
+                                <span class="text-light"><strong>Catatan Penting:</strong></span>
+                                <ul class="mb-0 ps-3 mt-1 text-light">
+                                    <li><strong>Reservasi Static IP TIDAK AKAN TERHAPUS</strong> (tetap aman).</li>
+                                    <li>Container Kea DHCP akan dimuat ulang seketika.</li>
+                                    <li>Perangkat aktif yang terhubung akan meminta renewal IP baru saat siklus sewa habis.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Pilih Lingkup Subnet yang Dibersihkan *</label>
+                        <select name="pool_id" class="form-select form-control-dark" id="clearLeasePoolSelect" required>
+                            <option value="all" {{ $selectedPool === 'all' ? 'selected' : '' }}>
+                                🔴 Semua Subnet Pool (Seluruh {{ $totalActiveLeases ?? 0 }} Dynamic Lease Aktif)
+                            </option>
+                            @foreach($subnets as $s)
+                                @php $cLease = $activeLeaseCounts[$s->id] ?? 0; @endphp
+                                <option value="{{ $s->id }}" {{ (string)$selectedPool === (string)$s->id ? 'selected' : '' }}>
+                                    {{ $s->name }} @if($s->vlan_id) (VLAN {{ $s->vlan_id }}) @endif — {{ $cLease }} Lease Aktif
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text text-secondary small">
+                            Pilih apakah ingin mengosongkan seluruh dynamic lease, atau hanya subnet VLAN tertentu yang pool-nya sedang penuh.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger fw-bold" onclick="return confirm('Apakah Anda yakin ingin mengosongkan dynamic leases ini? Client yang aktif akan meminta request IP baru.')">
+                        <i class="fa-solid fa-trash-can me-1"></i>Hapus Dynamic Leases
+                    </button>
                 </div>
             </form>
         </div>
