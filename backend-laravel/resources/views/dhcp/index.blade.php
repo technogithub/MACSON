@@ -337,7 +337,7 @@
     </li>
     <li class="nav-item">
         <a class="nav-link {{ $currentTab === 'leases' ? 'active' : '' }}" href="{{ route('dhcp.index', array_merge(request()->except(['tab', 'static_page', 'lease_page']), ['tab' => 'leases'])) }}">
-            <i class="fa-solid fa-clock-rotate-left"></i> Active Leases ({{ $activeLeases->total() }})
+            <i class="fa-solid fa-clock-rotate-left"></i> Active Leases
         </a>
     </li>
 </ul>

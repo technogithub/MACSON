@@ -263,33 +263,38 @@ class DhcpConfigService
 
     /**
      * Bersihkan dynamic leases (bisa semua atau per subnet) dari file CSV Kea DHCP
+     * Dirancang tahan terhadap masalah Permission Denied pada file rotasi LFC (.2 & .completed)
      */
     public function clearLeases(?int $subnetId = null): int
     {
-        $potentialFiles = [
-            $this->leasesPath . '.2',
-            $this->leasesPath . '.completed',
-            $this->leasesPath,
-        ];
+        // 1. Usahakan berikan akses baca-tulis ke folder leases
+        @chmod(dirname($this->leasesPath), 0777);
+        @chmod($this->leasesPath, 0666);
+        @chmod($this->leasesPath . '.2', 0666);
+        @chmod($this->leasesPath . '.completed', 0666);
 
-        $clearedCount = 0;
+        // Jika docker tersedia, samakan permission folder via container Kea
+        try {
+            shell_exec("docker exec radius_dhcp chmod -R 777 /var/lib/kea 2>/dev/null");
+        } catch (\Throwable $e) {}
+
         $defaultHeader = "address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context\n";
+        $clearedCount = 0;
+
+        // Ambil data active leases saat ini
+        $currentLeases = $this->getActiveLeases();
 
         // KASUS A: Bersihkan SEMUA lease di semua subnet
         if ($subnetId === null) {
-            foreach ($potentialFiles as $filePath) {
-                if (File::exists($filePath)) {
-                    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                    if (!empty($lines)) {
-                        $clearedCount += max(0, count($lines) - 1);
-                    }
-                    if ($filePath === $this->leasesPath) {
-                        File::put($filePath, $defaultHeader);
-                    } else {
-                        File::delete($filePath);
-                    }
-                }
-            }
+            $clearedCount = count($currentLeases);
+
+            // Tulis file utama dengan header kosong
+            $this->writeKeaLeasesFile($defaultHeader);
+
+            // Hapus file rotasi sementara agar tidak dibaca lagi
+            $this->removeKeaLeaseFile($this->leasesPath . '.2');
+            $this->removeKeaLeaseFile($this->leasesPath . '.completed');
+
             $this->restartKeaService();
             return $clearedCount;
         }
@@ -312,53 +317,103 @@ class DhcpConfigService
             }
         }
 
-        foreach ($potentialFiles as $filePath) {
-            if (!File::exists($filePath)) continue;
+        $remainingRows = [];
+        foreach ($currentLeases as $l) {
+            $ip = $l['ip'];
+            $rowSubnetId = (int)($l['subnet_id'] ?? 0);
 
-            $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if (empty($lines)) continue;
-
-            $header = array_shift($lines);
-            $headers = str_getcsv($header);
-            $remainingLines = [];
-
-            foreach ($lines as $line) {
-                $row = str_getcsv($line);
-                if (count($row) < 5) {
-                    $remainingLines[] = $line;
-                    continue;
-                }
-
-                $record = array_combine(array_slice($headers, 0, count($row)), $row);
-                $ip = trim($record['address'] ?? '');
-                $rowSubnetId = (int)($record['subnet_id'] ?? 0);
-
-                $matches = false;
-                if ($rowSubnetId === $subnetId) {
+            $matches = false;
+            if ($rowSubnetId === $subnetId) {
+                $matches = true;
+            } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
+                $ipLong = ip2long($ip);
+                if ($startLong !== false && $endLong !== false && $ipLong >= min($startLong, $endLong) && $ipLong <= max($startLong, $endLong)) {
                     $matches = true;
-                } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
-                    $ipLong = ip2long($ip);
-                    if ($startLong !== false && $endLong !== false && $ipLong >= min($startLong, $endLong) && $ipLong <= max($startLong, $endLong)) {
-                        $matches = true;
-                    } elseif ($networkLong !== false && $broadcastLong !== false && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
-                        $matches = true;
-                    }
-                }
-
-                if ($matches) {
-                    $clearedCount++;
-                } else {
-                    $remainingLines[] = $line;
+                } elseif ($networkLong !== false && $broadcastLong !== false && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
+                    $matches = true;
                 }
             }
 
-            // Tulis kembali file dengan baris yang tersisa
-            $content = $header . "\n" . (empty($remainingLines) ? '' : implode("\n", $remainingLines) . "\n");
-            File::put($filePath, $content);
+            if ($matches) {
+                $clearedCount++;
+            } else {
+                // Simpan baris lease yang tidak dihapus
+                $rawMac = strtolower(str_replace([':', '-', '.'], '', $l['mac']));
+                $remainingRows[] = implode(',', [
+                    $l['ip'],
+                    $rawMac,
+                    '', // client_id
+                    '86400', // valid_lifetime
+                    $l['expire_raw'],
+                    $l['subnet_id'],
+                    '', // fqdn_fwd
+                    '', // fqdn_rev
+                    ($l['hostname'] !== '-' ? $l['hostname'] : ''),
+                    '0', // state
+                    '' // user_context
+                ]);
+            }
         }
+
+        // Tulis hanya ke file utama kea-leases4.csv
+        $newContent = $defaultHeader;
+        if (!empty($remainingRows)) {
+            $newContent .= implode("\n", $remainingRows) . "\n";
+        }
+        $this->writeKeaLeasesFile($newContent);
+
+        // Hapus file rotasi sementara agar tidak mencemari kembali
+        $this->removeKeaLeaseFile($this->leasesPath . '.2');
+        $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
         $this->restartKeaService();
         return $clearedCount;
+    }
+
+    /**
+     * Tulis ke file kea-leases4.csv secara aman dengan fallback Docker exec jika permission denied
+     */
+    private function writeKeaLeasesFile(string $content): void
+    {
+        try {
+            @chmod($this->leasesPath, 0666);
+            File::put($this->leasesPath, $content);
+            @chmod($this->leasesPath, 0666);
+            return;
+        } catch (\Throwable $e) {
+            Log::warning("File::put kea-leases4.csv gagal, mencoba fallback docker: " . $e->getMessage());
+        }
+
+        // Fallback: Tulis langsung melalui container radius_dhcp (akses root ke volume)
+        try {
+            $escaped = escapeshellarg($content);
+            shell_exec("docker exec radius_dhcp sh -c \"printf %s {$escaped} > /var/lib/kea/kea-leases4.csv\" 2>/dev/null");
+            shell_exec("docker exec radius_dhcp chmod 666 /var/lib/kea/kea-leases4.csv 2>/dev/null");
+        } catch (\Throwable $e) {
+            Log::error("Gagal fallback tulis kea-leases4.csv: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Hapus file rotasi kea-leases4.csv.2 / .completed secara aman tanpa crash
+     */
+    private function removeKeaLeaseFile(string $filePath): void
+    {
+        if (!File::exists($filePath)) return;
+
+        try {
+            @chmod($filePath, 0666);
+            File::delete($filePath);
+            return;
+        } catch (\Throwable $e) {
+            @unlink($filePath);
+        }
+
+        // Fallback: Hapus melalui container radius_dhcp
+        try {
+            $filename = basename($filePath);
+            shell_exec("docker exec radius_dhcp rm -f /var/lib/kea/{$filename} 2>/dev/null");
+        } catch (\Throwable $e) {}
     }
 
     /**
