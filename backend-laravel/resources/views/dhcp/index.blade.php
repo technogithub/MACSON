@@ -119,43 +119,99 @@
     border-bottom: 2px solid #38bdf8;
 }
 
-/* IP Pool Filter Buttons / Cards */
-.pool-btn-card {
-    background: #1e293b;
+/* ===== IP POOL PILL TAB BAR - Modern Minimalist ===== */
+.pool-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 4px 2px 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+    flex-wrap: nowrap;
+}
+.pool-tab-bar::-webkit-scrollbar { height: 3px; }
+.pool-tab-bar::-webkit-scrollbar-track { background: transparent; }
+.pool-tab-bar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+.pool-tab-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 13px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.7);
     border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 12px 14px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    color: #94a3b8;
     text-decoration: none;
-    color: #cbd5e1;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-sizing: border-box;
-}
-.pool-btn-card:hover {
-    background: #24344d;
-    border-color: rgba(56, 189, 248, 0.5);
-    color: #f8fafc;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
-}
-.pool-btn-card.active {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(99, 102, 241, 0.16) 100%);
-    border: 1.5px solid #38bdf8;
-    color: #38bdf8;
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
-}
-.pool-btn-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.18s ease;
     flex-shrink: 0;
+}
+.pool-tab-pill:hover {
+    border-color: rgba(99,102,241,0.45);
+    color: #a5b4fc;
+    background: rgba(99,102,241,0.06);
+}
+.pool-tab-pill.active {
+    background: rgba(99,102,241,0.13);
+    border-color: rgba(99,102,241,0.55);
+    color: #e0e7ff;
+    font-weight: 600;
+    box-shadow: 0 0 0 1px rgba(99,102,241,0.2);
+}
+.pool-tab-pill .ptab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+.pool-tab-pill.active .ptab-dot { opacity: 1; }
+.pool-tab-pill .ptab-vlan {
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: rgba(165,180,252,0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(165,180,252,0.3);
+    border-radius: 999px;
+    padding: 0 5px;
+    font-family: monospace;
+    letter-spacing: 0.02em;
+}
+.pool-tab-pill.active .ptab-vlan {
+    background: rgba(165,180,252,0.25);
+}
+.pool-tab-pill .ptab-count {
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(255,255,255,0.07);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.02em;
+    color: inherit;
+}
+.pool-tab-pill.active .ptab-count {
+    background: rgba(99,102,241,0.25);
+    color: #c7d2fe;
+}
+/* Live badge inside pill - green variant */
+.pool-tab-pill .ptab-live {
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: rgba(74,222,128,0.12);
+    border: 1px solid rgba(74,222,128,0.3);
+    color: #4ade80;
+    border-radius: 999px;
+    padding: 0px 6px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.pool-tab-pill.active .ptab-live {
+    background: rgba(74,222,128,0.2);
 }
 </style>
 
@@ -224,86 +280,50 @@
     </div>
 </div>
 
-<!-- ===================== TOMBOL PILIHAN IP POOL ===================== -->
-<div class="mb-4">
-    <div class="d-flex align-items-center justify-content-between mb-2.5 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <span class="text-uppercase text-secondary fw-bold" style="font-size:0.75rem; letter-spacing:1px;">
-                <i class="fa-solid fa-server me-1.5 text-info"></i>Pilihan IP Pool Subnet:
-            </span>
-            <span class="badge bg-dark text-secondary border border-secondary" style="font-size:0.7rem;">
-                {{ $subnets->count() }} Subnet Pools
-            </span>
-        </div>
-        @if($selectedPool !== 'all')
-            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:0.75rem;">
-                <i class="fa-solid fa-rotate-left me-1"></i>Tampilkan Semua Pool
-            </a>
-        @endif
-    </div>
-    <div class="row g-2.5 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-4 align-items-stretch">
-        <!-- Tombol Semua Pool -->
-        <div class="col">
-            <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}"
-               class="pool-btn-card w-100 h-100 {{ $selectedPool === 'all' ? 'active' : '' }}">
-                <div class="d-flex align-items-center gap-2.5 overflow-hidden">
-                    <div class="pool-btn-icon" style="background:rgba(56,189,248,0.12); color:#38bdf8;">
-                        <i class="fa-solid fa-network-wired"></i>
-                    </div>
-                    <div class="text-truncate">
-                        <div class="fw-bold text-light text-truncate" style="font-size:0.88rem;">SEMUA POOL</div>
-                        <div class="text-secondary small text-truncate" style="font-size:0.72rem;">{{ $subnets->count() }} Subnet Terdaftar</div>
-                    </div>
-                </div>
-                <div class="ms-2 flex-shrink-0">
-                    <span class="badge {{ $selectedPool === 'all' ? 'bg-info text-dark fw-bold' : 'bg-dark text-info border border-secondary' }}" style="font-size:0.75rem;">
-                        {{ $totalActiveLeases ?? $activeLeases->total() }} Live
-                    </span>
-                </div>
-            </a>
-        </div>
+{{-- Definisikan $currentTab lebih awal agar bisa dipakai di pool bar --}}
+@php $currentTab = request('tab', 'subnets'); @endphp
 
-        <!-- Tombol Tiap Pool Subnet -->
-        @foreach($subnets as $subnet)
-            @php
-                $isActivePool = (string)$selectedPool === (string)$subnet->id;
-                $activeCountForSubnet = $activeLeaseCounts[$subnet->id] ?? 0;
-            @endphp
-            <div class="col">
-                <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => $subnet->id])) }}"
-                   class="pool-btn-card w-100 h-100 {{ $isActivePool ? 'active' : '' }}">
-                    <div class="d-flex align-items-center gap-2.5 overflow-hidden">
-                        <div class="pool-btn-icon" style="background:rgba(99,102,241,0.15); color:#a5b4fc;">
-                            <i class="fa-solid fa-layer-group"></i>
-                        </div>
-                        <div class="text-truncate">
-                            <div class="fw-bold text-light d-flex align-items-center gap-1.5 text-truncate" style="font-size:0.88rem;">
-                                <span class="text-truncate">{{ $subnet->name }}</span>
-                                @if($subnet->vlan_id)
-                                    <span class="badge rounded-pill flex-shrink-0" style="font-size:0.62rem; background:rgba(165,180,252,0.15); color:#a5b4fc; border:1px solid rgba(165,180,252,0.3);">V{{ $subnet->vlan_id }}</span>
-                                @endif
-                            </div>
-                            <div class="text-secondary font-monospace text-truncate" style="font-size:0.72rem;">{{ $subnet->subnet }}</div>
-                        </div>
-                    </div>
-                    <div class="d-flex flex-column gap-1 ms-2 text-end flex-shrink-0">
-                        <span class="badge {{ $isActivePool ? 'bg-info text-dark fw-bold' : 'bg-dark text-light border border-secondary' }}" style="font-size:0.68rem;">
-                            {{ $subnet->static_leases_count }} Static
-                        </span>
-                        <span class="badge {{ $activeCountForSubnet > 0 ? 'bg-success-subtle text-success border border-success' : 'bg-dark text-secondary border border-secondary' }}" style="font-size:0.68rem;">
-                            {{ $activeCountForSubnet }} Live
-                        </span>
-                    </div>
-                </a>
-            </div>
-        @endforeach
-    </div>
+{{-- ===== POOL TAB BAR: hanya tampil di tab Static & Active Leases ===== --}}
+@if($currentTab !== 'subnets')
+<div class="pool-tab-bar mb-3" id="poolTabBar">
+
+    {{-- Semua Pool --}}
+    <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => 'all'])) }}"
+       class="pool-tab-pill {{ $selectedPool === 'all' ? 'active' : '' }}"
+       title="Semua Subnet Pool">
+        <span class="ptab-dot"></span>
+        <span>Semua Pool</span>
+        <span class="ptab-live">{{ $totalActiveLeases ?? $activeLeases->total() }} Live</span>
+    </a>
+
+    {{-- Per-Subnet Pills --}}
+    @foreach($subnets as $subnet)
+    @php
+        $isActivePool = (string)$selectedPool === (string)$subnet->id;
+        $activeCountForSubnet = $activeLeaseCounts[$subnet->id] ?? 0;
+    @endphp
+    <a href="{{ route('dhcp.index', array_merge(request()->except(['pool_id', 'static_page', 'lease_page']), ['pool_id' => $subnet->id])) }}"
+       class="pool-tab-pill {{ $isActivePool ? 'active' : '' }}"
+       title="{{ $subnet->name }} — {{ $subnet->subnet }}">
+        <span class="ptab-dot"></span>
+        <span>{{ $subnet->name }}</span>
+        @if($subnet->vlan_id)
+            <span class="ptab-vlan">V{{ $subnet->vlan_id }}</span>
+        @endif
+        @if($subnet->static_leases_count > 0)
+            <span class="ptab-count">{{ $subnet->static_leases_count }}s</span>
+        @endif
+        @if($activeCountForSubnet > 0)
+            <span class="ptab-live">{{ $activeCountForSubnet }} Live</span>
+        @endif
+    </a>
+    @endforeach
+
 </div>
+@endif
 
 <!-- ===================== TABS NAVIGATION ===================== -->
-@php
-    $currentTab = request('tab', 'subnets');
-@endphp
+
 <ul class="nav nav-tabs nav-tabs-dhcp mb-3" id="dhcpTabs" role="tablist">
     <li class="nav-item">
         <a class="nav-link {{ $currentTab === 'subnets' ? 'active' : '' }}" href="{{ route('dhcp.index', array_merge(request()->except(['tab', 'static_page', 'lease_page']), ['tab' => 'subnets'])) }}">
