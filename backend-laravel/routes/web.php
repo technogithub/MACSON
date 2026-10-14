@@ -56,6 +56,8 @@ Route::middleware('auth')->group(function () {
 
         // DHCP Server Management Routes
         Route::get('/dhcp', [DhcpController::class, 'index'])->name('dhcp.index');
+        Route::get('/dhcp/leases/live', [DhcpController::class, 'liveLeases'])->name('dhcp.leases.live');
+        Route::get('/dhcp/suggest-ip', [DeviceController::class, 'suggestIp'])->name('dhcp.suggest-ip');
         Route::post('/dhcp/subnets', [DhcpController::class, 'storeSubnet'])->name('dhcp.subnets.store');
         Route::put('/dhcp/subnets/{id}', [DhcpController::class, 'updateSubnet'])->name('dhcp.subnets.update');
         Route::delete('/dhcp/subnets/{id}', [DhcpController::class, 'destroySubnet'])->name('dhcp.subnets.destroy');

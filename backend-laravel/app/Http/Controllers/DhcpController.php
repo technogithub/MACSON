@@ -501,4 +501,104 @@ class DhcpController extends Controller
 
         return redirect()->back()->with('error', "Gagal menulis file konfigurasi Kea DHCP. Periksa permission folder.");
     }
+
+    /**
+     * Realtime Polling API untuk Active Dynamic Leases tanpa full page reload
+     */
+    public function liveLeases(Request $request): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $subnets = DhcpSubnet::where('is_active', true)->get();
+            $rawLeases = $this->dhcpService->getActiveLeases();
+
+            // Enrich each active lease with matched subnet
+            $enrichedLeases = collect($rawLeases)->map(function ($al) use ($subnets) {
+                $matchedSubnet = null;
+                if (!empty($al['subnet_id'])) {
+                    $matchedSubnet = $subnets->firstWhere('id', (int)$al['subnet_id']);
+                }
+                if (!$matchedSubnet && !empty($al['ip']) && filter_var($al['ip'], FILTER_VALIDATE_IP)) {
+                    $ipLong = ip2long($al['ip']);
+                    foreach ($subnets as $s) {
+                        $startLong = ip2long($s->pool_start);
+                        $endLong   = ip2long($s->pool_end);
+                        if ($startLong !== false && $endLong !== false && $ipLong >= min($startLong, $endLong) && $ipLong <= max($startLong, $endLong)) {
+                            $matchedSubnet = $s;
+                            break;
+                        }
+                    }
+                }
+
+                $al['subnet_id']   = $matchedSubnet ? $matchedSubnet->id : ($al['subnet_id'] ?? 0);
+                $al['subnet_name'] = $matchedSubnet ? $matchedSubnet->name : 'Unknown Pool';
+                $al['vlan_id']     = $matchedSubnet ? $matchedSubnet->vlan_id : null;
+                return $al;
+            });
+
+            // Hitung count per subnet
+            $activeLeaseCounts = $enrichedLeases->groupBy('subnet_id')->map->count()->toArray();
+            $totalActiveLeases = $enrichedLeases->count();
+
+            // Filter by pool
+            $selectedPool = $request->input('pool_id', 'all');
+            $filteredLeases = $enrichedLeases;
+            if ($selectedPool !== 'all') {
+                $poolId = (int)$selectedPool;
+                $filteredLeases = $filteredLeases->filter(fn($al) => (int)$al['subnet_id'] === $poolId);
+            }
+
+            // Filter by search
+            if ($request->filled('search')) {
+                $s = strtolower(trim($request->input('search')));
+                $filteredLeases = $filteredLeases->filter(function ($al) use ($s) {
+                    return str_contains(strtolower($al['ip']), $s)
+                        || str_contains(strtolower($al['mac']), $s)
+                        || str_contains(strtolower($al['hostname']), $s)
+                        || str_contains(strtolower($al['subnet_name']), $s);
+                });
+            }
+
+            $perPage = (int)$request->input('per_page', 15);
+            $leasePage = (int)$request->input('lease_page', 1);
+            $pagedLeases = $filteredLeases->forPage($leasePage, $perPage)->values();
+
+            // Render HTML rows
+            $htmlRows = '';
+            if ($pagedLeases->isEmpty()) {
+                $htmlRows = '<tr><td colspan="6" class="text-center py-4 text-secondary">' .
+                    '<i class="fa-solid fa-network-wired fs-3 mb-2 d-block text-muted"></i>' .
+                    'Belum ada active dynamic lease yang sesuai filter.</td></tr>';
+            } else {
+                foreach ($pagedLeases as $al) {
+                    $vlanBadge = !empty($al['vlan_id']) ? '<span class="text-secondary">(VLAN ' . e($al['vlan_id']) . ')</span>' : '';
+                    $statusBadge = $al['is_active']
+                        ? '<span class="badge bg-success-subtle text-success border border-success">Valid</span>'
+                        : '<span class="badge bg-secondary">Expired</span>';
+
+                    $htmlRows .= '<tr>' .
+                        '<td><span class="ip-tag fw-bold">' . e($al['ip']) . '</span></td>' .
+                        '<td><span class="badge bg-dark border border-secondary text-info">' . e($al['subnet_name']) . ' ' . $vlanBadge . '</span></td>' .
+                        '<td><span class="mac-tag">' . e($al['mac']) . '</span></td>' .
+                        '<td><span class="text-light">' . e($al['hostname'] ?: '-') . '</span></td>' .
+                        '<td><span class="text-secondary small font-monospace">' . e($al['expire_at']) . '</span></td>' .
+                        '<td>' . $statusBadge . '</td>' .
+                        '</tr>';
+                }
+            }
+
+            return response()->json([
+                'success'        => true,
+                'total_active'   => $totalActiveLeases,
+                'filtered_count' => $filteredLeases->count(),
+                'active_counts'  => $activeLeaseCounts,
+                'html_rows'      => $htmlRows,
+                'timestamp'      => now()->format('H:i:s'),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

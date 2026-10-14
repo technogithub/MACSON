@@ -665,6 +665,8 @@ class DeviceController extends Controller
 
     /**
      * Suggest IP kosong dalam range subnet
+     * Mendukung subnet dengan dynamic pool maupun subnet static-only (tanpa pool).
+     * Jika static-only: menyarankan IP setelah reservasi terakhir, atau mulai dari x.x.x.10 jika kosong.
      */
     public function suggestIp(Request $request): \Illuminate\Http\JsonResponse
     {
@@ -674,32 +676,84 @@ class DeviceController extends Controller
         }
 
         $subnet = DhcpSubnet::find($subnetId);
-        if (!$subnet || !$subnet->pool_start || !$subnet->pool_end) {
+        if (!$subnet) {
             return response()->json(['suggested_ip' => null, 'error' => 'Subnet not found']);
         }
 
-        $startLong = ip2long($subnet->pool_start);
-        $endLong   = ip2long($subnet->pool_end);
-
-        if ($startLong === false || $endLong === false || $endLong < $startLong) {
-            return response()->json(['suggested_ip' => null]);
-        }
-
-        // Ambil semua IP yang sudah terpakai di subnet ini
+        // Ambil semua IP static yang sudah terpakai di subnet ini
         $usedIps = DhcpStaticLease::where('dhcp_subnet_id', $subnetId)
             ->pluck('ip_address')
-            ->map(fn($ip) => ip2long($ip))
+            ->map(fn($ip) => ip2long(trim($ip)))
             ->filter(fn($v) => $v !== false)
+            ->values()
             ->toArray();
 
-        $suggested = null;
-        for ($i = $startLong; $i <= $endLong; $i++) {
-            if (!in_array($i, $usedIps)) {
-                $suggested = long2ip($i);
-                break;
+        // Gateway subnet agar tidak disarankan
+        $gatewayLong = !empty($subnet->gateway) ? ip2long(trim($subnet->gateway)) : false;
+
+        // Hitung network & broadcast dari CIDR (misal 10.14.28.0/24)
+        $networkLong = false;
+        $broadcastLong = false;
+        if (!empty($subnet->subnet) && str_contains($subnet->subnet, '/')) {
+            [$baseIpStr, $prefixStr] = explode('/', trim($subnet->subnet), 2);
+            $baseLong = ip2long(trim($baseIpStr));
+            $prefix   = (int)trim($prefixStr);
+            if ($baseLong !== false && $prefix >= 8 && $prefix <= 30) {
+                $mask          = $prefix === 0 ? 0 : (-1 << (32 - $prefix));
+                $networkLong   = $baseLong & $mask;
+                $broadcastLong = $networkLong | (~$mask & 0xFFFFFFFF);
             }
         }
 
-        return response()->json(['suggested_ip' => $suggested]);
+        $suggested = null;
+
+        // KASUS 1: Subnet memiliki Dynamic Pool Range terdefinisi
+        if (!empty($subnet->pool_start) && !empty($subnet->pool_end)) {
+            $startLong = ip2long(trim($subnet->pool_start));
+            $endLong   = ip2long(trim($subnet->pool_end));
+
+            if ($startLong !== false && $endLong !== false && $endLong >= $startLong) {
+                for ($i = $startLong; $i <= $endLong; $i++) {
+                    if (!in_array($i, $usedIps) && $i !== $gatewayLong) {
+                        $suggested = long2ip($i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // KASUS 2: Subnet Static-Only (tidak punya pool range) atau pool belum menghasilkan IP
+        if (!$suggested && $networkLong !== false && $broadcastLong !== false) {
+            if (!empty($usedIps)) {
+                // Ada reservasi sebelumnya: ambil IP tertinggi + 1
+                $maxUsed = max($usedIps);
+                $candidate = $maxUsed + 1;
+                while ((in_array($candidate, $usedIps) || $candidate === $gatewayLong) && $candidate < $broadcastLong) {
+                    $candidate++;
+                }
+
+                if ($candidate < $broadcastLong && $candidate > $networkLong) {
+                    $suggested = long2ip($candidate);
+                }
+            }
+
+            // Jika masih belum dapat (atau belum ada reservasi sama sekali): mulai dari x.x.x.10
+            if (!$suggested) {
+                $candidate = $networkLong + 10;
+                while ((in_array($candidate, $usedIps) || $candidate === $gatewayLong) && $candidate < $broadcastLong) {
+                    $candidate++;
+                }
+
+                if ($candidate < $broadcastLong && $candidate > $networkLong) {
+                    $suggested = long2ip($candidate);
+                }
+            }
+        }
+
+        return response()->json([
+            'suggested_ip'   => $suggested,
+            'subnet_name'    => $subnet->name,
+            'is_static_only' => empty($subnet->pool_start) || empty($subnet->pool_end),
+        ]);
     }
 }

@@ -165,10 +165,9 @@
         <table class="table ssid-table align-middle mb-0">
             <thead>
                 <tr>
-                    <th style="width:22%;">SSID Name</th>
-                    <th style="width:14%;">IEEE 802.1Q VLAN</th>
-                    <th style="width:36%;">Description</th>
-                    <th style="width:10%;">Devices</th>
+                    <th style="width:25%;">SSID Name</th>
+                    <th style="width:16%;">IEEE 802.1Q VLAN</th>
+                    <th style="width:41%;">Description</th>
                     <th style="width:8%;">Status</th>
                     <th style="width:10%;" class="text-center">Actions</th>
                 </tr>
@@ -193,12 +192,6 @@
                             @endif
                         </td>
                         <td class="text-secondary small">{{ $ssid->description ?? '—' }}</td>
-                        <td>
-                            <a href="{{ route('devices.index') }}?ssid={{ $ssid->ssid_name }}" class="device-count-badge text-decoration-none">
-                                <i class="fa-solid fa-laptop me-1" style="font-size:0.7rem;"></i>
-                                {{ $ssid->devices_count ?? 0 }} devices
-                            </a>
-                        </td>
                         <td>
                             @if($ssid->status === 'active')
                                 <span class="badge bg-success" style="font-size:0.72rem;">Active</span>
@@ -232,7 +225,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-5">
+                        <td colspan="5" class="text-center text-muted py-5">
                             <i class="fa-solid fa-wifi-slash" style="font-size:2.5rem; color:#334155; display:block; margin-bottom:12px;"></i>
                             No SSIDs configured yet. Add your first SSID above.
                         </td>

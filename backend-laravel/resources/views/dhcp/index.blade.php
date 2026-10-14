@@ -612,7 +612,15 @@
             <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <span class="fw-bold text-white"><i class="fa-solid fa-clock-rotate-left text-success me-2"></i>Active Dynamic Leases (Live from Kea)</span>
-                    <span class="badge bg-success-subtle text-success border border-success">{{ $totalActiveLeases ?? $activeLeases->total() }} Active Clients</span>
+                    <span class="badge bg-success-subtle text-success border border-success" id="totalActiveClientsBadge">{{ $totalActiveLeases ?? $activeLeases->total() }} Active Clients</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge" id="livePollingIndicator" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:0.75rem;">
+                        <i class="fa-solid fa-circle text-success me-1 fa-fade" style="font-size:0.55rem;"></i><span id="liveStatusText">Live (5s)</span>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btnRefreshLeasesNow" title="Segarkan data leases sekarang" style="font-size:0.75rem; height:26px;">
+                        <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh
+                    </button>
                 </div>
             </div>
 
@@ -689,7 +697,7 @@
                             <th>Status</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="activeLeasesTbody">
                         @forelse($activeLeases as $al)
                             <tr>
                                 <td><span class="ip-tag fw-bold">{{ $al['ip'] }}</span></td>
@@ -944,8 +952,14 @@
                             <input type="text" name="mac_address" id="staticMacInput" class="form-control form-control-dark font-monospace" placeholder="AA:BB:CC:DD:EE:FF" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Static IP Address *</label>
-                            <input type="text" name="ip_address" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.10" required>
+                            <label class="form-label d-flex justify-content-between align-items-center">
+                                <span>Static IP Address *</span>
+                                <button type="button" class="btn btn-link p-0 text-info small text-decoration-none" id="btnSuggestIpDhcp" style="font-size:0.75rem;">
+                                    <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest IP
+                                </button>
+                            </label>
+                            <input type="text" name="ip_address" id="addStaticIpInput" class="form-control form-control-dark font-monospace" placeholder="e.g. 192.168.20.10" required>
+                            <div class="form-text" id="addStaticIpSuggestInfo" style="font-size:0.75rem;"></div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Hostname / Device Label</label>
@@ -1015,8 +1029,14 @@
                             <input type="text" name="mac_address" id="editStaticMac" class="form-control form-control-dark font-monospace" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Static IP Address *</label>
+                            <label class="form-label d-flex justify-content-between align-items-center">
+                                <span>Static IP Address *</span>
+                                <button type="button" class="btn btn-link p-0 text-info small text-decoration-none" id="btnSuggestIpDhcpEdit" style="font-size:0.75rem;">
+                                    <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest IP
+                                </button>
+                            </label>
                             <input type="text" name="ip_address" id="editStaticIp" class="form-control form-control-dark font-monospace" required>
+                            <div class="form-text" id="editStaticIpSuggestInfo" style="font-size:0.75rem;"></div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Hostname / Device Label</label>
@@ -1256,6 +1276,166 @@ document.addEventListener('DOMContentLoaded', function () {
             new bootstrap.Modal(document.getElementById('editStaticModal')).show();
         });
     });
+
+    // -------------------------------------------------------------
+    // Suggest IP Handler in DHCP Static Lease Modals
+    // -------------------------------------------------------------
+    function handleDhcpSuggestIp(subnetSelectEl, ipInputEl, infoEl, btnEl) {
+        if (!subnetSelectEl || !ipInputEl) return;
+        const subnetId = subnetSelectEl.value;
+        if (!subnetId) {
+            if (infoEl) infoEl.innerHTML = '<span class="text-warning">Pilih subnet terlebih dahulu.</span>';
+            return;
+        }
+
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Mencari...';
+        }
+        if (infoEl) infoEl.innerHTML = '<span class="text-secondary"><i class="fa-solid fa-spinner fa-spin me-1"></i>Mencari IP kosong...</span>';
+
+        fetch(`/dhcp/suggest-ip?subnet_id=${subnetId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.suggested_ip) {
+                    ipInputEl.value = data.suggested_ip;
+                    if (infoEl) {
+                        const note = data.is_static_only ? '(Static-only subnet)' : '(Pool range)';
+                        infoEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-check me-1"></i>IP disarankan: <strong>${data.suggested_ip}</strong> <span class="text-muted" style="font-size:0.7rem;">${note}</span></span>`;
+                    }
+                } else {
+                    if (infoEl) infoEl.innerHTML = '<span class="text-danger"><i class="fa-solid fa-circle-exclamation me-1"></i>Tidak ada IP kosong di subnet ini.</span>';
+                }
+            })
+            .catch(() => {
+                if (infoEl) infoEl.innerHTML = '<span class="text-danger">Gagal menghubungi server.</span>';
+            })
+            .finally(() => {
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest IP';
+                }
+            });
+    }
+
+    const addSubnetSelect = document.querySelector('select[name="dhcp_subnet_id"]');
+    const addStaticIp = document.getElementById('addStaticIpInput');
+    const addStaticInfo = document.getElementById('addStaticIpSuggestInfo');
+    const btnSuggestAdd = document.getElementById('btnSuggestIpDhcp');
+
+    if (btnSuggestAdd) {
+        btnSuggestAdd.addEventListener('click', () => handleDhcpSuggestIp(addSubnetSelect, addStaticIp, addStaticInfo, btnSuggestAdd));
+    }
+    if (addSubnetSelect) {
+        addSubnetSelect.addEventListener('change', () => {
+            if (!addStaticIp.value) {
+                handleDhcpSuggestIp(addSubnetSelect, addStaticIp, addStaticInfo, btnSuggestAdd);
+            }
+        });
+    }
+
+    const editSubnetSelect = document.getElementById('editStaticSubnet');
+    const editStaticIp = document.getElementById('editStaticIp');
+    const editStaticInfo = document.getElementById('editStaticIpSuggestInfo');
+    const btnSuggestEdit = document.getElementById('btnSuggestIpDhcpEdit');
+
+    if (btnSuggestEdit) {
+        btnSuggestEdit.addEventListener('click', () => handleDhcpSuggestIp(editSubnetSelect, editStaticIp, editStaticInfo, btnSuggestEdit));
+    }
+
+    // -------------------------------------------------------------
+    // Realtime Auto-Polling for Active Dynamic Leases (Every 5 seconds)
+    // -------------------------------------------------------------
+    let leasesPollTimer = null;
+    let isFetchingLeases = false;
+
+    function fetchLiveActiveLeases() {
+        if (isFetchingLeases) return;
+        const tbody = document.getElementById('activeLeasesTbody');
+        if (!tbody) return;
+
+        // Ambil query parameters aktif saat ini
+        const urlParams = new URLSearchParams(window.location.search);
+        const poolId = urlParams.get('pool_id') || 'all';
+        const searchVal = urlParams.get('search') || '';
+        const perPage = urlParams.get('per_page') || '15';
+        const leasePage = urlParams.get('lease_page') || '1';
+
+        const liveUrl = `/dhcp/leases/live?pool_id=${encodeURIComponent(poolId)}&search=${encodeURIComponent(searchVal)}&per_page=${encodeURIComponent(perPage)}&lease_page=${encodeURIComponent(leasePage)}`;
+
+        isFetchingLeases = true;
+        const statusText = document.getElementById('liveStatusText');
+
+        fetch(liveUrl)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    tbody.innerHTML = data.html_rows;
+                    const totalBadge = document.getElementById('totalActiveClientsBadge');
+                    if (totalBadge) {
+                        totalBadge.textContent = `${data.total_active} Active Clients`;
+                    }
+                    if (statusText) {
+                        statusText.textContent = `Live (${data.timestamp})`;
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn('Live leases sync error:', err);
+                if (statusText) statusText.textContent = 'Sync Offline';
+            })
+            .finally(() => {
+                isFetchingLeases = false;
+            });
+    }
+
+    function startLeasesPolling() {
+        if (!leasesPollTimer) {
+            leasesPollTimer = setInterval(fetchLiveActiveLeases, 5000);
+        }
+    }
+
+    function stopLeasesPolling() {
+        if (leasesPollTimer) {
+            clearInterval(leasesPollTimer);
+            leasesPollTimer = null;
+        }
+    }
+
+    // Cek apakah tab saat ini adalah leases
+    const currentActiveTab = '{{ $currentTab }}';
+    if (currentActiveTab === 'leases') {
+        startLeasesPolling();
+    }
+
+    // Listen tab switch
+    document.querySelectorAll('.nav-tabs-dhcp .nav-link').forEach(tabLink => {
+        tabLink.addEventListener('click', function() {
+            const href = this.getAttribute('href') || '';
+            if (href.includes('tab=leases')) {
+                startLeasesPolling();
+            } else {
+                stopLeasesPolling();
+            }
+        });
+    });
+
+    // Manual refresh button
+    const btnManualRefresh = document.getElementById('btnRefreshLeasesNow');
+    if (btnManualRefresh) {
+        btnManualRefresh.addEventListener('click', function() {
+            btnManualRefresh.classList.add('disabled');
+            const icon = btnManualRefresh.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
+
+            fetchLiveActiveLeases();
+
+            setTimeout(() => {
+                btnManualRefresh.classList.remove('disabled');
+                if (icon) icon.classList.remove('fa-spin');
+            }, 800);
+        });
+    }
 });
 </script>
 @endpush

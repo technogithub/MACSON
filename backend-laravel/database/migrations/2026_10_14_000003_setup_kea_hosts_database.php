@@ -42,17 +42,76 @@ return new class extends Migration
                     `dhcp_identifier` VARBINARY(128) NOT NULL,
                     `dhcp_identifier_type` TINYINT NOT NULL DEFAULT 0 COMMENT '0=hw-address (MAC)',
                     `dhcp4_subnet_id` INT UNSIGNED NULL,
+                    `dhcp6_subnet_id` INT UNSIGNED NULL,
                     `ipv4_address` INT UNSIGNED NULL,
                     `hostname` VARCHAR(255) NULL,
                     `dhcp4_client_classes` VARCHAR(255) NULL,
+                    `dhcp6_client_classes` VARCHAR(255) NULL,
                     `dhcp4_next_server` INT UNSIGNED NULL,
                     `dhcp4_server_hostname` VARCHAR(64) NULL,
                     `dhcp4_boot_file_name` VARCHAR(128) NULL,
+                    `auth_key` VARCHAR(32) NULL,
                     `user_context` TEXT NULL,
                     PRIMARY KEY (`host_id`),
                     KEY `key_dhcp4_ipv4_address` (`ipv4_address`),
                     KEY `key_dhcp_identifier` (`dhcp_identifier`, `dhcp_identifier_type`),
                     KEY `key_dhcp4_subnet_id` (`dhcp4_subnet_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        }
+
+        // 2b. Tabel pendamping Kea DHCPv4 Schema 19 (dhcp4_options, dhcp6_options, ipv6_reservations)
+        if (!Schema::hasTable('dhcp4_options')) {
+            DB::statement("
+                CREATE TABLE `dhcp4_options` (
+                    `option_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `code` TINYINT UNSIGNED NOT NULL,
+                    `value` VARBINARY(4096),
+                    `formatted_value` TEXT,
+                    `space` VARCHAR(128),
+                    `persistent` TINYINT(1) NOT NULL DEFAULT 0,
+                    `dhcp_client_class` VARCHAR(128),
+                    `dhcp4_subnet_id` INT UNSIGNED,
+                    `host_id` INT UNSIGNED,
+                    `scope_id` TINYINT UNSIGNED,
+                    `user_context` TEXT,
+                    PRIMARY KEY (`option_id`),
+                    KEY `key_options_host_id` (`host_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        }
+
+        if (!Schema::hasTable('dhcp6_options')) {
+            DB::statement("
+                CREATE TABLE `dhcp6_options` (
+                    `option_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `code` SMALLINT UNSIGNED NOT NULL,
+                    `value` VARBINARY(4096),
+                    `formatted_value` TEXT,
+                    `space` VARCHAR(128),
+                    `persistent` TINYINT(1) NOT NULL DEFAULT 0,
+                    `dhcp_client_class` VARCHAR(128),
+                    `dhcp6_subnet_id` INT UNSIGNED,
+                    `host_id` INT UNSIGNED,
+                    `scope_id` TINYINT UNSIGNED,
+                    `user_context` TEXT,
+                    PRIMARY KEY (`option_id`),
+                    KEY `key_options_host_id` (`host_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        }
+
+        if (!Schema::hasTable('ipv6_reservations')) {
+            DB::statement("
+                CREATE TABLE `ipv6_reservations` (
+                    `reservation_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `address` VARCHAR(39) NOT NULL,
+                    `prefix_len` TINYINT UNSIGNED NOT NULL DEFAULT 128,
+                    `type` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                    `dhcp6_iaid` INT UNSIGNED,
+                    `host_id` INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (`reservation_id`),
+                    KEY `key_ipv6_reservations_host_id` (`host_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
         }
