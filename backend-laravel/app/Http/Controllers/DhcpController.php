@@ -365,14 +365,15 @@ class DhcpController extends Controller
                 foreach ($headers as $idx => $hName) {
                     if (str_contains($hName, 'mac')) {
                         $macIdx = $idx;
-                    } elseif (str_contains($hName, 'ip') || str_contains($hName, 'address')) {
+                    } elseif (str_contains($hName, 'desc') || str_contains($hName, 'ket')) {
+                        // desc checked BEFORE ip to avoid 'description' matching str_contains('ip')
+                        $descIdx = $idx;
+                    } elseif (str_starts_with($hName, 'ip') || $hName === 'address') {
                         $ipIdx = $idx;
                     } elseif (str_contains($hName, 'sub') || str_contains($hName, 'pool') || str_contains($hName, 'vlan')) {
                         $subIdx = $idx;
                     } elseif (str_contains($hName, 'host') || str_contains($hName, 'name')) {
                         $hostIdx = $idx;
-                    } elseif (str_contains($hName, 'desc') || str_contains($hName, 'ket')) {
-                        $descIdx = $idx;
                     }
                 }
                 array_shift($rows);
