@@ -2,10 +2,12 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Kea DHCPv4 Server dan utilities
+# Install Kea DHCPv4 Server, kea-admin (MySQL backend), dan utilities
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     kea-dhcp4-server \
+    kea-admin \
+    mariadb-client \
     procps \
     tzdata \
     && apt-get clean \

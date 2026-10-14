@@ -6,6 +6,7 @@ use App\Models\DhcpSubnet;
 use App\Models\DhcpStaticLease;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class DhcpConfigService
 {
@@ -88,11 +89,25 @@ class DhcpConfigService
             $subnetList[] = $subnetItem;
         }
 
+        $dbHost = env('KEA_DB_HOST', '127.0.0.1');
+        $dbName = config('database.connections.mysql.database', 'radius');
+        $dbUser = config('database.connections.mysql.username', 'radius_user');
+        $dbPass = config('database.connections.mysql.password', 'radius_password');
+        $dbPort = (int)config('database.connections.mysql.port', 3306);
+
         return [
             'Dhcp4' => [
                 'interfaces-config' => [
                     'interfaces' => ['*'],
                     'dhcp-socket-type' => 'raw'
+                ],
+                'hosts-database' => [
+                    'type'     => 'mysql',
+                    'name'     => $dbName,
+                    'host'     => $dbHost,
+                    'port'     => $dbPort,
+                    'user'     => $dbUser,
+                    'password' => $dbPass,
                 ],
                 'lease-database' => [
                     'type'     => 'memfile',
@@ -229,5 +244,112 @@ class DhcpConfigService
         usort($leases, fn($a, $b) => $b['expire_raw'] <=> $a['expire_raw']);
 
         return $leases;
+    }
+
+    /**
+     * Simpan / Perbarui Reservasi Static IP langsung ke tabel Kea DHCP `hosts` (MySQL Backend)
+     */
+    public function saveHostToKeaDb(string $mac, string $ip, ?int $subnetId = null, ?string $hostname = null, ?int $leaseId = null): bool
+    {
+        try {
+            $cleanMac = strtoupper(str_replace([':', '-', '.'], '', trim($mac)));
+            if (strlen($cleanMac) !== 12 || !ctype_xdigit($cleanMac)) {
+                return false;
+            }
+
+            $ipLong = ip2long(trim($ip));
+            if ($ipLong === false) {
+                return false;
+            }
+            $unsignedIp = sprintf('%u', $ipLong);
+
+            // Cek apakah tabel hosts ada di database
+            if (!\Illuminate\Support\Facades\Schema::hasTable('hosts')) {
+                return false;
+            }
+
+            // Hapus reservasi lama untuk MAC atau IP yang sama agar tidak duplikat di tabel Kea
+            DB::statement("DELETE FROM `hosts` WHERE `dhcp_identifier` = UNHEX(?) AND `dhcp_identifier_type` = 0", [$cleanMac]);
+            DB::table('hosts')->where('ipv4_address', $unsignedIp)->delete();
+
+            // Insert data baru ke tabel hosts Kea
+            DB::statement("
+                INSERT INTO `hosts` (
+                    `dhcp_identifier`,
+                    `dhcp_identifier_type`,
+                    `dhcp4_subnet_id`,
+                    `ipv4_address`,
+                    `hostname`,
+                    `user_context`
+                ) VALUES (
+                    UNHEX(?),
+                    0,
+                    ?,
+                    ?,
+                    ?,
+                    ?
+                )
+            ", [
+                $cleanMac,
+                $subnetId ?: null,
+                $unsignedIp,
+                $hostname ?: null,
+                json_encode(['source' => 'santafe_ui', 'lease_id' => $leaseId, 'updated_at' => now()->toIso8601String()])
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("Gagal menyimpan host ke tabel Kea MySQL: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Hapus Reservasi Static IP dari tabel Kea DHCP `hosts`
+     */
+    public function deleteHostFromKeaDb(string $mac): bool
+    {
+        try {
+            $cleanMac = strtoupper(str_replace([':', '-', '.'], '', trim($mac)));
+            if (strlen($cleanMac) !== 12 || !ctype_xdigit($cleanMac)) {
+                return false;
+            }
+
+            if (!\Illuminate\Support\Facades\Schema::hasTable('hosts')) {
+                return false;
+            }
+
+            DB::statement("DELETE FROM `hosts` WHERE `dhcp_identifier` = UNHEX(?) AND `dhcp_identifier_type` = 0", [$cleanMac]);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("Gagal menghapus host dari tabel Kea MySQL: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Sinkronkan ulang seluruh Static Lease yang aktif ke tabel `hosts` Kea
+     */
+    public function syncAllStaticLeasesToKeaDb(): int
+    {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasTable('hosts')) {
+                return 0;
+            }
+
+            $leases = DhcpStaticLease::where('is_active', true)->get();
+            $synced = 0;
+
+            foreach ($leases as $lease) {
+                if ($this->saveHostToKeaDb($lease->mac_address, $lease->ip_address, $lease->dhcp_subnet_id, $lease->hostname, $lease->id)) {
+                    $synced++;
+                }
+            }
+
+            return $synced;
+        } catch (\Throwable $e) {
+            Log::error("Gagal sync seluruh static leases ke Kea DB: " . $e->getMessage());
+            return 0;
+        }
     }
 }

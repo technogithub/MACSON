@@ -146,7 +146,7 @@ class DeviceController extends Controller
                 // Cek duplikat IP di tabel
                 $duplicate = DhcpStaticLease::where('ip_address', $ipAddress)->first();
                 if (!$duplicate) {
-                    DhcpStaticLease::create([
+                    $lease = DhcpStaticLease::create([
                         'dhcp_subnet_id' => $subnetId,
                         'device_id'      => $device->id,
                         'mac_address'    => $formattedMac,
@@ -155,6 +155,9 @@ class DeviceController extends Controller
                         'description'    => $desc ?: null,
                         'is_active'      => true,
                     ]);
+
+                    $this->dhcpService->saveHostToKeaDb($lease->mac_address, $lease->ip_address, $lease->dhcp_subnet_id, $lease->hostname, $lease->id);
+                    $this->dhcpService->syncConfigFile();
                 }
             }
         }
@@ -195,7 +198,9 @@ class DeviceController extends Controller
 
         if ($isNoReserveTarget) {
             // Jika SSID berubah ke SJA REG atau ALL, hapus reservasi yang terhubung ke device ini
+            $this->dhcpService->deleteHostFromKeaDb($device->mac_address);
             DhcpStaticLease::where('device_id', $device->id)->delete();
+            $this->dhcpService->syncConfigFile();
         } else {
             // SSID mengizinkan reservasi (misal SJA AP, DEVICE OPS AP, dll)
             if ($request->boolean('reserve_ip')) {
@@ -214,7 +219,11 @@ class DeviceController extends Controller
                         return redirect()->back()->with('error', "IP Address {$ipAddress} sudah digunakan oleh device lain!")->withInput();
                     }
 
-                    DhcpStaticLease::updateOrCreate(
+                    if ($device->mac_address !== $formattedMac) {
+                        $this->dhcpService->deleteHostFromKeaDb($device->mac_address);
+                    }
+
+                    $lease = DhcpStaticLease::updateOrCreate(
                         ['device_id' => $device->id],
                         [
                             'dhcp_subnet_id' => $subnetId,
@@ -225,10 +234,15 @@ class DeviceController extends Controller
                             'is_active'      => true,
                         ]
                     );
+
+                    $this->dhcpService->saveHostToKeaDb($lease->mac_address, $lease->ip_address, $lease->dhcp_subnet_id, $lease->hostname, $lease->id);
+                    $this->dhcpService->syncConfigFile();
                 }
             } else {
                 // User menonaktifkan reservasi IP untuk device ini
+                $this->dhcpService->deleteHostFromKeaDb($device->mac_address);
                 DhcpStaticLease::where('device_id', $device->id)->delete();
+                $this->dhcpService->syncConfigFile();
             }
         }
 
@@ -255,7 +269,9 @@ class DeviceController extends Controller
         $mac    = $device->mac_address;
 
         // Bersihkan Static IP reservation terkait
+        $this->dhcpService->deleteHostFromKeaDb($mac);
         DhcpStaticLease::where('device_id', $device->id)->delete();
+        $this->dhcpService->syncConfigFile();
 
         $device->delete();
 
@@ -559,6 +575,7 @@ class DeviceController extends Controller
 
             // Sinkronkan ke Kea DHCP jika ada reservasi static baru yang dibuat
             if ($reservedIpCount > 0) {
+                $this->dhcpService->syncAllStaticLeasesToKeaDb();
                 $this->dhcpService->syncConfigFile();
             }
 

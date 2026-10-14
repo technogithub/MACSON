@@ -209,7 +209,8 @@ class DhcpController extends Controller
         $formattedMac = strtoupper(str_replace(['-', '.'], ':', trim($validated['mac_address'])));
         $validated['mac_address'] = $formattedMac;
 
-        DhcpStaticLease::create($validated);
+        $created = DhcpStaticLease::create($validated);
+        $this->dhcpService->saveHostToKeaDb($created->mac_address, $created->ip_address, $created->dhcp_subnet_id, $created->hostname, $created->id);
         $this->dhcpService->syncConfigFile();
 
         return redirect()->route('dhcp.index', ['tab' => 'static'])
@@ -222,6 +223,7 @@ class DhcpController extends Controller
     public function updateStaticLease(Request $request, int $id)
     {
         $lease = DhcpStaticLease::findOrFail($id);
+        $oldMac = $lease->mac_address;
 
         $validated = $request->validate([
             'dhcp_subnet_id' => 'required|exists:dhcp_subnets,id',
@@ -238,6 +240,17 @@ class DhcpController extends Controller
         $validated['is_active']   = $request->has('is_active');
 
         $lease->update($validated);
+
+        if ($oldMac !== $lease->mac_address) {
+            $this->dhcpService->deleteHostFromKeaDb($oldMac);
+        }
+
+        if ($lease->is_active) {
+            $this->dhcpService->saveHostToKeaDb($lease->mac_address, $lease->ip_address, $lease->dhcp_subnet_id, $lease->hostname, $lease->id);
+        } else {
+            $this->dhcpService->deleteHostFromKeaDb($lease->mac_address);
+        }
+
         $this->dhcpService->syncConfigFile();
 
         return redirect()->route('dhcp.index', ['tab' => 'static'])
@@ -251,6 +264,7 @@ class DhcpController extends Controller
     {
         $lease = DhcpStaticLease::findOrFail($id);
         $ip = $lease->ip_address;
+        $this->dhcpService->deleteHostFromKeaDb($lease->mac_address);
         $lease->delete();
 
         $this->dhcpService->syncConfigFile();
@@ -456,6 +470,7 @@ class DhcpController extends Controller
                     }
                 });
 
+                $this->dhcpService->syncAllStaticLeasesToKeaDb();
                 $this->dhcpService->syncConfigFile();
             }
 
@@ -477,10 +492,11 @@ class DhcpController extends Controller
      */
     public function syncConfig()
     {
+        $this->dhcpService->syncAllStaticLeasesToKeaDb();
         $ok = $this->dhcpService->syncConfigFile();
 
         if ($ok) {
-            return redirect()->back()->with('success', "Konfigurasi Kea DHCPv4 berhasil disinkronkan & diterapkan.");
+            return redirect()->back()->with('success', "Konfigurasi & Database Kea DHCPv4 berhasil disinkronkan & diterapkan.");
         }
 
         return redirect()->back()->with('error', "Gagal menulis file konfigurasi Kea DHCP. Periksa permission folder.");
