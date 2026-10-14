@@ -1086,25 +1086,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-    // ===== EDIT MODAL POPULATION =====
-    document.querySelectorAll('.btn-edit-device').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const id   = this.dataset.id;
-            const form = document.getElementById('editDeviceForm');
-            form.action = `/devices/${id}`;
 
-            document.getElementById('editDeviceName').value  = this.dataset.name || '';
-            document.getElementById('editMacAddress').value  = this.dataset.mac || '';
-            document.getElementById('editSsid').value        = this.dataset.ssid || '';
-            document.getElementById('editLocation').value    = this.dataset.location || '';
-            document.getElementById('editDescription').value = this.dataset.description || '';
-            document.getElementById('editStatus').value      = this.dataset.status || 'active';
-            document.getElementById('editVlanId').value      = this.dataset.vlan || '';
-
-            const modal = new bootstrap.Modal(document.getElementById('editDeviceModal'));
-            modal.show();
-        });
-    });
 
     // Auto-dismiss alerts after 5s
     document.querySelectorAll('.alert-dismissible').forEach(alert => {
@@ -1335,7 +1317,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 };
             }
 
-            const modal = new bootstrap.Modal(document.getElementById('editDeviceModal'));
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editDeviceModal'));
             modal.show();
         });
     });
@@ -1382,10 +1364,26 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Pastikan backdrop selalu dibersihkan secara tuntas saat modal edit ditutup
     const editDeviceModalEl = document.getElementById('editDeviceModal');
     if (editDeviceModalEl) {
         editDeviceModalEl.addEventListener('hidden.bs.modal', function() {
             if (editReserveWarning) editReserveWarning.classList.add('d-none');
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        });
+    }
+
+    // Pastikan backdrop juga bersih saat modal add ditutup
+    const addDeviceModalEl = document.getElementById('addDeviceModal');
+    if (addDeviceModalEl) {
+        addDeviceModalEl.addEventListener('hidden.bs.modal', function() {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
         });
     }
 
