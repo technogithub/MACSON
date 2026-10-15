@@ -305,8 +305,65 @@
         }
 
         .form-control-dark:focus {
-            border-color: #38bdf8 !important;
+            border-color: var(--macson-primary) !important;
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15) !important;
+        }
+
+        /* ===== GLOBAL SUBPAGES THEME OVERRIDES ===== */
+        /* Pastikan halaman DHCP, Devices, Logs, UniFi Vouchers ikut ganti tema */
+        .page-header {
+            background: linear-gradient(135deg, var(--macson-card-bg) 0%, rgba(255, 255, 255, 0.03) 50%, var(--macson-card-bg) 100%) !important;
+            border-color: var(--macson-border) !important;
+        }
+
+        .stat-card,
+        .dhcp-card,
+        .devices-table-card,
+        .vouchers-table-card,
+        .modal-content,
+        .card:not(.bg-transparent) {
+            background: var(--macson-card-bg) !important;
+            border-color: var(--macson-border) !important;
+            backdrop-filter: blur(12px);
+        }
+
+        .dhcp-table thead th,
+        .devices-table thead th,
+        .table thead th,
+        .table-dark thead th {
+            background: var(--macson-bg) !important;
+            border-color: var(--macson-border) !important;
+        }
+
+        .search-input,
+        .filter-select,
+        .form-select,
+        .form-control {
+            background-color: var(--macson-bg) !important;
+            border-color: var(--macson-border) !important;
+            color: #f1f5f9 !important;
+        }
+
+        .search-input:focus,
+        .filter-select:focus,
+        .form-select:focus,
+        .form-control:focus {
+            border-color: var(--macson-primary) !important;
+        }
+
+        /* Nav Pills & Tabs Active State */
+        .nav-pills .nav-link.active,
+        .nav-tabs .nav-link.active {
+            background-color: var(--macson-primary) !important;
+            color: #0f172a !important;
+            border-color: var(--macson-primary) !important;
+            font-weight: 600;
+        }
+
+        /* Primary Accent Text & Links */
+        .text-info,
+        .text-cyan {
+            color: var(--macson-primary) !important;
         }
 
         /* Mobile Adjustments */
