@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Dashboard') - SANTAFE NAC</title>
     
+    <!-- Anti-flicker Theme Init (Runs immediately before DOM render) -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('santafe_theme') || 'cyber-blue';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
     <!-- Favicon: Modern SVG Shield Logo (Cyber Cyan & Indigo) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2338bdf8'/%3E%3Cstop offset='100%25' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Cpath d='M16 4 L25 8 V16 C25 21.5 21 26.5 16 28 C11 26.5 7 21.5 7 16 V8 Z' fill='url(%23g)'/%3E%3Cpath d='M16 4 V28 C21 26.5 25 21.5 25 16 V8 Z' fill='%23ffffff' opacity='0.25'/%3E%3Ccircle cx='16' cy='15' r='3.5' fill='%23ffffff'/%3E%3C/svg%3E">
     <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Cpath d='M16 4 L25 8 V16 C25 21.5 21 26.5 16 28 C11 26.5 7 21.5 7 16 V8 Z' fill='%2338bdf8'/%3E%3C/svg%3E">
@@ -22,27 +30,86 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        :root {
+        /* ===== THEMES DEFINITION ===== */
+        :root,
+        [data-theme="cyber-blue"] {
             --macson-bg: #090d16;
             --macson-card-bg: rgba(17, 24, 39, 0.75);
             --macson-border: rgba(255, 255, 255, 0.08);
             --macson-border-hover: rgba(56, 189, 248, 0.3);
+            --macson-primary: #38bdf8;
+            --macson-secondary: #6366f1;
             --macson-cyan: #38bdf8;
             --macson-indigo: #6366f1;
             --macson-emerald: #10b981;
             --macson-rose: #f43f5e;
             --macson-amber: #f59e0b;
+            --macson-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            --macson-glow-1: rgba(56, 189, 248, 0.04);
+            --macson-glow-2: rgba(99, 102, 241, 0.04);
+        }
+
+        [data-theme="emerald-green"] {
+            --macson-bg: #08140f;
+            --macson-card-bg: rgba(13, 31, 23, 0.75);
+            --macson-border: rgba(52, 211, 153, 0.12);
+            --macson-border-hover: rgba(16, 185, 129, 0.4);
+            --macson-primary: #10b981;
+            --macson-secondary: #14b8a6;
+            --macson-cyan: #10b981;
+            --macson-indigo: #14b8a6;
+            --macson-emerald: #10b981;
+            --macson-rose: #f43f5e;
+            --macson-amber: #f59e0b;
+            --macson-gradient: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+            --macson-glow-1: rgba(16, 185, 129, 0.05);
+            --macson-glow-2: rgba(20, 184, 166, 0.05);
+        }
+
+        [data-theme="crimson-rose"] {
+            --macson-bg: #14090e;
+            --macson-card-bg: rgba(36, 15, 23, 0.75);
+            --macson-border: rgba(244, 63, 94, 0.12);
+            --macson-border-hover: rgba(244, 63, 94, 0.4);
+            --macson-primary: #f43f5e;
+            --macson-secondary: #f59e0b;
+            --macson-cyan: #f43f5e;
+            --macson-indigo: #f59e0b;
+            --macson-emerald: #10b981;
+            --macson-rose: #f43f5e;
+            --macson-amber: #f59e0b;
+            --macson-gradient: linear-gradient(135deg, #f43f5e 0%, #fb923c 100%);
+            --macson-glow-1: rgba(244, 63, 94, 0.05);
+            --macson-glow-2: rgba(245, 158, 11, 0.05);
+        }
+
+        [data-theme="purple-void"] {
+            --macson-bg: #0e0a1a;
+            --macson-card-bg: rgba(26, 17, 46, 0.75);
+            --macson-border: rgba(192, 132, 252, 0.12);
+            --macson-border-hover: rgba(192, 132, 252, 0.4);
+            --macson-primary: #c084fc;
+            --macson-secondary: #f472b6;
+            --macson-cyan: #c084fc;
+            --macson-indigo: #f472b6;
+            --macson-emerald: #10b981;
+            --macson-rose: #f43f5e;
+            --macson-amber: #f59e0b;
+            --macson-gradient: linear-gradient(135deg, #c084fc 0%, #f472b6 100%);
+            --macson-glow-1: rgba(192, 132, 252, 0.05);
+            --macson-glow-2: rgba(244, 114, 182, 0.05);
         }
 
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--macson-bg);
             background-image: 
-                radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.04) 0%, transparent 40%),
-                radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+                radial-gradient(circle at 15% 15%, var(--macson-glow-1) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, var(--macson-glow-2) 0%, transparent 40%);
             background-attachment: fixed;
             color: #f1f5f9;
             min-height: 100vh;
+            transition: background-color 0.3s ease;
         }
 
         h1, h2, h3, h4, h5, h6, .font-outfit {
@@ -61,7 +128,7 @@
             font-family: 'Outfit', sans-serif;
             font-weight: 800;
             letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            background: var(--macson-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-size: 1.35rem;
@@ -70,7 +137,7 @@
         .status-pulse {
             width: 8px;
             height: 8px;
-            background-color: #10b981;
+            background-color: var(--macson-emerald);
             border-radius: 50%;
             display: inline-block;
             box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
@@ -114,11 +181,11 @@
         }
 
         .nav-item-macson.active {
-            color: #38bdf8;
-            background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
-            border-color: rgba(56, 189, 248, 0.25);
+            color: var(--macson-primary);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--macson-border-hover);
             font-weight: 600;
-            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         .nav-item-macson i {
@@ -277,11 +344,68 @@
                     <span class="text-success small fw-semibold">Engine Active</span>
                 </div>
 
+                <!-- Theme Switcher Dropdown -->
+                <div class="dropdown">
+                    <button class="btn btn-sm d-flex align-items-center gap-1.5 px-2.5 py-1.5 rounded-pill border-0" 
+                            type="button" 
+                            data-bs-toggle="dropdown" 
+                            aria-expanded="false" 
+                            title="Ganti Tema Warna"
+                            style="background:rgba(255,255,255,0.05);border:1px solid var(--macson-border) !important;">
+                        <i class="fa-solid fa-palette text-info" id="themeCurrentIcon" style="font-size:13px;"></i>
+                        <span class="d-none d-xl-inline small fw-semibold text-light me-1" id="themeCurrentLabel">Cyber Blue</span>
+                        <i class="fa-solid fa-chevron-down text-secondary" style="font-size:9px;"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 mt-2 p-2" 
+                        style="background:#0f172a;border:1px solid var(--macson-border) !important;min-width:200px;border-radius:14px;">
+                        <li class="px-2 py-1 text-secondary text-uppercase fw-bold" style="font-size:10px;letter-spacing:0.8px;">
+                            Pilih Tema Warna
+                        </li>
+                        <li><hr class="dropdown-divider border-secondary my-1"></li>
+                        <li>
+                            <button type="button" class="dropdown-item d-flex align-items-center justify-content-between rounded-2 py-2 theme-choice-btn" data-set-theme="cyber-blue">
+                                <span class="d-flex align-items-center gap-2 small">
+                                    <span style="width:14px;height:14px;background:linear-gradient(135deg,#38bdf8,#6366f1);border-radius:4px;display:inline-block;"></span>
+                                    <span>Cyber Blue</span>
+                                </span>
+                                <i class="fa-solid fa-check small text-info theme-check-icon d-none" data-theme-check="cyber-blue"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item d-flex align-items-center justify-content-between rounded-2 py-2 theme-choice-btn" data-set-theme="emerald-green">
+                                <span class="d-flex align-items-center gap-2 small">
+                                    <span style="width:14px;height:14px;background:linear-gradient(135deg,#10b981,#14b8a6);border-radius:4px;display:inline-block;"></span>
+                                    <span>Emerald Shield</span>
+                                </span>
+                                <i class="fa-solid fa-check small text-success theme-check-icon d-none" data-theme-check="emerald-green"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item d-flex align-items-center justify-content-between rounded-2 py-2 theme-choice-btn" data-set-theme="crimson-rose">
+                                <span class="d-flex align-items-center gap-2 small">
+                                    <span style="width:14px;height:14px;background:linear-gradient(135deg,#f43f5e,#fb923c);border-radius:4px;display:inline-block;"></span>
+                                    <span>Crimson Protocol</span>
+                                </span>
+                                <i class="fa-solid fa-check small text-danger theme-check-icon d-none" data-theme-check="crimson-rose"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item d-flex align-items-center justify-content-between rounded-2 py-2 theme-choice-btn" data-set-theme="purple-void">
+                                <span class="d-flex align-items-center gap-2 small">
+                                    <span style="width:14px;height:14px;background:linear-gradient(135deg,#c084fc,#f472b6);border-radius:4px;display:inline-block;"></span>
+                                    <span>Purple Void</span>
+                                </span>
+                                <i class="fa-solid fa-check small text-warning theme-check-icon d-none" data-theme-check="purple-void"></i>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
                 @auth
                 <!-- User Profile Dropdown -->
                 <div class="dropdown">
                     <button class="btn btn-sm d-flex align-items-center gap-2 px-2.5 py-1.5 rounded-pill border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="background:rgba(255,255,255,0.05);border:1px solid var(--macson-border) !important;">
-                        <span style="width:28px;height:28px;background:linear-gradient(135deg,#0ea5e9,#6366f1);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;">
+                        <span style="width:28px;height:28px;background:var(--macson-gradient);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;">
                             {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
                         </span>
                         <span class="d-none d-md-inline small fw-semibold text-light me-1">{{ auth()->user()->name }}</span>
@@ -416,6 +540,54 @@
 
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Multi-Theme Switcher Script (LocalStorage) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const themeNames = {
+                'cyber-blue':    { label: 'Cyber Blue',       iconClass: 'fa-solid fa-palette text-info' },
+                'emerald-green': { label: 'Emerald Shield',   iconClass: 'fa-solid fa-shield-heart text-success' },
+                'crimson-rose':  { label: 'Crimson Protocol', iconClass: 'fa-solid fa-fire text-danger' },
+                'purple-void':   { label: 'Purple Void',      iconClass: 'fa-solid fa-wand-magic-sparkles text-warning' }
+            };
+
+            function applyTheme(themeKey) {
+                if (!themeNames[themeKey]) themeKey = 'cyber-blue';
+                
+                // Pasang atribut ke elemen root HTML
+                document.documentElement.setAttribute('data-theme', themeKey);
+                localStorage.setItem('santafe_theme', themeKey);
+
+                // Update UI Navbar Label & Icon
+                const labelEl = document.getElementById('themeCurrentLabel');
+                const iconEl  = document.getElementById('themeCurrentIcon');
+                if (labelEl) labelEl.textContent = themeNames[themeKey].label;
+                if (iconEl) iconEl.className = themeNames[themeKey].iconClass;
+
+                // Update checklist icon di dropdown
+                document.querySelectorAll('.theme-check-icon').forEach(el => {
+                    if (el.getAttribute('data-theme-check') === themeKey) {
+                        el.classList.remove('d-none');
+                    } else {
+                        el.classList.add('d-none');
+                    }
+                });
+            }
+
+            // Inisialisasi status visual saat load
+            const currentTheme = localStorage.getItem('santafe_theme') || 'cyber-blue';
+            applyTheme(currentTheme);
+
+            // Pasang event listener ke setiap tombol pilihan tema
+            document.querySelectorAll('.theme-choice-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const chosen = this.getAttribute('data-set-theme');
+                    applyTheme(chosen);
+                });
+            });
+        });
+    </script>
+    
     @stack('scripts')
 </body>
 </html>
