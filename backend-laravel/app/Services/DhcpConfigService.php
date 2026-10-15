@@ -342,7 +342,12 @@ class DhcpConfigService
         // =====================================================================
         // KASUS B: Bersihkan lease per subnet tertentu
         // =====================================================================
-        $subnet    = DhcpSubnet::find($subnetId);
+        $subnet = DhcpSubnet::find($subnetId);
+        if (!$subnet) {
+            Log::warning("clearLeases: Subnet ID {$subnetId} tidak ditemukan di database.");
+            return 0;
+        }
+
         $startLong = (!empty($subnet->pool_start)) ? ip2long(trim($subnet->pool_start)) : false;
         $endLong   = (!empty($subnet->pool_end))   ? ip2long(trim($subnet->pool_end))   : false;
 
@@ -359,20 +364,36 @@ class DhcpConfigService
             }
         }
 
-        // Pisahkan lease yang dihapus dan lease yang dipertahankan
-        $leasesToDelete = [];
-        $remainingRows  = [];
-        $releaseAppendRows = [];
-        $now = time();
+        // 1. Baca seluruh baris dari file utama kea-leases4.csv
+        $fileLines = file_exists($this->leasesPath) ? file($this->leasesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
+        if (empty($fileLines)) {
+            Log::info("clearLeases: File leases utama kosong.");
+            return 0;
+        }
 
-        foreach ($currentLeases as $l) {
-            $ip          = $l['ip'];
-            $rowSubnetId = (int)($l['subnet_id'] ?? 0);
+        $headerLine = array_shift($fileLines);
+        $headers    = str_getcsv($headerLine);
+        $addrIdx    = array_search('address', array_map('trim', $headers));
+        $subIdx     = array_search('subnet_id', array_map('trim', $headers));
+
+        $preservedLines = [];
+        $leasesToDelete = [];
+
+        foreach ($fileLines as $rawLine) {
+            $cols = str_getcsv($rawLine);
+            if (empty($cols) || count($cols) < 3) {
+                continue;
+            }
+
+            $ip = ($addrIdx !== false && isset($cols[$addrIdx])) ? trim($cols[$addrIdx]) : '';
+            $rowSubId = ($subIdx !== false && isset($cols[$subIdx])) ? (int)trim($cols[$subIdx]) : 0;
 
             $matches = false;
-            if ($rowSubnetId === $subnetId) {
+            // Cocokkan berdasarkan Subnet ID di Kea
+            if ($rowSubId === $subnetId) {
                 $matches = true;
             } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
+                // Cocokkan berdasarkan Range IP Pool atau CIDR Network
                 $ipLong = ip2long($ip);
                 if ($startLong !== false && $endLong !== false
                     && $ipLong >= min($startLong, $endLong)
@@ -384,84 +405,39 @@ class DhcpConfigService
                 }
             }
 
-            $rawMac = strtolower(str_replace([':', '-', '.'], '', $l['mac']));
-
             if ($matches) {
                 $clearedCount++;
-                $leasesToDelete[] = $ip;
-
-                // Siapkan baris 'released' (state 3) dengan expire = now agar Kea & parser tahu lease ini sudah dicabut
-                $releaseAppendRows[] = implode(',', [
-                    $l['ip'],
-                    $rawMac,
-                    '',       // client_id
-                    '86400',  // valid_lifetime
-                    $now,     // expire sekarang (sudah lewat)
-                    $l['subnet_id'],
-                    '',       // fqdn_fwd
-                    '',       // fqdn_rev
-                    ($l['hostname'] !== '-' ? $l['hostname'] : ''),
-                    '3',      // state = 3 (RELEASED)
-                    '',       // user_context
-                ]);
+                if (!empty($ip)) {
+                    $leasesToDelete[] = $ip;
+                }
             } else {
-                // Simpan baris lease subnet lain yang tidak dihapus
-                $remainingRows[] = implode(',', [
-                    $l['ip'],
-                    $rawMac,
-                    '',       // client_id
-                    '86400',  // valid_lifetime
-                    $l['expire_raw'],
-                    $l['subnet_id'],
-                    '',       // fqdn_fwd
-                    '',       // fqdn_rev
-                    ($l['hostname'] !== '-' ? $l['hostname'] : ''),
-                    '0',      // state = assigned
-                    '',       // user_context
-                ]);
+                // PERTAHANKAN BARIS ASLI TANPA DIUBAH SEDIKITPUN
+                $preservedLines[] = $rawLine;
             }
         }
 
         if ($clearedCount === 0) {
+            Log::info("clearLeases: Tidak ada lease yang cocok untuk Subnet ID {$subnetId}.");
             return 0;
         }
 
-        // 1. Coba kirim lease4-del via control socket ke container yang sedang aktif
-        $socketUsed = false;
-        $testResponse = $this->sendKeaControlCommand(['command' => 'list-commands']);
-        if ($testResponse && str_contains($testResponse, 'lease4-del')) {
-            foreach ($leasesToDelete as $ip) {
-                $this->sendKeaControlCommand([
-                    'command'   => 'lease4-del',
-                    'arguments' => ['ip-address' => $ip],
-                ]);
-            }
-            $socketUsed = true;
-        }
-
         // 2. STOP Kea DHCP container SEBELUM memodifikasi file CSV!
-        // Ini SANGAT KRUSIAL: Jika Kea dimatikan setelah file CSV ditulis,
-        // saat shutdown Kea akan men-dump ulang seluruh lease dari RAM-nya kembali ke file CSV disk!
-        Log::info("clearLeases: Menghentikan Kea DHCP sebelum modifikasi CSV (Subnet ID {$subnetId})...");
+        Log::info("clearLeases: Menghentikan Kea DHCP sebelum modifikasi CSV (Subnet ID {$subnetId}, membersihkan {$clearedCount} baris lease, mempertahankan " . count($preservedLines) . " baris lease)...");
         $this->stopKeaService();
 
-        // Beri jeda 3 detik agar Kea selesai flush memori ke disk sebelum kita overwrite file
+        // Beri jeda 3 detik agar Kea selesai flush memori ke disk
         sleep(3);
 
-        // 3. Tulis data ke CSV tanpa lease subnet yang dihapus:
-        $newContent = $defaultHeader;
-        if (!empty($remainingRows)) {
-            $newContent .= implode("\n", $remainingRows) . "\n";
+        // 3. Tulis data baru: header asli + baris lease subnet lain yang dipertahankan
+        $newContent = $headerLine . "\n";
+        if (!empty($preservedLines)) {
+            $newContent .= implode("\n", $preservedLines) . "\n";
         }
 
         // Tulis ulang file leases CSV utama
         $this->writeKeaLeasesFile($newContent);
 
-        // Hapus SEMUA file LFC Kea agar tidak di-restore saat startup:
-        // .1   = LFC output (Kea AKAN pakai ini untuk overwrite .csv saat startup!)
-        // .2   = copy lama file utama saat LFC mulai
-        // .completed = hasil LFC final
-        // .bak = backup file lama
+        // Hapus SEMUA file LFC Kea (.1, .2, .completed, .bak) agar Kea tidak me-restore dari backup LFC lama
         foreach (['.1', '.2', '.completed', '.bak'] as $ext) {
             $this->removeKeaLeaseFile($this->leasesPath . $ext);
         }
