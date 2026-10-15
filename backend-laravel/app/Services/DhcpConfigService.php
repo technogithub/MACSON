@@ -572,18 +572,48 @@ class DhcpConfigService
     }
 
     /**
-     * Kirim perintah ke Kea via Control Socket (socat) — untuk lease4-wipe dsb.
-     * Mengirimkan command JSON ke /var/run/kea/kea4-ctrl-socket di dalam container.
+     * Kirim perintah ke Kea via Control Socket — untuk lease4-wipe, lease4-del, dsb.
+     * Menggunakan direct Unix domain socket via stream_socket_client, dengan fallback docker exec socat.
      *
      * @param  array  $command  Misal: ['command' => 'lease4-wipe', 'arguments' => ['subnet-id' => 0]]
      * @return string|null Response JSON dari Kea, atau null jika gagal
      */
     public function sendKeaControlCommand(array $command): ?string
     {
+        $json = json_encode($command);
+
+        // Metode 1: Direct stream_socket_client ke socket yang di-share (/var/run/kea/kea4-ctrl-socket)
+        $socketPaths = [
+            '/var/run/kea/kea4-ctrl-socket',
+            storage_path('dhcp/leases/kea4-ctrl-socket'),
+        ];
+
+        foreach ($socketPaths as $sock) {
+            if (file_exists($sock) || @filetype($sock) === 'socket') {
+                try {
+                    $client = @stream_socket_client("unix://{$sock}", $errno, $errstr, 2);
+                    if ($client) {
+                        fwrite($client, $json);
+                        $response = '';
+                        while (!feof($client)) {
+                            $chunk = fread($client, 8192);
+                            if ($chunk === false) break;
+                            $response .= $chunk;
+                        }
+                        fclose($client);
+                        if (!empty($response)) {
+                            return $response;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::debug("Direct socket {$sock} connect error: " . $e->getMessage());
+                }
+            }
+        }
+
+        // Metode 2: Fallback eksekusi socat di container Kea (jika container running & docker exec tersedia)
         try {
-            $json    = json_encode($command);
             $escaped = escapeshellarg($json);
-            // Jalankan socat di dalam container radius_dhcp
             $result  = shell_exec(
                 "docker exec radius_dhcp sh -c "
                 . escapeshellarg(
@@ -593,7 +623,7 @@ class DhcpConfigService
             );
             return $result ?: null;
         } catch (\Throwable $e) {
-            Log::warning("sendKeaControlCommand gagal: " . $e->getMessage());
+            Log::warning("sendKeaControlCommand fallback gagal: " . $e->getMessage());
             return null;
         }
     }

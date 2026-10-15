@@ -73,6 +73,7 @@ services:
     volumes:
       - ../backend-laravel:/var/www/html
       - /var/www/html/vendor
+      - kea_run_sockets:/var/run/kea
     depends_on:
       mariadb:
         condition: service_healthy
