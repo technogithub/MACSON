@@ -440,7 +440,11 @@ class DhcpConfigService
         // 2. STOP Kea DHCP container SEBELUM memodifikasi file CSV!
         // Ini SANGAT KRUSIAL: Jika Kea dimatikan setelah file CSV ditulis,
         // saat shutdown Kea akan men-dump ulang seluruh lease dari RAM-nya kembali ke file CSV disk!
+        Log::info("clearLeases: Menghentikan Kea DHCP sebelum modifikasi CSV (Subnet ID {$subnetId})...");
         $this->stopKeaService();
+
+        // Beri jeda 3 detik agar Kea selesai flush memori ke disk sebelum kita overwrite file
+        sleep(3);
 
         // 3. Tulis data ke CSV tanpa lease subnet yang dihapus:
         $newContent = $defaultHeader;
@@ -510,14 +514,41 @@ class DhcpConfigService
 
     /**
      * Panggil Docker Engine API via Unix Socket /var/run/docker.sock
+     * Metode 1: shell_exec curl --unix-socket (paling reliable di Alpine container)
+     * Metode 2: PHP curl CURLOPT_UNIX_SOCKET_PATH (fallback)
      */
     private function callDockerSocketApi(string $path, string $method = 'POST'): bool
     {
         $sock = '/var/run/docker.sock';
-        if (!file_exists($sock) && @filetype($sock) !== 'socket') {
+        if (!file_exists($sock)) {
+            Log::warning("Docker socket tidak ditemukan: {$sock}");
             return false;
         }
 
+        // Metode 1: Shell exec curl via unix socket (system curl lebih reliable)
+        try {
+            $m = strtoupper($method);
+            $cmd = "curl -s -o /dev/null -w \"%{http_code}\" -X {$m} --unix-socket {$sock} "
+                 . escapeshellarg("http://localhost{$path}") . " 2>/dev/null";
+            $httpCode = (int) trim(shell_exec($cmd) ?? '0');
+
+            if ($httpCode >= 200 && $httpCode < 300) {
+                Log::info("Docker API curl-shell {$method} {$path} sukses (HTTP {$httpCode}).");
+                return true;
+            }
+            // 304 = container sudah dalam state yang diinginkan (misal: start pada container running)
+            if ($httpCode === 304) {
+                Log::info("Docker API {$method} {$path}: container sudah dalam state yang diinginkan (HTTP 304).");
+                return true;
+            }
+            if ($httpCode > 0) {
+                Log::warning("Docker API curl-shell {$method} {$path} response {$httpCode}");
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Docker API curl-shell gagal: " . $e->getMessage());
+        }
+
+        // Metode 2: PHP curl dengan CURLOPT_UNIX_SOCKET_PATH (fallback)
         try {
             $ch = curl_init("http://localhost" . $path);
             curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $sock);
@@ -528,15 +559,18 @@ class DhcpConfigService
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            // Docker API mengembalikan 204 No Content untuk stop/start/restart sukses
             if ($httpCode >= 200 && $httpCode < 300) {
-                Log::info("Docker API {$method} {$path} sukses (HTTP {$httpCode}).");
+                Log::info("Docker API PHP-curl {$method} {$path} sukses (HTTP {$httpCode}).");
                 return true;
-            } else {
-                Log::warning("Docker API {$method} {$path} response code {$httpCode}: {$response}");
+            }
+            if ($httpCode === 304) {
+                return true;
+            }
+            if ($httpCode > 0) {
+                Log::warning("Docker API PHP-curl {$method} {$path} response code {$httpCode}: {$response}");
             }
         } catch (\Throwable $e) {
-            Log::warning("Gagal call Docker API via socket: " . $e->getMessage());
+            Log::warning("Gagal call Docker API via PHP curl: " . $e->getMessage());
         }
 
         return false;
