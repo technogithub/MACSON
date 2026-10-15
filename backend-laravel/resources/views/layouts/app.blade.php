@@ -360,10 +360,62 @@
             font-weight: 600;
         }
 
-        /* Primary Accent Text & Links */
+        /* Primary Accent Text, Links, and Badges Konsisten di Seluruh Halaman */
         .text-info,
-        .text-cyan {
+        .text-cyan,
+        .ip-tag,
+        .mac-badge,
+        .nav-tabs-dhcp .nav-link.active,
+        .pool-tab-pill.active {
             color: var(--macson-primary) !important;
+        }
+
+        /* Badge MAC & IP Pool Pill */
+        .mac-badge {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border-color: var(--macson-border-hover) !important;
+        }
+
+        .pool-tab-pill.active {
+            border-color: var(--macson-primary) !important;
+            background: rgba(255, 255, 255, 0.06) !important;
+        }
+
+        /* Custom DHCP & Subpages Tabs */
+        .nav-tabs-dhcp .nav-link.active {
+            border-bottom: 2px solid var(--macson-primary) !important;
+            background: var(--macson-card-bg) !important;
+        }
+
+        /* Tombol Info / Primary Accent */
+        .btn-info {
+            background-color: var(--macson-primary) !important;
+            border-color: var(--macson-primary) !important;
+            color: #090d16 !important;
+        }
+
+        .btn-outline-info {
+            border-color: var(--macson-primary) !important;
+            color: var(--macson-primary) !important;
+        }
+
+        .btn-outline-info:hover {
+            background-color: var(--macson-primary) !important;
+            border-color: var(--macson-primary) !important;
+            color: #090d16 !important;
+        }
+
+        /* Pagination Active Link */
+        .page-item.active .page-link {
+            background-color: var(--macson-primary) !important;
+            border-color: var(--macson-primary) !important;
+            color: #090d16 !important;
+        }
+
+        .page-link {
+            background-color: var(--macson-card-bg) !important;
+            border-color: var(--macson-border) !important;
+            color: #cbd5e1 !important;
         }
 
         /* Mobile Adjustments */
