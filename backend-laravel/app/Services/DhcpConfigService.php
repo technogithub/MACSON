@@ -438,8 +438,6 @@ class DhcpConfigService
         }
 
         // 2. Tulis data ke CSV:
-        // Jika socket sukses, Kea sudah menghapus dari memori. Kita tuliskan baris baru yang bersih ke file utama
-        // dan hapus file rotasi .2 / .completed
         $newContent = $defaultHeader;
         if (!empty($remainingRows)) {
             $newContent .= implode("\n", $remainingRows) . "\n";
@@ -449,20 +447,16 @@ class DhcpConfigService
         $this->removeKeaLeaseFile($this->leasesPath . '.2');
         $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
-        if ($socketUsed) {
-            $this->writeKeaLeasesFile($newContent);
-            Log::info("clearLeases: Berhasil membersihkan {$clearedCount} dynamic lease via Control Socket.");
-        } else {
-            // Jika control socket belum aktif, lakukan Stop -> Tulis -> Start agar memori Kea reset tanpa sisa
-            Log::info("clearLeases: Control socket belum siap, menggunakan metode Stop -> Tulis -> Start.");
-            $this->stopKeaService();
+        // Tulis ulang file leases CSV utama
+        $this->writeKeaLeasesFile($newContent);
 
-            $this->writeKeaLeasesFile($newContent);
-            $this->removeKeaLeaseFile($this->leasesPath . '.2');
-            $this->removeKeaLeaseFile($this->leasesPath . '.completed');
+        // Hapus lagi file rotasi untuk memastikan
+        $this->removeKeaLeaseFile($this->leasesPath . '.2');
+        $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
-            $this->startKeaService();
-        }
+        // RESTART container radius_dhcp agar memori internal Kea benar-benar di-reset & membaca data baru dari disk
+        Log::info("clearLeases: Merestart container Kea DHCP untuk mengosongkan {$clearedCount} active dynamic leases.");
+        $this->restartKeaService();
 
         return $clearedCount;
     }
@@ -514,15 +508,52 @@ class DhcpConfigService
     }
 
     /**
-     * Stop container radius_dhcp (tunggu benar-benar mati sebelum file ditulis)
-     * Kemudian Start kembali agar Kea membaca file lease yang sudah bersih dari disk.
-     * Ini BERBEDA dengan "docker restart" — stop+start menjamin memori Kea benar-benar kosong.
+     * Panggil Docker Engine API via Unix Socket /var/run/docker.sock
+     */
+    private function callDockerSocketApi(string $path, string $method = 'POST'): bool
+    {
+        $sock = '/var/run/docker.sock';
+        if (!file_exists($sock) && @filetype($sock) !== 'socket') {
+            return false;
+        }
+
+        try {
+            $ch = curl_init("http://localhost" . $path);
+            curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $sock);
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            // Docker API mengembalikan 204 No Content untuk stop/start/restart sukses
+            if ($httpCode >= 200 && $httpCode < 300) {
+                Log::info("Docker API {$method} {$path} sukses (HTTP {$httpCode}).");
+                return true;
+            } else {
+                Log::warning("Docker API {$method} {$path} response code {$httpCode}: {$response}");
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Gagal call Docker API via socket: " . $e->getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Stop container radius_dhcp
      */
     public function stopKeaService(): void
     {
+        // 1. Coba via Docker Engine Socket API
+        if ($this->callDockerSocketApi('/containers/radius_dhcp/stop?t=10', 'POST')) {
+            return;
+        }
+
+        // 2. Fallback CLI
         try {
             if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
-                // Stop dahulu — tunggu sampai container benar-benar berhenti (max 15 detik)
                 shell_exec('docker stop --time=10 radius_dhcp 2>/dev/null');
             } elseif (trim(shell_exec('which systemctl 2>/dev/null') ?? '')) {
                 shell_exec('sudo systemctl stop kea-dhcp4-server 2>/dev/null');
@@ -536,10 +567,16 @@ class DhcpConfigService
     }
 
     /**
-     * Start container radius_dhcp setelah file lease bersih ditulis.
+     * Start container radius_dhcp
      */
     public function startKeaService(): void
     {
+        // 1. Coba via Docker Engine Socket API
+        if ($this->callDockerSocketApi('/containers/radius_dhcp/start', 'POST')) {
+            return;
+        }
+
+        // 2. Fallback CLI
         try {
             if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
                 shell_exec('docker start radius_dhcp 2>/dev/null');
@@ -554,10 +591,16 @@ class DhcpConfigService
     }
 
     /**
-     * Restart container radius_dhcp / service Kea DHCP (reload config, bukan clear leases)
+     * Restart container radius_dhcp / service Kea DHCP
      */
     public function restartKeaService(): void
     {
+        // 1. Coba via Docker Engine Socket API
+        if ($this->callDockerSocketApi('/containers/radius_dhcp/restart?t=5', 'POST')) {
+            return;
+        }
+
+        // 2. Fallback CLI
         try {
             if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
                 shell_exec('docker restart radius_dhcp 2>/dev/null');
