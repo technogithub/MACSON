@@ -7,6 +7,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     kea-dhcp4-server \
     kea-admin \
+    kea-common \
+    socat \
     mariadb-client \
     procps \
     tzdata \
@@ -17,8 +19,9 @@ RUN apt-get update && \
 ENV TZ=Asia/Jakarta
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Buat direktori runtime dan lease
-RUN mkdir -p /var/run/kea /var/lib/kea /etc/kea
+# Buat direktori runtime dan lease; pastikan /var/run/kea ada untuk control socket
+RUN mkdir -p /var/run/kea /var/lib/kea /etc/kea \
+    && chmod 777 /var/run/kea /var/lib/kea
 
 # Expose DHCP ports (UDP 67 untuk DHCP server)
 EXPOSE 67/udp

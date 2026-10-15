@@ -190,9 +190,11 @@ services:
     container_name: radius_dhcp
     restart: always
     network_mode: host
+    stop_grace_period: 15s
     volumes:
       - ../backend-laravel/storage/dhcp/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
       - ../backend-laravel/storage/dhcp/leases:/var/lib/kea
+      - kea_run_sockets:/var/run/kea
 
 networks:
   radius_net:
@@ -201,4 +203,5 @@ networks:
 volumes:
   mariadb_data:
   app_code:
+  kea_run_sockets:
 

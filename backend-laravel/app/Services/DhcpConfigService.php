@@ -101,6 +101,10 @@ class DhcpConfigService
                     'interfaces' => ['*'],
                     'dhcp-socket-type' => 'raw'
                 ],
+                'control-socket' => [
+                    'socket-type' => 'unix',
+                    'socket-name' => '/var/run/kea/kea4-ctrl-socket',
+                ],
                 'hosts-database' => [
                     'type'     => 'mysql',
                     'name'     => $dbName,
@@ -267,49 +271,54 @@ class DhcpConfigService
     }
 
     /**
-     * Bersihkan dynamic leases (bisa semua atau per subnet) dari file CSV Kea DHCP
-     * Dirancang tahan terhadap masalah Permission Denied pada file rotasi LFC (.2 & .completed)
+     * Bersihkan dynamic leases (bisa semua atau per subnet) dari file CSV Kea DHCP.
+     * Flow: STOP Kea → Tulis file bersih → START Kea (bukan "restart")
+     * Dengan stop+start, memori Kea benar-benar kosong saat Kea baca file dari disk.
      */
     public function clearLeases(?int $subnetId = null): int
     {
-        // 1. Usahakan berikan akses baca-tulis ke folder leases
+        // 1. Buka permission folder leases agar bisa ditulis
         @chmod(dirname($this->leasesPath), 0777);
         @chmod($this->leasesPath, 0666);
         @chmod($this->leasesPath . '.2', 0666);
         @chmod($this->leasesPath . '.completed', 0666);
 
-        // Jika docker tersedia, samakan permission folder via container Kea
         try {
             shell_exec("docker exec radius_dhcp chmod -R 777 /var/lib/kea 2>/dev/null");
         } catch (\Throwable $e) {}
 
         $defaultHeader = "address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context\n";
-        $clearedCount = 0;
+        $clearedCount  = 0;
 
-        // Ambil data active leases saat ini
+        // Ambil data active leases saat ini (sebelum Kea dimatikan)
         $currentLeases = $this->getActiveLeases();
 
         // KASUS A: Bersihkan SEMUA lease di semua subnet
         if ($subnetId === null) {
             $clearedCount = count($currentLeases);
 
-            // Tulis file utama dengan header kosong
+            // Langkah 1: STOP Kea — tunggu benar-benar mati agar memori kosong
+            $this->stopKeaService();
+
+            // Langkah 2: Tulis file CSV dengan header kosong saja
             $this->writeKeaLeasesFile($defaultHeader);
 
-            // Hapus file rotasi sementara agar tidak dibaca lagi
+            // Langkah 3: Hapus file rotasi agar tidak dibaca ulang saat Kea start
             $this->removeKeaLeaseFile($this->leasesPath . '.2');
             $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
-            $this->restartKeaService();
+            // Langkah 4: START Kea — baca dari file yang sudah bersih
+            $this->startKeaService();
+
             return $clearedCount;
         }
 
         // KASUS B: Bersihkan lease per subnet tertentu
-        $subnet = DhcpSubnet::find($subnetId);
+        $subnet    = DhcpSubnet::find($subnetId);
         $startLong = (!empty($subnet->pool_start)) ? ip2long(trim($subnet->pool_start)) : false;
         $endLong   = (!empty($subnet->pool_end))   ? ip2long(trim($subnet->pool_end))   : false;
 
-        $networkLong = false;
+        $networkLong   = false;
         $broadcastLong = false;
         if (!empty($subnet->subnet) && str_contains($subnet->subnet, '/')) {
             [$baseIpStr, $prefixStr] = explode('/', trim($subnet->subnet), 2);
@@ -324,7 +333,7 @@ class DhcpConfigService
 
         $remainingRows = [];
         foreach ($currentLeases as $l) {
-            $ip = $l['ip'];
+            $ip          = $l['ip'];
             $rowSubnetId = (int)($l['subnet_id'] ?? 0);
 
             $matches = false;
@@ -332,9 +341,12 @@ class DhcpConfigService
                 $matches = true;
             } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
                 $ipLong = ip2long($ip);
-                if ($startLong !== false && $endLong !== false && $ipLong >= min($startLong, $endLong) && $ipLong <= max($startLong, $endLong)) {
+                if ($startLong !== false && $endLong !== false
+                    && $ipLong >= min($startLong, $endLong)
+                    && $ipLong <= max($startLong, $endLong)) {
                     $matches = true;
-                } elseif ($networkLong !== false && $broadcastLong !== false && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
+                } elseif ($networkLong !== false && $broadcastLong !== false
+                    && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
                     $matches = true;
                 }
             }
@@ -342,36 +354,41 @@ class DhcpConfigService
             if ($matches) {
                 $clearedCount++;
             } else {
-                // Simpan baris lease yang tidak dihapus
-                $rawMac = strtolower(str_replace([':', '-', '.'], '', $l['mac']));
+                // Simpan baris lease yang TIDAK dihapus
+                $rawMac          = strtolower(str_replace([':', '-', '.'], '', $l['mac']));
                 $remainingRows[] = implode(',', [
                     $l['ip'],
                     $rawMac,
-                    '', // client_id
-                    '86400', // valid_lifetime
+                    '',       // client_id
+                    '86400',  // valid_lifetime
                     $l['expire_raw'],
                     $l['subnet_id'],
-                    '', // fqdn_fwd
-                    '', // fqdn_rev
+                    '',       // fqdn_fwd
+                    '',       // fqdn_rev
                     ($l['hostname'] !== '-' ? $l['hostname'] : ''),
-                    '0', // state
-                    '' // user_context
+                    '0',      // state = assigned
+                    '',       // user_context
                 ]);
             }
         }
 
-        // Tulis hanya ke file utama kea-leases4.csv
+        // Langkah 1: STOP Kea — tunggu benar-benar mati sebelum tulis ulang file
+        $this->stopKeaService();
+
+        // Langkah 2: Tulis file CSV hanya dengan lease yang tersisa
         $newContent = $defaultHeader;
         if (!empty($remainingRows)) {
             $newContent .= implode("\n", $remainingRows) . "\n";
         }
         $this->writeKeaLeasesFile($newContent);
 
-        // Hapus file rotasi sementara agar tidak mencemari kembali
+        // Langkah 3: Hapus file rotasi agar tidak mencemari kembali
         $this->removeKeaLeaseFile($this->leasesPath . '.2');
         $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
-        $this->restartKeaService();
+        // Langkah 4: START Kea — baca lease yang sudah difilter
+        $this->startKeaService();
+
         return $clearedCount;
     }
 
@@ -422,20 +439,87 @@ class DhcpConfigService
     }
 
     /**
-     * Restart container radius_dhcp / service Kea DHCP agar memori leases direset
+     * Stop container radius_dhcp (tunggu benar-benar mati sebelum file ditulis)
+     * Kemudian Start kembali agar Kea membaca file lease yang sudah bersih dari disk.
+     * Ini BERBEDA dengan "docker restart" — stop+start menjamin memori Kea benar-benar kosong.
+     */
+    public function stopKeaService(): void
+    {
+        try {
+            if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
+                // Stop dahulu — tunggu sampai container benar-benar berhenti (max 15 detik)
+                shell_exec('docker stop --time=10 radius_dhcp 2>/dev/null');
+            } elseif (trim(shell_exec('which systemctl 2>/dev/null') ?? '')) {
+                shell_exec('sudo systemctl stop kea-dhcp4-server 2>/dev/null');
+            } else {
+                shell_exec('pkill kea-dhcp4 2>/dev/null');
+                sleep(2);
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Gagal stop Kea service: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Start container radius_dhcp setelah file lease bersih ditulis.
+     */
+    public function startKeaService(): void
+    {
+        try {
+            if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
+                shell_exec('docker start radius_dhcp 2>/dev/null');
+            } elseif (trim(shell_exec('which systemctl 2>/dev/null') ?? '')) {
+                shell_exec('sudo systemctl start kea-dhcp4-server 2>/dev/null');
+            } else {
+                shell_exec('kea-dhcp4 -c /etc/kea/kea-dhcp4.conf &');
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Gagal start Kea service: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Restart container radius_dhcp / service Kea DHCP (reload config, bukan clear leases)
      */
     public function restartKeaService(): void
     {
         try {
-            if (shell_exec('which docker')) {
+            if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
                 shell_exec('docker restart radius_dhcp 2>/dev/null');
-            } elseif (shell_exec('which systemctl')) {
+            } elseif (trim(shell_exec('which systemctl 2>/dev/null') ?? '')) {
                 shell_exec('sudo systemctl restart kea-dhcp4-server 2>/dev/null');
             } else {
                 shell_exec('pkill -HUP kea-dhcp4 2>/dev/null');
             }
         } catch (\Throwable $e) {
             Log::warning("Gagal restart Kea service: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Kirim perintah ke Kea via Control Socket (socat) — untuk lease4-wipe dsb.
+     * Mengirimkan command JSON ke /var/run/kea/kea4-ctrl-socket di dalam container.
+     *
+     * @param  array  $command  Misal: ['command' => 'lease4-wipe', 'arguments' => ['subnet-id' => 0]]
+     * @return string|null Response JSON dari Kea, atau null jika gagal
+     */
+    public function sendKeaControlCommand(array $command): ?string
+    {
+        try {
+            $json    = json_encode($command);
+            $escaped = escapeshellarg($json);
+            // Jalankan socat di dalam container radius_dhcp
+            $result  = shell_exec(
+                "docker exec radius_dhcp sh -c "
+                . escapeshellarg(
+                    "echo {$escaped} | socat - UNIX-CONNECT:/var/run/kea/kea4-ctrl-socket 2>/dev/null"
+                )
+                . " 2>/dev/null"
+            );
+            return $result ?: null;
+        } catch (\Throwable $e) {
+            Log::warning("sendKeaControlCommand gagal: " . $e->getMessage());
+            return null;
         }
     }
 
