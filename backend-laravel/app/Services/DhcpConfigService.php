@@ -105,6 +105,13 @@ class DhcpConfigService
                     'socket-type' => 'unix',
                     'socket-name' => '/var/run/kea/kea4-ctrl-socket',
                 ],
+                // Hook lease_cmds: aktifkan perintah lease4-del, lease4-wipe, lease4-get, dll
+                // agar bisa membersihkan lease dari memori Kea TANPA harus restart container
+                'hooks-libraries' => [
+                    [
+                        'library' => '/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so',
+                    ],
+                ],
                 'hosts-database' => [
                     'type'     => 'mysql',
                     'name'     => $dbName,
@@ -271,13 +278,18 @@ class DhcpConfigService
     }
 
     /**
-     * Bersihkan dynamic leases (bisa semua atau per subnet) dari file CSV Kea DHCP.
-     * Flow: STOP Kea → Tulis file bersih → START Kea (bukan "restart")
-     * Dengan stop+start, memori Kea benar-benar kosong saat Kea baca file dari disk.
+     * Bersihkan dynamic leases dari file CSV Kea DHCP.
+     *
+     * Kasus A (subnetId=null): STOP Kea → tulis CSV kosong → START Kea
+     *   → Downtime ~10-15 detik, tapi user memang clear SEMUA subnet.
+     *
+     * Kasus B (subnetId tertentu): kirim lease4-del per IP via control socket
+     *   → Subnet LAIN tidak terganggu sama sekali (tanpa stop container).
+     *   → Fallback Stop-Write-Start hanya jika control socket tidak tersedia.
      */
     public function clearLeases(?int $subnetId = null): int
     {
-        // 1. Buka permission folder leases agar bisa ditulis
+        // Buka permission folder leases agar bisa ditulis
         @chmod(dirname($this->leasesPath), 0777);
         @chmod($this->leasesPath, 0666);
         @chmod($this->leasesPath . '.2', 0666);
@@ -290,10 +302,14 @@ class DhcpConfigService
         $defaultHeader = "address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context\n";
         $clearedCount  = 0;
 
-        // Ambil data active leases saat ini (sebelum Kea dimatikan)
+        // Ambil data active leases saat ini
         $currentLeases = $this->getActiveLeases();
 
+        // =====================================================================
         // KASUS A: Bersihkan SEMUA lease di semua subnet
+        // Flow: STOP Kea → Tulis CSV kosong → START Kea
+        // (downtime singkat ~10-15 detik, tapi user memang mau clear semua)
+        // =====================================================================
         if ($subnetId === null) {
             $clearedCount = count($currentLeases);
 
@@ -313,7 +329,13 @@ class DhcpConfigService
             return $clearedCount;
         }
 
-        // KASUS B: Bersihkan lease per subnet tertentu
+        // =====================================================================
+        // KASUS B: Bersihkan lease hanya untuk subnet tertentu
+        // Strategi UTAMA: kirim lease4-del per IP via control socket.
+        // → Kea langsung hapus dari memori, TANPA stop container
+        // → Subnet lain SAMA SEKALI tidak terganggu
+        // Fallback: Stop-Write-Start jika control socket tidak tersedia
+        // =====================================================================
         $subnet    = DhcpSubnet::find($subnetId);
         $startLong = (!empty($subnet->pool_start)) ? ip2long(trim($subnet->pool_start)) : false;
         $endLong   = (!empty($subnet->pool_end))   ? ip2long(trim($subnet->pool_end))   : false;
@@ -331,7 +353,10 @@ class DhcpConfigService
             }
         }
 
-        $remainingRows = [];
+        // Pisahkan lease yang perlu dihapus vs. yang dipertahankan
+        $leasesToDelete = [];
+        $remainingRows  = [];
+
         foreach ($currentLeases as $l) {
             $ip          = $l['ip'];
             $rowSubnetId = (int)($l['subnet_id'] ?? 0);
@@ -353,8 +378,9 @@ class DhcpConfigService
 
             if ($matches) {
                 $clearedCount++;
+                $leasesToDelete[] = $ip;
             } else {
-                // Simpan baris lease yang TIDAK dihapus
+                // Simpan baris lease yang TIDAK dihapus (untuk fallback write CSV)
                 $rawMac          = strtolower(str_replace([':', '-', '.'], '', $l['mac']));
                 $remainingRows[] = implode(',', [
                     $l['ip'],
@@ -372,22 +398,51 @@ class DhcpConfigService
             }
         }
 
-        // Langkah 1: STOP Kea — tunggu benar-benar mati sebelum tulis ulang file
-        $this->stopKeaService();
-
-        // Langkah 2: Tulis file CSV hanya dengan lease yang tersisa
-        $newContent = $defaultHeader;
-        if (!empty($remainingRows)) {
-            $newContent .= implode("\n", $remainingRows) . "\n";
+        if ($clearedCount === 0) {
+            return 0;
         }
-        $this->writeKeaLeasesFile($newContent);
 
-        // Langkah 3: Hapus file rotasi agar tidak mencemari kembali
-        $this->removeKeaLeaseFile($this->leasesPath . '.2');
-        $this->removeKeaLeaseFile($this->leasesPath . '.completed');
+        // Coba kirim lease4-del per IP via control socket (TANPA stop container)
+        $socketSuccess = false;
+        $testResponse  = $this->sendKeaControlCommand(['command' => 'list-commands']);
+        if ($testResponse && str_contains($testResponse, 'lease4-del')) {
+            // Control socket aktif dan mendukung lease4-del
+            foreach ($leasesToDelete as $ip) {
+                $this->sendKeaControlCommand([
+                    'command'   => 'lease4-del',
+                    'arguments' => ['ip-address' => $ip],
+                ]);
+            }
+            // Perbarui juga file CSV agar konsisten dengan in-memory Kea
+            $newContent = $defaultHeader;
+            if (!empty($remainingRows)) {
+                $newContent .= implode("\n", $remainingRows) . "\n";
+            }
+            $this->writeKeaLeasesFile($newContent);
+            $this->removeKeaLeaseFile($this->leasesPath . '.2');
+            $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
-        // Langkah 4: START Kea — baca lease yang sudah difilter
-        $this->startKeaService();
+            $socketSuccess = true;
+            Log::info("clearLeases via control socket: {$clearedCount} lease dihapus dari subnet {$subnetId} tanpa stop container.");
+        }
+
+        if (!$socketSuccess) {
+            // Fallback: control socket tidak tersedia, terpaksa Stop-Write-Start
+            // (subnet lain akan mengalami downtime singkat ~10-15 detik)
+            Log::warning("clearLeases fallback Stop-Write-Start: control socket tidak tersedia untuk subnet {$subnetId}.");
+
+            $this->stopKeaService();
+
+            $newContent = $defaultHeader;
+            if (!empty($remainingRows)) {
+                $newContent .= implode("\n", $remainingRows) . "\n";
+            }
+            $this->writeKeaLeasesFile($newContent);
+            $this->removeKeaLeaseFile($this->leasesPath . '.2');
+            $this->removeKeaLeaseFile($this->leasesPath . '.completed');
+
+            $this->startKeaService();
+        }
 
         return $clearedCount;
     }
