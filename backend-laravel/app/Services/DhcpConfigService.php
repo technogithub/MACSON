@@ -437,26 +437,27 @@ class DhcpConfigService
             $socketUsed = true;
         }
 
-        // 2. Tulis data ke CSV:
+        // 2. STOP Kea DHCP container SEBELUM memodifikasi file CSV!
+        // Ini SANGAT KRUSIAL: Jika Kea dimatikan setelah file CSV ditulis,
+        // saat shutdown Kea akan men-dump ulang seluruh lease dari RAM-nya kembali ke file CSV disk!
+        $this->stopKeaService();
+
+        // 3. Tulis data ke CSV tanpa lease subnet yang dihapus:
         $newContent = $defaultHeader;
         if (!empty($remainingRows)) {
             $newContent .= implode("\n", $remainingRows) . "\n";
         }
 
-        // Hapus file rotasi lama agar parser getActiveLeases tidak membaca lease lama lagi
-        $this->removeKeaLeaseFile($this->leasesPath . '.2');
-        $this->removeKeaLeaseFile($this->leasesPath . '.completed');
-
         // Tulis ulang file leases CSV utama
         $this->writeKeaLeasesFile($newContent);
 
-        // Hapus lagi file rotasi untuk memastikan
+        // Hapus file rotasi lama (.2 dan .completed) agar parser getActiveLeases tidak membaca lease lama lagi
         $this->removeKeaLeaseFile($this->leasesPath . '.2');
         $this->removeKeaLeaseFile($this->leasesPath . '.completed');
 
-        // RESTART container radius_dhcp agar memori internal Kea benar-benar di-reset & membaca data baru dari disk
-        Log::info("clearLeases: Merestart container Kea DHCP untuk mengosongkan {$clearedCount} active dynamic leases.");
-        $this->restartKeaService();
+        // 4. NYALAKAN KEMBALI container radius_dhcp
+        Log::info("clearLeases: Menyalakan kembali Kea DHCP setelah mengosongkan {$clearedCount} active dynamic leases untuk Subnet ID {$subnetId}.");
+        $this->startKeaService();
 
         return $clearedCount;
     }
