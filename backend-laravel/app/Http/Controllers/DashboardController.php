@@ -16,19 +16,30 @@ class DashboardController extends Controller
         $totalActive = Device::where('status', 'active')->count();
         $totalInactive = Device::where('status', 'inactive')->count();
 
-        // 2. Today's Auth Logs
-        $today = Carbon::today();
-        $todayLogsCount = RadiusLog::whereDate('log_date', $today)->count();
-        $totalAccept = RadiusLog::where('auth_result', 'ACCEPT')->count();
-        $totalReject = RadiusLog::where('auth_result', 'REJECT')->count();
+        // 2. Today's Auth Logs (Optimized using index range)
+        $todayStart = Carbon::today()->startOfDay();
+        $todayEnd = Carbon::today()->endOfDay();
 
-        // 3. Hourly Authentication Graph Data (Last 24 Hours)
+        // Single aggregation query for today's logs (1 scan using idx_log_date instead of 3 full table scans)
+        $todayStats = RadiusLog::select(
+                DB::raw('COUNT(*) as total_today'),
+                DB::raw("SUM(CASE WHEN auth_result = 'ACCEPT' THEN 1 ELSE 0 END) as total_accept"),
+                DB::raw("SUM(CASE WHEN auth_result = 'REJECT' THEN 1 ELSE 0 END) as total_reject")
+            )
+            ->whereBetween('log_date', [$todayStart, $todayEnd])
+            ->first();
+
+        $todayLogsCount = (int) ($todayStats->total_today ?? 0);
+        $totalAccept = (int) ($todayStats->total_accept ?? 0);
+        $totalReject = (int) ($todayStats->total_reject ?? 0);
+
+        // 3. Hourly Authentication Graph Data (Today)
         $hourlyStats = RadiusLog::select(
                 DB::raw('HOUR(log_date) as hour'),
                 DB::raw("SUM(CASE WHEN auth_result = 'ACCEPT' THEN 1 ELSE 0 END) as accepts"),
                 DB::raw("SUM(CASE WHEN auth_result = 'REJECT' THEN 1 ELSE 0 END) as rejects")
             )
-            ->whereDate('log_date', $today)
+            ->whereBetween('log_date', [$todayStart, $todayEnd])
             ->groupBy('hour')
             ->orderBy('hour')
             ->get();

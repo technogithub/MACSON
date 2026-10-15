@@ -93,7 +93,8 @@ CREATE TABLE `radius_log` (
   INDEX `idx_mac` (`mac_address`),
   INDEX `idx_ssid` (`ssid`),
   INDEX `idx_nas_ip` (`nas_ip`),
-  INDEX `idx_auth_result` (`auth_result`)
+  INDEX `idx_auth_result` (`auth_result`),
+  INDEX `idx_log_date_auth_result` (`log_date`, `auth_result`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------

@@ -6,6 +6,8 @@ use App\Models\RadiusLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
 
+use Carbon\Carbon;
+
 class LogController extends Controller
 {
     /**
@@ -31,12 +33,14 @@ class LogController extends Controller
             $query->where('auth_result', $request->result);
         }
 
-        // Date Range Filter
+        // Date Range Filter (Using index-friendly timestamp range)
         if ($request->filled('start_date')) {
-            $query->whereDate('log_date', '>=', $request->start_date);
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $query->where('log_date', '>=', $startDate);
         }
         if ($request->filled('end_date')) {
-            $query->whereDate('log_date', '<=', $request->end_date);
+            $endDate = Carbon::parse($request->end_date)->endOfDay();
+            $query->where('log_date', '<=', $endDate);
         }
 
         $logs = $query->orderBy('log_date', 'desc')->paginate(15)->withQueryString();
@@ -61,10 +65,12 @@ class LogController extends Controller
         $query = RadiusLog::query();
 
         if ($request->filled('start_date')) {
-            $query->whereDate('log_date', '>=', $request->start_date);
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $query->where('log_date', '>=', $startDate);
         }
         if ($request->filled('end_date')) {
-            $query->whereDate('log_date', '<=', $request->end_date);
+            $endDate = Carbon::parse($request->end_date)->endOfDay();
+            $query->where('log_date', '<=', $endDate);
         }
 
         $logs = $query->orderBy('log_date', 'desc')->get();
