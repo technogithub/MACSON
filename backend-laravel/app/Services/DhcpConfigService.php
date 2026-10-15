@@ -474,55 +474,123 @@ class DhcpConfigService
     }
 
     /**
-     * Tulis ke file kea-leases4.csv secara aman dengan fallback Docker exec jika permission denied
+     * Jalankan perintah sebagai root di dalam container radius_laravel_app via Docker API exec.
+     * radius_laravel_app SELALU running sehingga bisa dipakai bahkan setelah radius_dhcp di-stop.
+     *
+     * @param  array  $cmd  Misal: ['chmod', '777', '/var/www/html/storage/dhcp/leases/kea-leases4.csv']
+     */
+    private function dockerExecAsRoot(array $cmd): bool
+    {
+        $sock = '/var/run/docker.sock';
+        if (!file_exists($sock)) {
+            return false;
+        }
+
+        $body = json_encode([
+            'User'         => 'root',
+            'AttachStdout' => true,
+            'AttachStderr' => true,
+            'Cmd'          => $cmd,
+        ]);
+
+        // Step 1: Buat exec instance
+        $createResult = shell_exec(
+            "curl -s -X POST "
+            . "-H 'Content-Type: application/json' "
+            . "-d " . escapeshellarg($body) . " "
+            . "--unix-socket {$sock} "
+            . "'http://localhost/containers/radius_laravel_app/exec' 2>/dev/null"
+        );
+        $data   = json_decode($createResult ?? '', true);
+        $execId = $data['Id'] ?? null;
+
+        if (!$execId) {
+            Log::warning("dockerExecAsRoot: Gagal buat exec instance. Response: " . substr($createResult ?? '', 0, 200));
+            return false;
+        }
+
+        // Step 2: Jalankan exec (Detach=true agar tidak blocking)
+        shell_exec(
+            "curl -s -X POST "
+            . "-H 'Content-Type: application/json' "
+            . "-d '{\"Detach\":true,\"Tty\":false}' "
+            . "--unix-socket {$sock} "
+            . escapeshellarg("http://localhost/exec/{$execId}/start") . " 2>/dev/null"
+        );
+
+        usleep(800000); // 800ms cukup untuk chmod/write selesai
+        return true;
+    }
+
+    /**
+     * Tulis ke file kea-leases4.csv secara aman.
+     *
+     * Metode 1: File::put langsung (jika file masih milik www-data)
+     * Metode 2: chmod via Docker API exec (root di radius_laravel_app) → File::put
+     * Metode 3: Tulis konten via Docker API exec (root) langsung ke file
      */
     private function writeKeaLeasesFile(string $content): void
     {
-        $bytes = strlen($content);
+        $bytes        = strlen($content);
+        $containerDir = '/var/www/html/storage/dhcp/leases';
+        $filename     = basename($this->leasesPath);
+        $containerPath = "{$containerDir}/{$filename}";
+
+        // Metode 1: Direct File::put
         try {
             @chmod($this->leasesPath, 0666);
             File::put($this->leasesPath, $content);
             @chmod($this->leasesPath, 0666);
-            Log::info("writeKeaLeasesFile: Berhasil tulis {$bytes} bytes ke " . basename($this->leasesPath));
+            Log::info("writeKeaLeasesFile: OK via File::put ({$bytes} bytes).");
             return;
         } catch (\Throwable $e) {
             Log::warning("writeKeaLeasesFile: File::put gagal ({$bytes} bytes): " . $e->getMessage());
         }
 
-        // Fallback: Tulis langsung melalui container radius_dhcp (akses root ke volume)
+        // Metode 2: chmod via Docker exec root → lalu File::put
+        Log::info("writeKeaLeasesFile: Mencoba chmod via Docker exec root...");
+        $this->dockerExecAsRoot(['chmod', '777', $containerPath]);
+
         try {
-            $escaped = escapeshellarg($content);
-            $cmd = "docker exec radius_dhcp sh -c " . escapeshellarg("printf '%s' {$escaped} > /var/lib/kea/kea-leases4.csv") . " 2>/dev/null";
-            shell_exec($cmd);
-            shell_exec("docker exec radius_dhcp chmod 666 /var/lib/kea/kea-leases4.csv 2>/dev/null");
-            Log::info("writeKeaLeasesFile: Fallback docker exec berhasil ({$bytes} bytes).");
+            File::put($this->leasesPath, $content);
+            @chmod($this->leasesPath, 0666);
+            Log::info("writeKeaLeasesFile: OK via chmod-root + File::put ({$bytes} bytes).");
+            return;
         } catch (\Throwable $e) {
-            Log::error("writeKeaLeasesFile: Gagal fallback docker exec: " . $e->getMessage());
+            Log::warning("writeKeaLeasesFile: Setelah chmod-root, File::put masih gagal: " . $e->getMessage());
         }
+
+        // Metode 3: Tulis langsung via Docker exec root (base64 untuk menghindari masalah escaping)
+        Log::info("writeKeaLeasesFile: Mencoba tulis via Docker exec root langsung...");
+        $b64     = base64_encode($content);
+        $writeCmd = "echo " . escapeshellarg($b64) . " | base64 -d > {$containerPath} && chmod 666 {$containerPath}";
+        if ($this->dockerExecAsRoot(['sh', '-c', $writeCmd])) {
+            Log::info("writeKeaLeasesFile: OK via Docker exec root write ({$bytes} bytes).");
+            return;
+        }
+
+        Log::error("writeKeaLeasesFile: SEMUA METODE GAGAL untuk {$bytes} bytes!");
     }
 
-
     /**
-     * Hapus file rotasi kea-leases4.csv.2 / .completed secara aman tanpa crash
+     * Hapus file LFC Kea (.1 .2 .completed .bak) secara aman
      */
     private function removeKeaLeaseFile(string $filePath): void
     {
-        if (!File::exists($filePath)) return;
+        if (!file_exists($filePath)) return;
 
-        try {
-            @chmod($filePath, 0666);
-            File::delete($filePath);
+        // Coba hapus langsung (jika file milik www-data)
+        @chmod($filePath, 0666);
+        if (@unlink($filePath)) {
             return;
-        } catch (\Throwable $e) {
-            @unlink($filePath);
         }
 
-        // Fallback: Hapus melalui container radius_dhcp
-        try {
-            $filename = basename($filePath);
-            shell_exec("docker exec radius_dhcp rm -f /var/lib/kea/{$filename} 2>/dev/null");
-        } catch (\Throwable $e) {}
+        // Fallback: chmod dulu via Docker exec root, lalu hapus
+        $containerPath = '/var/www/html/storage/dhcp/leases/' . basename($filePath);
+        $this->dockerExecAsRoot(['rm', '-f', $containerPath]);
+        Log::info("removeKeaLeaseFile: Hapus " . basename($filePath) . " via Docker exec root.");
     }
+
 
     /**
      * Panggil Docker Engine API via Unix Socket /var/run/docker.sock
