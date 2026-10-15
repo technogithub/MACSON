@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Dashboard') - SANTAFE NAC</title>
     
+    <!-- Favicon: Modern SVG Shield Logo (Cyber Cyan & Indigo) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2338bdf8'/%3E%3Cstop offset='100%25' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Cpath d='M16 4 L25 8 V16 C25 21.5 21 26.5 16 28 C11 26.5 7 21.5 7 16 V8 Z' fill='url(%23g)'/%3E%3Cpath d='M16 4 V28 C21 26.5 25 21.5 25 16 V8 Z' fill='%23ffffff' opacity='0.25'/%3E%3Ccircle cx='16' cy='15' r='3.5' fill='%23ffffff'/%3E%3C/svg%3E">
+    <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Cpath d='M16 4 L25 8 V16 C25 21.5 21 26.5 16 28 C11 26.5 7 21.5 7 16 V8 Z' fill='%2338bdf8'/%3E%3C/svg%3E">
+    
     <!-- Bootstrap 5.3 CSS & FontAwesome 6 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
