@@ -317,19 +317,21 @@ class DhcpConfigService
                 'arguments' => ['subnet-id' => 0],
             ]);
 
-            // Bersihkan file rotasi sebelum stop agar tidak terbaca lagi
-            $this->removeKeaLeaseFile($this->leasesPath . '.2');
-            $this->removeKeaLeaseFile($this->leasesPath . '.completed');
-
-            // Hentikan Kea agar memori ter-flush
+            // Hentikan Kea agar memori ter-flush ke disk
             $this->stopKeaService();
+            sleep(3);
 
             // Tulis ulang file utama dengan header kosong saja
             $this->writeKeaLeasesFile($defaultHeader);
 
-            // Bersihkan lagi file rotasi jika Kea sempat mendump saat shutdown
-            $this->removeKeaLeaseFile($this->leasesPath . '.2');
-            $this->removeKeaLeaseFile($this->leasesPath . '.completed');
+            // Hapus SEMUA file LFC Kea agar tidak di-restore saat startup:
+            // .1   = LFC output file (Kea pakai ini untuk overwrite .csv saat startup!)
+            // .2   = copy lama file utama saat LFC mulai
+            // .completed = hasil LFC final
+            // .bak = backup lama
+            foreach (['.1', '.2', '.completed', '.bak'] as $ext) {
+                $this->removeKeaLeaseFile($this->leasesPath . $ext);
+            }
 
             // Jalankan kembali Kea
             $this->startKeaService();
@@ -455,9 +457,14 @@ class DhcpConfigService
         // Tulis ulang file leases CSV utama
         $this->writeKeaLeasesFile($newContent);
 
-        // Hapus file rotasi lama (.2 dan .completed) agar parser getActiveLeases tidak membaca lease lama lagi
-        $this->removeKeaLeaseFile($this->leasesPath . '.2');
-        $this->removeKeaLeaseFile($this->leasesPath . '.completed');
+        // Hapus SEMUA file LFC Kea agar tidak di-restore saat startup:
+        // .1   = LFC output (Kea AKAN pakai ini untuk overwrite .csv saat startup!)
+        // .2   = copy lama file utama saat LFC mulai
+        // .completed = hasil LFC final
+        // .bak = backup file lama
+        foreach (['.1', '.2', '.completed', '.bak'] as $ext) {
+            $this->removeKeaLeaseFile($this->leasesPath . $ext);
+        }
 
         // 4. NYALAKAN KEMBALI container radius_dhcp
         Log::info("clearLeases: Menyalakan kembali Kea DHCP setelah mengosongkan {$clearedCount} active dynamic leases untuk Subnet ID {$subnetId}.");
@@ -471,24 +478,29 @@ class DhcpConfigService
      */
     private function writeKeaLeasesFile(string $content): void
     {
+        $bytes = strlen($content);
         try {
             @chmod($this->leasesPath, 0666);
             File::put($this->leasesPath, $content);
             @chmod($this->leasesPath, 0666);
+            Log::info("writeKeaLeasesFile: Berhasil tulis {$bytes} bytes ke " . basename($this->leasesPath));
             return;
         } catch (\Throwable $e) {
-            Log::warning("File::put kea-leases4.csv gagal, mencoba fallback docker: " . $e->getMessage());
+            Log::warning("writeKeaLeasesFile: File::put gagal ({$bytes} bytes): " . $e->getMessage());
         }
 
         // Fallback: Tulis langsung melalui container radius_dhcp (akses root ke volume)
         try {
             $escaped = escapeshellarg($content);
-            shell_exec("docker exec radius_dhcp sh -c \"printf %s {$escaped} > /var/lib/kea/kea-leases4.csv\" 2>/dev/null");
+            $cmd = "docker exec radius_dhcp sh -c " . escapeshellarg("printf '%s' {$escaped} > /var/lib/kea/kea-leases4.csv") . " 2>/dev/null";
+            shell_exec($cmd);
             shell_exec("docker exec radius_dhcp chmod 666 /var/lib/kea/kea-leases4.csv 2>/dev/null");
+            Log::info("writeKeaLeasesFile: Fallback docker exec berhasil ({$bytes} bytes).");
         } catch (\Throwable $e) {
-            Log::error("Gagal fallback tulis kea-leases4.csv: " . $e->getMessage());
+            Log::error("writeKeaLeasesFile: Gagal fallback docker exec: " . $e->getMessage());
         }
     }
+
 
     /**
      * Hapus file rotasi kea-leases4.csv.2 / .completed secara aman tanpa crash
