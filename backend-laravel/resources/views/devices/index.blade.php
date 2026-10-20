@@ -532,13 +532,51 @@ mark.search-hl {
     <div class="table-responsive">
         <table class="table devices-table align-middle mb-0">
             <thead>
+                @php
+                    $makeSortUrl = function($col) use ($sort, $direction) {
+                        $nextDir = ($sort === $col && $direction === 'asc') ? 'desc' : 'asc';
+                        return route('devices.index', array_merge(request()->query(), ['sort' => $col, 'direction' => $nextDir]));
+                    };
+                    $sortIcon = function($col) use ($sort, $direction) {
+                        if ($sort === $col) {
+                            return $direction === 'asc' 
+                                ? '<i class="fa-solid fa-arrow-up-a-z ms-1 text-info"></i>' 
+                                : '<i class="fa-solid fa-arrow-down-z-a ms-1 text-info"></i>';
+                        }
+                        return '<i class="fa-solid fa-sort ms-1 text-muted opacity-50"></i>';
+                    };
+                @endphp
                 <tr>
-                    <th style="width:22%;">Device Name</th>
-                    <th style="width:18%;">MAC Address</th>
-                    <th style="width:14%;">Target SSID</th>
-                    <th style="width:10%;">VLAN</th>
-                    <th style="width:20%;">Description</th>
-                    <th style="width:8%;">Status</th>
+                    <th style="width:22%;">
+                        <a href="{{ $makeSortUrl('device_name') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                            <span>Device Name</span> {!! $sortIcon('device_name') !!}
+                        </a>
+                    </th>
+                    <th style="width:18%;">
+                        <a href="{{ $makeSortUrl('mac_address') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                            <span>MAC Address</span> {!! $sortIcon('mac_address') !!}
+                        </a>
+                    </th>
+                    <th style="width:14%;">
+                        <a href="{{ $makeSortUrl('ssid') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                            <span>Target SSID</span> {!! $sortIcon('ssid') !!}
+                        </a>
+                    </th>
+                    <th style="width:10%;">
+                        <a href="{{ $makeSortUrl('vlan_id') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                            <span>VLAN</span> {!! $sortIcon('vlan_id') !!}
+                        </a>
+                    </th>
+                    <th style="width:20%;">
+                        <a href="{{ $makeSortUrl('description') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                            <span>Description</span> {!! $sortIcon('description') !!}
+                        </a>
+                    </th>
+                    <th style="width:8%;">
+                        <a href="{{ $makeSortUrl('status') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                            <span>Status</span> {!! $sortIcon('status') !!}
+                        </a>
+                    </th>
                     <th style="width:8%;" class="text-center">Actions</th>
                 </tr>
             </thead>

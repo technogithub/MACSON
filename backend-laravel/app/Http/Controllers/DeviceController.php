@@ -49,10 +49,33 @@ class DeviceController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Sorting
+        $allowedSorts = [
+            'device_name' => 'device_name',
+            'mac_address' => 'mac_address',
+            'ssid'        => 'ssid',
+            'vlan_id'     => 'vlan_id',
+            'description' => 'description',
+            'status'      => 'status',
+            'id'          => 'id',
+            'created_at'  => 'created_at',
+        ];
+
+        $sort = $request->input('sort', 'id');
+        $direction = strtolower($request->input('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if (array_key_exists($sort, $allowedSorts)) {
+            $query->orderBy($allowedSorts[$sort], $direction);
+        } else {
+            $sort = 'id';
+            $direction = 'desc';
+            $query->orderBy('id', 'desc');
+        }
+
         // Per Page selection (15, 50, 100 - default 15)
         $perPage = in_array((int)$request->input('per_page'), [15, 50, 100]) ? (int)$request->input('per_page') : 15;
 
-        $devices        = $query->orderBy('id', 'desc')->paginate($perPage)->withQueryString();
+        $devices        = $query->paginate($perPage)->withQueryString();
         $availableSsids = Device::distinct()->pluck('ssid')->toArray();
         $masterSsids    = Ssid::orderBy('vlan_id', 'asc')->get();
 
@@ -93,7 +116,9 @@ class DeviceController extends Controller
             'otherSsids',
             'perPage',
             'selectedSsid',
-            'dhcpSubnets'
+            'dhcpSubnets',
+            'sort',
+            'direction'
         ));
     }
 

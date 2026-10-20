@@ -355,14 +355,48 @@
             <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0 dhcp-table">
                     <thead>
+                        @php
+                            $makeSubnetSortUrl = function($col) use ($subnetSort, $subnetDirection) {
+                                $nextDir = ($subnetSort === $col && $subnetDirection === 'asc') ? 'desc' : 'asc';
+                                return route('dhcp.index', array_merge(request()->query(), ['tab' => 'subnets', 'subnet_sort' => $col, 'subnet_direction' => $nextDir]));
+                            };
+                            $subnetSortIcon = function($col) use ($subnetSort, $subnetDirection) {
+                                if ($subnetSort === $col) {
+                                    return $subnetDirection === 'asc' 
+                                        ? '<i class="fa-solid fa-arrow-up-a-z ms-1 text-info"></i>' 
+                                        : '<i class="fa-solid fa-arrow-down-z-a ms-1 text-info"></i>';
+                                }
+                                return '<i class="fa-solid fa-sort ms-1 text-muted opacity-50"></i>';
+                            };
+                        @endphp
                         <tr>
-                            <th>Subnet Name</th>
-                            <th>VLAN</th>
-                            <th>Network CIDR</th>
+                            <th>
+                                <a href="{{ $makeSubnetSortUrl('name') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Subnet Name</span> {!! $subnetSortIcon('name') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeSubnetSortUrl('vlan_id') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>VLAN</span> {!! $subnetSortIcon('vlan_id') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeSubnetSortUrl('subnet') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Network CIDR</span> {!! $subnetSortIcon('subnet') !!}
+                                </a>
+                            </th>
                             <th>Pool Range (Start - End)</th>
-                            <th>Gateway / Router</th>
+                            <th>
+                                <a href="{{ $makeSubnetSortUrl('gateway') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Gateway / Router</span> {!! $subnetSortIcon('gateway') !!}
+                                </a>
+                            </th>
                             <th>DNS Servers</th>
-                            <th>Capacity</th>
+                            <th>
+                                <a href="{{ $makeSubnetSortUrl('lease_time') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Lease Time</span> {!! $subnetSortIcon('lease_time') !!}
+                                </a>
+                            </th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -503,13 +537,47 @@
             <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0 dhcp-table">
                     <thead>
+                        @php
+                            $makeStaticSortUrl = function($col) use ($staticSort, $staticDirection) {
+                                $nextDir = ($staticSort === $col && $staticDirection === 'asc') ? 'desc' : 'asc';
+                                return route('dhcp.index', array_merge(request()->query(), ['tab' => 'static', 'static_sort' => $col, 'static_direction' => $nextDir]));
+                            };
+                            $staticSortIcon = function($col) use ($staticSort, $staticDirection) {
+                                if ($staticSort === $col) {
+                                    return $staticDirection === 'asc' 
+                                        ? '<i class="fa-solid fa-arrow-up-a-z ms-1 text-info"></i>' 
+                                        : '<i class="fa-solid fa-arrow-down-z-a ms-1 text-info"></i>';
+                                }
+                                return '<i class="fa-solid fa-sort ms-1 text-muted opacity-50"></i>';
+                            };
+                        @endphp
                         <tr>
-                            <th>Reserved IP</th>
-                            <th>MAC Address</th>
-                            <th>Hostname / Label</th>
-                            <th>Subnet Group</th>
+                            <th>
+                                <a href="{{ $makeStaticSortUrl('ip_address') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Reserved IP</span> {!! $staticSortIcon('ip_address') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeStaticSortUrl('mac_address') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>MAC Address</span> {!! $staticSortIcon('mac_address') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeStaticSortUrl('hostname') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Hostname / Label</span> {!! $staticSortIcon('hostname') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeStaticSortUrl('dhcp_subnet_id') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Subnet Group</span> {!! $staticSortIcon('dhcp_subnet_id') !!}
+                                </a>
+                            </th>
                             <th>Linked Device</th>
-                            <th>Status</th>
+                            <th>
+                                <a href="{{ $makeStaticSortUrl('is_active') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Status</span> {!! $staticSortIcon('is_active') !!}
+                                </a>
+                            </th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -666,13 +734,51 @@
             <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0 dhcp-table">
                     <thead>
+                        @php
+                            $makeLeaseSortUrl = function($col) use ($leaseSort, $leaseDirection) {
+                                $nextDir = ($leaseSort === $col && $leaseDirection === 'asc') ? 'desc' : 'asc';
+                                return route('dhcp.index', array_merge(request()->query(), ['tab' => 'leases', 'lease_sort' => $col, 'lease_direction' => $nextDir]));
+                            };
+                            $leaseSortIcon = function($col) use ($leaseSort, $leaseDirection) {
+                                if ($leaseSort === $col) {
+                                    return $leaseDirection === 'asc' 
+                                        ? '<i class="fa-solid fa-arrow-up-a-z ms-1 text-info"></i>' 
+                                        : '<i class="fa-solid fa-arrow-down-z-a ms-1 text-info"></i>';
+                                }
+                                return '<i class="fa-solid fa-sort ms-1 text-muted opacity-50"></i>';
+                            };
+                        @endphp
                         <tr>
-                            <th>Leased IP</th>
-                            <th>Subnet Pool</th>
-                            <th>Client MAC Address</th>
-                            <th>Client Hostname</th>
-                            <th>Lease Expiration</th>
-                            <th>Status</th>
+                            <th>
+                                <a href="{{ $makeLeaseSortUrl('ip') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Leased IP</span> {!! $leaseSortIcon('ip') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeLeaseSortUrl('subnet_name') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Subnet Pool</span> {!! $leaseSortIcon('subnet_name') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeLeaseSortUrl('mac') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Client MAC Address</span> {!! $leaseSortIcon('mac') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeLeaseSortUrl('hostname') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Client Hostname</span> {!! $leaseSortIcon('hostname') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeLeaseSortUrl('expire_raw') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Lease Expiration</span> {!! $leaseSortIcon('expire_raw') !!}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ $makeLeaseSortUrl('is_active') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                    <span>Status</span> {!! $leaseSortIcon('is_active') !!}
+                                </a>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="activeLeasesTbody">
@@ -1396,8 +1502,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const searchVal = urlParams.get('search') || '';
         const perPage = urlParams.get('per_page') || '15';
         const leasePage = urlParams.get('lease_page') || '1';
+        const leaseSort = urlParams.get('lease_sort') || 'expire_raw';
+        const leaseDirection = urlParams.get('lease_direction') || 'desc';
 
-        const liveUrl = `/dhcp/leases/live?pool_id=${encodeURIComponent(poolId)}&search=${encodeURIComponent(searchVal)}&per_page=${encodeURIComponent(perPage)}&lease_page=${encodeURIComponent(leasePage)}`;
+        const liveUrl = `/dhcp/leases/live?pool_id=${encodeURIComponent(poolId)}&search=${encodeURIComponent(searchVal)}&per_page=${encodeURIComponent(perPage)}&lease_page=${encodeURIComponent(leasePage)}&lease_sort=${encodeURIComponent(leaseSort)}&lease_direction=${encodeURIComponent(leaseDirection)}`;
 
         isFetchingLeases = true;
         const statusText = document.getElementById('liveStatusText');

@@ -27,9 +27,24 @@ class DhcpController extends Controller
         $perPage      = in_array((int)$request->input('per_page'), [15, 50, 100]) ? (int)$request->input('per_page') : 15;
         $search       = $request->input('search');
 
-        $subnets = DhcpSubnet::withCount('staticLeases')->orderBy('id', 'asc')->get();
+        $subnetsQuery = DhcpSubnet::withCount('staticLeases');
+        $subnetSort = $request->input('subnet_sort', 'id');
+        $subnetDirection = strtolower($request->input('subnet_direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $allowedSubnetSorts = ['id', 'name', 'vlan_id', 'subnet', 'gateway', 'lease_time', 'is_active'];
+        if (in_array($subnetSort, $allowedSubnetSorts)) {
+            if ($subnetSort === 'subnet' || $subnetSort === 'gateway') {
+                $subnetsQuery->orderByRaw("INET_ATON(SUBSTRING_INDEX({$subnetSort}, '/', 1)) {$subnetDirection}");
+            } else {
+                $subnetsQuery->orderBy($subnetSort, $subnetDirection);
+            }
+        } else {
+            $subnetSort = 'id';
+            $subnetDirection = 'asc';
+            $subnetsQuery->orderBy('id', 'asc');
+        }
+        $subnets = $subnetsQuery->get();
 
-        // 1. Static IP Leases Query with pool filter & search
+        // 1. Static IP Leases Query with pool filter, search & sorting
         $staticQuery = DhcpStaticLease::with(['subnet', 'device']);
         if ($selectedPool !== 'all') {
             $staticQuery->where('dhcp_subnet_id', $selectedPool);
@@ -46,7 +61,23 @@ class DhcpController extends Controller
                   });
             });
         }
-        $staticLeases = $staticQuery->orderBy('id', 'desc')->paginate($perPage, ['*'], 'static_page')->withQueryString();
+
+        $staticSort = $request->input('static_sort', 'id');
+        $staticDirection = strtolower($request->input('static_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedStaticSorts = ['id', 'ip_address', 'mac_address', 'hostname', 'dhcp_subnet_id', 'is_active'];
+        if (in_array($staticSort, $allowedStaticSorts)) {
+            if ($staticSort === 'ip_address') {
+                $staticQuery->orderByRaw("INET_ATON(ip_address) {$staticDirection}");
+            } else {
+                $staticQuery->orderBy($staticSort, $staticDirection);
+            }
+        } else {
+            $staticSort = 'id';
+            $staticDirection = 'desc';
+            $staticQuery->orderBy('id', 'desc');
+        }
+
+        $staticLeases = $staticQuery->paginate($perPage, ['*'], 'static_page')->withQueryString();
 
         // 2. Active Dynamic Leases from Kea CSV
         $rawLeases = $this->dhcpService->getActiveLeases();
@@ -97,6 +128,30 @@ class DhcpController extends Controller
             });
         }
 
+        // Sorting active dynamic leases
+        $leaseSort = $request->input('lease_sort', 'expire_raw');
+        $leaseDirection = strtolower($request->input('lease_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedLeaseSorts = ['ip', 'subnet_name', 'mac', 'hostname', 'expire_raw', 'is_active'];
+
+        if (in_array($leaseSort, $allowedLeaseSorts)) {
+            $filteredLeases = $filteredLeases->sort(function ($a, $b) use ($leaseSort, $leaseDirection) {
+                if ($leaseSort === 'ip') {
+                    $valA = ip2long($a['ip']) ?: 0;
+                    $valB = ip2long($b['ip']) ?: 0;
+                    $cmp = $valA <=> $valB;
+                } elseif ($leaseSort === 'expire_raw') {
+                    $cmp = ($a['expire_raw'] ?? 0) <=> ($b['expire_raw'] ?? 0);
+                } elseif ($leaseSort === 'is_active') {
+                    $cmp = ($a['is_active'] ? 1 : 0) <=> ($b['is_active'] ? 1 : 0);
+                } else {
+                    $valA = strtolower($a[$leaseSort] ?? '');
+                    $valB = strtolower($b[$leaseSort] ?? '');
+                    $cmp = strcmp($valA, $valB);
+                }
+                return $leaseDirection === 'asc' ? $cmp : -$cmp;
+            });
+        }
+
         // Paginate active dynamic leases collection
         $leasePage = (int)$request->input('lease_page', 1);
         $totalFilteredLeases = $filteredLeases->count();
@@ -119,7 +174,13 @@ class DhcpController extends Controller
             'totalActiveLeases',
             'selectedPool',
             'perPage',
-            'currentTab'
+            'currentTab',
+            'subnetSort',
+            'subnetDirection',
+            'staticSort',
+            'staticDirection',
+            'leaseSort',
+            'leaseDirection'
         ));
     }
 
@@ -555,6 +616,30 @@ class DhcpController extends Controller
                         || str_contains(strtolower($al['mac']), $s)
                         || str_contains(strtolower($al['hostname']), $s)
                         || str_contains(strtolower($al['subnet_name']), $s);
+                });
+            }
+
+            // Sorting active dynamic leases
+            $leaseSort = $request->input('lease_sort', 'expire_raw');
+            $leaseDirection = strtolower($request->input('lease_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+            $allowedLeaseSorts = ['ip', 'subnet_name', 'mac', 'hostname', 'expire_raw', 'is_active'];
+
+            if (in_array($leaseSort, $allowedLeaseSorts)) {
+                $filteredLeases = $filteredLeases->sort(function ($a, $b) use ($leaseSort, $leaseDirection) {
+                    if ($leaseSort === 'ip') {
+                        $valA = ip2long($a['ip']) ?: 0;
+                        $valB = ip2long($b['ip']) ?: 0;
+                        $cmp = $valA <=> $valB;
+                    } elseif ($leaseSort === 'expire_raw') {
+                        $cmp = ($a['expire_raw'] ?? 0) <=> ($b['expire_raw'] ?? 0);
+                    } elseif ($leaseSort === 'is_active') {
+                        $cmp = ($a['is_active'] ? 1 : 0) <=> ($b['is_active'] ? 1 : 0);
+                    } else {
+                        $valA = strtolower($a[$leaseSort] ?? '');
+                        $valB = strtolower($b[$leaseSort] ?? '');
+                        $cmp = strcmp($valA, $valB);
+                    }
+                    return $leaseDirection === 'asc' ? $cmp : -$cmp;
                 });
             }
 
