@@ -42,9 +42,31 @@ class VoucherController extends Controller
             $query->where('status', 'revoked');
         }
 
+        // Sorting
+        $allowedSorts = [
+            'code'             => 'code',
+            'duration_minutes' => 'duration_minutes',
+            'quota_mb'         => 'quota_mb',
+            'note'             => 'note',
+            'sync_status'      => 'sync_status',
+            'created_at'       => 'created_at',
+            'id'               => 'id',
+        ];
+
+        $sort = $request->input('sort', 'id');
+        $direction = strtolower($request->input('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if (array_key_exists($sort, $allowedSorts)) {
+            $query->orderBy($allowedSorts[$sort], $direction);
+        } else {
+            $sort = 'id';
+            $direction = 'desc';
+            $query->orderBy('id', 'desc');
+        }
+
         $perPage = in_array((int)$request->input('per_page'), [20, 50, 100, 200]) ? (int)$request->input('per_page') : 20;
 
-        $vouchers = $query->orderBy('id', 'desc')->paginate($perPage)->withQueryString();
+        $vouchers = $query->paginate($perPage)->withQueryString();
         $config   = $this->uniFiService->getConfig();
 
         // Simplified Voucher Stats (Option C - Issuer Focus)
@@ -54,7 +76,7 @@ class VoucherController extends Controller
             'revoked'       => UnifiVoucher::where('status', 'revoked')->count(),
         ];
 
-        return view('vouchers.index', compact('vouchers', 'config', 'stats'));
+        return view('vouchers.index', compact('vouchers', 'config', 'stats', 'sort', 'direction'));
     }
 
     /**

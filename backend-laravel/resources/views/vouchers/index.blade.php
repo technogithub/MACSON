@@ -203,17 +203,55 @@
         <div class="table-responsive">
             <table class="table voucher-table align-middle mb-0">
                 <thead>
+                    @php
+                        $makeVoucherSortUrl = function($col) use ($sort, $direction) {
+                            $nextDir = ($sort === $col && $direction === 'asc') ? 'desc' : 'asc';
+                            return route('vouchers.index', array_merge(request()->query(), ['sort' => $col, 'direction' => $nextDir]));
+                        };
+                        $voucherSortIcon = function($col) use ($sort, $direction) {
+                            if ($sort === $col) {
+                                return $direction === 'asc' 
+                                    ? '<i class="fa-solid fa-arrow-up-a-z ms-1 text-info"></i>' 
+                                    : '<i class="fa-solid fa-arrow-down-z-a ms-1 text-info"></i>';
+                            }
+                            return '<i class="fa-solid fa-sort ms-1 text-muted opacity-50"></i>';
+                        };
+                    @endphp
                     <tr>
                         <th style="width:40px;" class="text-center">
                             <input type="checkbox" id="selectAllVouchers" class="form-check-input" title="Select All Vouchers">
                         </th>
-                        <th>Voucher Code</th>
-                        <th>Duration</th>
-                        <th>Quota Limit</th>
+                        <th>
+                            <a href="{{ $makeVoucherSortUrl('code') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                <span>Voucher Code</span> {!! $voucherSortIcon('code') !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ $makeVoucherSortUrl('duration_minutes') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                <span>Duration</span> {!! $voucherSortIcon('duration_minutes') !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ $makeVoucherSortUrl('quota_mb') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                <span>Quota Limit</span> {!! $voucherSortIcon('quota_mb') !!}
+                            </a>
+                        </th>
                         <th>Speed Limit</th>
-                        <th>Batch / Note</th>
-                        <th>UniFi Sync</th>
-                        <th>Created At</th>
+                        <th>
+                            <a href="{{ $makeVoucherSortUrl('note') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                <span>Batch / Note</span> {!! $voucherSortIcon('note') !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ $makeVoucherSortUrl('sync_status') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                <span>UniFi Sync</span> {!! $voucherSortIcon('sync_status') !!}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ $makeVoucherSortUrl('created_at') }}" class="text-decoration-none text-reset d-inline-flex align-items-center">
+                                <span>Created At</span> {!! $voucherSortIcon('created_at') !!}
+                            </a>
+                        </th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
