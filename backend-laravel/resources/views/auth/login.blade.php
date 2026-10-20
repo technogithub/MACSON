@@ -325,8 +325,13 @@
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
             <h1 class="login-title">Welcome to SANTAFE</h1>
-            <p class="login-subtitle">
-                <span>Santos Advanced Network Traffic & Access Filtering Engine</span>
+            <p class="login-subtitle mb-3">
+                <span class="d-block text-info fw-bold" style="font-size:11.5px; letter-spacing:0.8px; text-transform:uppercase;">
+                    Santos Advanced Network Traffic &amp; Access Filtering Engine
+                </span>
+                <span class="text-secondary small" style="font-size:12px; font-weight:400;">
+                    Enterprise Network Access Control &amp; RADIUS 802.1X/MAB System
+                </span>
             </p>
 
             <!-- Alerts -->

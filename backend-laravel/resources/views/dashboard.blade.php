@@ -6,11 +6,22 @@
 <!-- Page Header -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
     <div>
-        <h3 class="fw-bold mb-1 font-outfit text-light d-flex align-items-center gap-2">
-            <i class="fa-solid fa-gauge-high text-info"></i>
-            <span>Network Operations Center</span>
-        </h3>
-        <p class="text-secondary small mb-0">Real-time RADIUS Access Control & Dynamic 802.1Q VLAN Tagging Metrics</p>
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+            <h3 class="fw-bold mb-0 font-outfit text-light d-flex align-items-center gap-2">
+                <i class="fa-solid fa-gauge-high text-info"></i>
+                <span>Network Operations Center</span>
+            </h3>
+            <span class="badge rounded-pill border" style="background:rgba(56,189,248,0.1); border-color:var(--macson-border-hover)!important; color:var(--macson-primary); font-size:0.75rem;">
+                SANTAFE NAC Engine
+            </span>
+        </div>
+        <p class="text-secondary small mb-1">
+            <strong class="text-info fw-semibold font-outfit">SANTAFE</strong>: 
+            <span>Santos Advanced Network Traffic &amp; Access Filtering Engine</span>
+        </p>
+        <p class="text-muted small mb-0" style="font-size:0.78rem;">
+            Real-time RADIUS Access Control &amp; Dynamic 802.1Q VLAN Tagging Metrics
+        </p>
     </div>
     <div class="d-flex align-items-center gap-2">
         <a href="{{ route('devices.index') }}" class="btn btn-sm btn-info fw-semibold px-3 py-2 rounded-3 text-dark d-flex align-items-center gap-2" style="background:#38bdf8;border:none;">
