@@ -6,21 +6,13 @@
 <!-- Page Header -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
     <div>
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-            <h3 class="fw-bold mb-0 font-outfit text-light d-flex align-items-center gap-2">
-                <i class="fa-solid fa-gauge-high text-info"></i>
-                <span>Network Operations Center</span>
-            </h3>
-            <span class="badge rounded-pill border" style="background:rgba(56,189,248,0.1); border-color:var(--macson-border-hover)!important; color:var(--macson-primary); font-size:0.75rem;">
-                SANTAFE NAC Engine
-            </span>
-        </div>
-        <p class="text-secondary small mb-1">
-            <strong class="text-info fw-semibold font-outfit">SANTAFE</strong>: 
-            <span>Santos Advanced Network Traffic &amp; Access Filtering Engine</span>
-        </p>
-        <p class="text-muted small mb-0" style="font-size:0.78rem;">
-            Real-time RADIUS Access Control &amp; Dynamic 802.1Q VLAN Tagging Metrics
+        <h3 class="fw-bold mb-1 font-outfit text-light d-flex align-items-center gap-2">
+            <i class="fa-solid fa-gauge-high text-info"></i>
+            <span>SANTAFE</span>
+            <span class="badge bg-dark-subtle text-info border border-info-subtle rounded-pill fs-7 px-2.5 py-1 ms-1">v1.0</span>
+        </h3>
+        <p class="text-secondary small mb-0">
+            Santos Advanced Network Traffic &amp; Access Filtering Engine
         </p>
     </div>
     <div class="d-flex align-items-center gap-2">

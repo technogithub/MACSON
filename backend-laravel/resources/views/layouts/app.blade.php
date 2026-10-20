@@ -442,15 +442,8 @@
                 <div class="d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(99,102,241,0.2));border:1px solid rgba(56,189,248,0.4);border-radius:10px;">
                     <i class="fa-solid fa-shield-halved text-info fs-5"></i>
                 </div>
-                <div>
-                    <div class="d-flex align-items-center gap-1.5">
-                        <span class="brand-text">SANTAFE</span>
-                        <span class="badge bg-dark-subtle text-info border border-info-subtle rounded-pill fs-7 px-2 py-0.5">v1.0</span>
-                    </div>
-                    <div class="text-secondary d-none d-xxl-block" style="font-size:9px; letter-spacing:0.3px; line-height:1; margin-top:-2px;">
-                        Santos Advanced Network Traffic &amp; Access Filtering Engine
-                    </div>
-                </div>
+                <span class="brand-text">SANTAFE</span>
+                <span class="badge bg-dark-subtle text-info border border-info-subtle rounded-pill fs-7 px-2 py-1 ms-1">v1.0</span>
             </a>
 
             <!-- Right Navbar Items -->
