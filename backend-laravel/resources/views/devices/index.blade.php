@@ -822,7 +822,7 @@ mark.search-hl {
                                             <div class="input-group">
                                                 <input type="text" name="reserve_ip_address" id="addReserveIp"
                                                        class="form-control form-control-dark font-monospace"
-                                                       placeholder="e.g. 10.14.27.50">
+                                                       placeholder="e.g. 192.168.10.50">
                                                 <button type="button" class="btn btn-outline-info btn-sm" id="addSuggestIpBtn" title="Auto-suggest IP kosong">
                                                     <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest
                                                 </button>
@@ -962,7 +962,7 @@ mark.search-hl {
                                             <div class="input-group">
                                                 <input type="text" name="reserve_ip_address" id="editReserveIp"
                                                        class="form-control form-control-dark font-monospace"
-                                                       placeholder="e.g. 10.14.27.50">
+                                                       placeholder="e.g. 192.168.10.50">
                                                 <button type="button" class="btn btn-outline-info btn-sm" id="editSuggestIpBtn" title="Auto-suggest IP kosong">
                                                     <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest
                                                 </button>

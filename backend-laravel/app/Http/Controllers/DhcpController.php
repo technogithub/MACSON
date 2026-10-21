@@ -353,9 +353,9 @@ class DhcpController extends Controller
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
 
             fputcsv($file, ['mac_address', 'ip_address', 'subnet', 'hostname', 'description']);
-            fputcsv($file, ['00:11:22:33:44:55', '10.14.27.50', 'SJA AP', 'AP-GUDANG-01', 'Access Point Gudang 1']);
-            fputcsv($file, ['AA:BB:CC:DD:EE:FF', '10.14.28.10', 'TAB PWD', 'TAB-POS-01', 'Tablet Kasir Pos 1']);
-            fputcsv($file, ['11:22:33:44:55:66', '10.14.27.51', '', '', 'Auto detect pool dari range IP']);
+            fputcsv($file, ['00:11:22:33:44:55', '192.168.10.50', 'POOL-CORP', 'AP-LOBBY-01', 'Access Point Lobby Lt 1']);
+            fputcsv($file, ['AA:BB:CC:DD:EE:FF', '192.168.20.10', 'POOL-GUEST', 'TAB-POS-01', 'Tablet Resepsionis']);
+            fputcsv($file, ['11:22:33:44:55:66', '192.168.10.51', '', '', 'Auto detect pool dari range IP']);
             fclose($file);
         }, 200, $headers);
     }

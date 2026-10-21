@@ -636,9 +636,9 @@ class DeviceController extends Controller
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
 
             fputcsv($file, ['MAC Address', 'SSID', 'Device Name', 'Location', 'Description', 'Status', 'VLAN ID', 'IP Address', 'Subnet']);
-            fputcsv($file, ['00:11:22:33:44:55', 'SJA AP', 'AP Warehouse Lt 1', 'Warehouse', 'AP Operasional', 'active', '27', '10.14.27.50', 'SJA AP']);
-            fputcsv($file, ['AA:BB:CC:DD:EE:FF', 'SJA REG', 'Tablet Kasir Pos 1', 'Kasir Depan', 'Device POS', 'active', '', '10.14.28.10', 'TAB PWD']);
-            fputcsv($file, ['11:22:33:44:55:66', 'ALL', 'Laptop Staff IT', 'Kantor IT', 'Tanpa Reservasi IP', 'active', '', '', '']);
+            fputcsv($file, ['00:11:22:33:44:55', 'CORP-WIFI', 'AP Lantai 1', 'Lobby', 'Access Point Lobby', 'active', '10', '192.168.10.50', 'POOL-CORP']);
+            fputcsv($file, ['AA:BB:CC:DD:EE:FF', 'GUEST-WIFI', 'Tablet Resepsionis', 'Resepsionis', 'Device Resepsionis', 'active', '20', '192.168.20.10', 'POOL-GUEST']);
+            fputcsv($file, ['11:22:33:44:55:66', 'ALL', 'Laptop Staff IT', 'Ruang IT', 'Tanpa Reservasi IP', 'active', '', '', '']);
             fclose($file);
         }, 200, $headers);
     }
@@ -716,7 +716,7 @@ class DeviceController extends Controller
         // Gateway subnet agar tidak disarankan
         $gatewayLong = !empty($subnet->gateway) ? ip2long(trim($subnet->gateway)) : false;
 
-        // Hitung network & broadcast dari CIDR (misal 10.14.28.0/24)
+        // Hitung network & broadcast dari CIDR (misal 192.168.10.0/24)
         $networkLong = false;
         $broadcastLong = false;
         if (!empty($subnet->subnet) && str_contains($subnet->subnet, '/')) {
