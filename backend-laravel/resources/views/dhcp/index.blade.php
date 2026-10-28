@@ -1621,6 +1621,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 800);
         });
     }
+
+    // Auto-sync dropdown pilihan pool di Clear Lease Modal dengan pool yang sedang aktif
+    const clearLeaseModal = document.getElementById('clearLeaseModal');
+    if (clearLeaseModal) {
+        clearLeaseModal.addEventListener('show.bs.modal', function () {
+            const currentPool = new URLSearchParams(window.location.search).get('pool_id') || 'all';
+            const select = document.getElementById('clearLeasePoolSelect');
+            if (select && currentPool) {
+                select.value = currentPool;
+            }
+        });
+    }
 });
 </script>
 @endpush

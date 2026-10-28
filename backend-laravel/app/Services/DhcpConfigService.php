@@ -173,14 +173,27 @@ class DhcpConfigService
     }
 
     /**
+     * Alias untuk syncConfigFile()
+     */
+    public function syncConfig(): bool
+    {
+        return $this->syncConfigFile();
+    }
+
+    /**
      * Memicu reload Kea DHCP server tanpa restart container (zero-downtime)
      */
     public function reloadKeaService(): void
     {
         try {
-            // Jika berjalan di docker, kirim sinyal SIGHUP ke proses kea di container radius_dhcp
-            if (shell_exec('which docker')) {
-                shell_exec('docker kill -s HUP radius_dhcp 2>/dev/null');
+            // 1. Coba reload via Kea control-socket (zero-downtime)
+            $res = $this->sendKeaControlCommand(['command' => 'config-reload']);
+
+            // 2. Jika socket tidak merespon atau config-reload tidak tersedia, restart container Kea
+            if (empty($res) || strpos($res, '"result": 0') === false) {
+                if (shell_exec('which docker')) {
+                    shell_exec('docker restart radius_dhcp 2>/dev/null');
+                }
             }
         } catch (\Throwable $e) {
             // abaikan jika container belum terpasang
@@ -364,57 +377,79 @@ class DhcpConfigService
             }
         }
 
-        // 1. Baca seluruh baris dari file utama kea-leases4.csv
-        $fileLines = file_exists($this->leasesPath) ? file($this->leasesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
-        if (empty($fileLines)) {
-            Log::info("clearLeases: File leases utama kosong.");
-            return 0;
-        }
+        // 1. Kumpulkan seluruh baris dari SEMUA file leases Kea (.completed, .2, dan file utama .csv)
+        // Karena proses LFC (Lease File Cleanup) Kea sering merotasi lease aktif ke .completed atau .2
+        $potentialFiles = [
+            $this->leasesPath . '.completed',
+            $this->leasesPath . '.2',
+            $this->leasesPath,
+        ];
 
-        $headerLine = array_shift($fileLines);
-        $headers    = str_getcsv($headerLine);
-        $addrIdx    = array_search('address', array_map('trim', $headers));
-        $subIdx     = array_search('subnet_id', array_map('trim', $headers));
+        $headerLine = null;
+        $preservedLinesByIp = [];
+        $clearedCount = 0;
 
-        $preservedLines = [];
-        $leasesToDelete = [];
-
-        foreach ($fileLines as $rawLine) {
-            $cols = str_getcsv($rawLine);
-            if (empty($cols) || count($cols) < 3) {
+        foreach ($potentialFiles as $filePath) {
+            if (!file_exists($filePath)) {
                 continue;
             }
 
-            $ip = ($addrIdx !== false && isset($cols[$addrIdx])) ? trim($cols[$addrIdx]) : '';
-            $rowSubId = ($subIdx !== false && isset($cols[$subIdx])) ? (int)trim($cols[$subIdx]) : 0;
-
-            $matches = false;
-            // Cocokkan berdasarkan Subnet ID di Kea
-            if ($rowSubId === $subnetId) {
-                $matches = true;
-            } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
-                // Cocokkan berdasarkan Range IP Pool atau CIDR Network
-                $ipLong = ip2long($ip);
-                if ($startLong !== false && $endLong !== false
-                    && $ipLong >= min($startLong, $endLong)
-                    && $ipLong <= max($startLong, $endLong)) {
-                    $matches = true;
-                } elseif ($networkLong !== false && $broadcastLong !== false
-                    && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
-                    $matches = true;
-                }
+            $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (empty($lines) || count($lines) <= 1) {
+                continue;
             }
 
-            if ($matches) {
-                $clearedCount++;
-                if (!empty($ip)) {
-                    $leasesToDelete[] = $ip;
+            $currentHeader = array_shift($lines);
+            if (!$headerLine && !empty($currentHeader)) {
+                $headerLine = $currentHeader;
+            }
+
+            $headers = str_getcsv($currentHeader);
+            $addrIdx = array_search('address', array_map('trim', $headers));
+            $subIdx  = array_search('subnet_id', array_map('trim', $headers));
+
+            foreach ($lines as $rawLine) {
+                $cols = str_getcsv($rawLine);
+                if (empty($cols) || count($cols) < 3) {
+                    continue;
                 }
-            } else {
-                // PERTAHANKAN BARIS ASLI TANPA DIUBAH SEDIKITPUN
-                $preservedLines[] = $rawLine;
+
+                $ip = ($addrIdx !== false && isset($cols[$addrIdx])) ? trim($cols[$addrIdx]) : '';
+                $rowSubId = ($subIdx !== false && isset($cols[$subIdx])) ? (int)trim($cols[$subIdx]) : 0;
+
+                $matches = false;
+                // Cocokkan berdasarkan Subnet ID di Kea
+                if ($rowSubId === $subnetId) {
+                    $matches = true;
+                } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
+                    // Cocokkan berdasarkan Range IP Pool atau CIDR Network
+                    $ipLong = ip2long($ip);
+                    if ($startLong !== false && $endLong !== false
+                        && $ipLong >= min($startLong, $endLong)
+                        && $ipLong <= max($startLong, $endLong)) {
+                        $matches = true;
+                    } elseif ($networkLong !== false && $broadcastLong !== false
+                        && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
+                        $matches = true;
+                    }
+                }
+
+                if ($matches) {
+                    $clearedCount++;
+                } else {
+                    // PERTAHANKAN BARIS ASLI DARI SUBNET LAIN TANPA DIUBAH
+                    if (!empty($ip)) {
+                        $preservedLinesByIp[$ip] = $rawLine;
+                    }
+                }
             }
         }
+
+        if (!$headerLine) {
+            $headerLine = $defaultHeader;
+        }
+
+        $preservedLines = array_values($preservedLinesByIp);
 
         if ($clearedCount === 0) {
             Log::info("clearLeases: Tidak ada lease yang cocok untuk Subnet ID {$subnetId}.");
