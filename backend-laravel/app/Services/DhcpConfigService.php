@@ -422,12 +422,30 @@ class DhcpConfigService
                     continue;
                 }
 
-                // Cek apakah IP atau Subnet ID cocok dengan subnet yang ingin dibersihkan
+                // Cek apakah lease ini milik subnet yang ingin dibersihkan.
+                //
+                // ATURAN PENTING:
+                //   - Jika subnet_id di CSV valid (> 0), PERCAYA PENUH pada subnet_id.
+                //     Jangan gunakan containsIp() karena CIDR subnet bisa overlap dengan subnet lain
+                //     (misal: subnet /16 mencakup seluruh range termasuk subnet /24 di dalamnya).
+                //   - containsIp() hanya dipakai sebagai fallback untuk baris dengan subnet_id = 0
+                //     (lease lama yang tidak memiliki subnet_id tercatat).
                 $matches = false;
-                if ($rowSubId === (int)$subnet->id) {
-                    $matches = true;
-                } elseif (filter_var($ip, FILTER_VALIDATE_IP)) {
-                    $matches = $subnet->containsIp($ip);
+                if ($rowSubId > 0) {
+                    // Ada subnet_id valid → match hanya berdasarkan subnet_id, TIDAK cek CIDR
+                    $matches = ($rowSubId === (int)$subnet->id);
+                    if (!$matches) {
+                        // subnet_id berbeda → ini pasti milik subnet lain, jangan hapus
+                        Log::debug("clearLeases: SKIP IP {$ip} (subnet_id={$rowSubId} bukan target {$subnet->id}) dari " . basename($filePath));
+                    }
+                } else {
+                    // subnet_id = 0 atau tidak ada → fallback ke cek CIDR/pool range
+                    if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                        $matches = $subnet->containsIp($ip);
+                        if ($matches) {
+                            Log::info("clearLeases: HAPUS via CIDR-fallback IP {$ip} (subnet_id=0) dari " . basename($filePath));
+                        }
+                    }
                 }
 
                 if ($matches) {
