@@ -424,35 +424,32 @@ class DhcpConfigService
 
                 // Cek apakah lease ini milik subnet yang ingin dibersihkan.
                 //
-                // ATURAN PENTING:
-                //   - Jika subnet_id di CSV valid (> 0), PERCAYA PENUH pada subnet_id.
-                //     Jangan gunakan containsIp() karena CIDR subnet bisa overlap dengan subnet lain
-                //     (misal: subnet /16 mencakup seluruh range termasuk subnet /24 di dalamnya).
-                //   - containsIp() hanya dipakai sebagai fallback untuk baris dengan subnet_id = 0
-                //     (lease lama yang tidak memiliki subnet_id tercatat).
-                $matches = false;
-                if ($rowSubId > 0) {
-                    // Ada subnet_id valid → match hanya berdasarkan subnet_id, TIDAK cek CIDR
-                    $matches = ($rowSubId === (int)$subnet->id);
-                    if (!$matches) {
-                        // subnet_id berbeda → ini pasti milik subnet lain, jangan hapus
-                        Log::debug("clearLeases: SKIP IP {$ip} (subnet_id={$rowSubId} bukan target {$subnet->id}) dari " . basename($filePath));
-                    }
-                } else {
-                    // subnet_id = 0 atau tidak ada → fallback ke cek CIDR/pool range
-                    if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                        $matches = $subnet->containsIp($ip);
-                        if ($matches) {
-                            Log::info("clearLeases: HAPUS via CIDR-fallback IP {$ip} (subnet_id=0) dari " . basename($filePath));
-                        }
-                    }
+                // STRATEGI (dua kondisi, salah satu cukup untuk menghapus):
+                //   1. subnet_id di CSV cocok dengan target subnet ID di DB → hapus
+                //   2. IP ada di dalam pool range subnet target (bukan CIDR!) → hapus
+                //      Alasan: ada kemungkinan lease lama punya subnet_id berbeda (0 / stale),
+                //      tapi IP-nya jelas milik pool subnet ini.
+                //
+                // Dengan cek pool range (bukan CIDR), kita aman dari masalah CIDR overlap
+                // karena pool range tiap subnet pasti unik dan tidak overlap.
+                $matchById   = ($rowSubId > 0 && $rowSubId === (int)$subnet->id);
+                $matchByPool = (!$matchById && filter_var($ip, FILTER_VALIDATE_IP) && $subnet->isInPool($ip));
+                $matches     = $matchById || $matchByPool;
+
+                if ($matches && !isset($clearedIps[$ip])) {
+                    $reason = $matchById ? "subnet_id={$rowSubId}" : "pool-range (subnet_id={$rowSubId})";
+                    Log::info("clearLeases: HAPUS IP {$ip} [{$reason}] dari " . basename($filePath));
+                } elseif (!$matches && $rowSubId === (int)$subnet->id) {
+                    // Anomali: subnet_id cocok tapi IP tidak di pool (misal static IP)
+                    // Tetap hapus karena subnet_id sudah jelas
+                    Log::info("clearLeases: HAPUS IP {$ip} [subnet_id={$rowSubId}, luar pool] dari " . basename($filePath));
+                    $matches = true;
                 }
 
                 if ($matches) {
                     // Hanya hitung jika IP belum pernah ditemukan sebelumnya (hindari double count)
                     if (!isset($clearedIps[$ip])) {
                         $clearedCount++;
-                        Log::info("clearLeases: HAPUS lease IP {$ip} (subnet_id={$rowSubId}) dari " . basename($filePath));
                     }
                     $clearedIps[$ip] = true;
                     // Pastikan dihapus dari daftar preservasi (bahkan jika ada catatan lama di file .completed/.2)
@@ -460,6 +457,7 @@ class DhcpConfigService
                 } else {
                     // Hanya pertahankan jika IP ini TIDAK pernah ditandai untuk dihapus
                     if (!isset($clearedIps[$ip])) {
+                        Log::info("clearLeases: PERTAHANKAN IP {$ip} (subnet_id={$rowSubId}) dari " . basename($filePath));
                         $preservedLinesByIp[$ip] = $rawLine;
                     }
                 }

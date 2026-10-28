@@ -55,6 +55,23 @@ class DhcpSubnet extends Model
     }
 
     /**
+     * Periksa apakah IP berada di dalam pool range saja (pool_start – pool_end).
+     * TIDAK cek CIDR, sehingga aman dipakai saat subnet memiliki CIDR yang overlap dengan subnet lain.
+     */
+    public function isInPool(string $ip): bool
+    {
+        $ipLong    = ip2long(trim($ip));
+        $startLong = ip2long((string)$this->pool_start);
+        $endLong   = ip2long((string)$this->pool_end);
+
+        if ($ipLong === false || $startLong === false || $endLong === false) {
+            return false;
+        }
+
+        return $ipLong >= $startLong && $ipLong <= $endLong;
+    }
+
+    /**
      * Periksa apakah sebuah IP berada di dalam pool range atau CIDR subnet ini
      */
     public function containsIp(string $ip): bool
