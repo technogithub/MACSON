@@ -364,7 +364,14 @@ class DhcpConfigService
         // 1. HENTIKAN Kea DHCP DULU agar seluruh lease di memori (RAM) ter-flush sempurna ke disk!
         Log::info("clearLeases: Menghentikan Kea DHCP sebelum membaca dan memodifikasi file leases...");
         $this->stopKeaService();
-        sleep(2);
+        // stopKeaService sudah polling sampai container benar-benar berhenti.
+        // Tambahan 1 detik ekstra untuk memastikan semua write ke disk selesai (fsync).
+        sleep(1);
+
+        // Hapus file .1 (LFC interim output) SEBELUM membaca file lain,
+        // agar tidak ada kemungkinan race-condition saat file .1 sedang ditulis Kea saat shutdown.
+        // File .1 ini jika dibiarkan akan di-rename menjadi .csv oleh Kea saat startup berikutnya!
+        $this->removeKeaLeaseFile($this->leasesPath . '.1');
 
         // 2. Kumpulkan baris dari file terbaru ke terlama (.csv utama, .2, lalu .completed)
         $potentialFiles = [
@@ -380,11 +387,16 @@ class DhcpConfigService
 
         foreach ($potentialFiles as $filePath) {
             if (!file_exists($filePath)) {
+                Log::info("clearLeases: File tidak ditemukan (skip): " . basename($filePath));
                 continue;
             }
 
             $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if (empty($lines) || count($lines) <= 1) {
+            $lineCount = count($lines);
+            Log::info("clearLeases: Membaca " . basename($filePath) . " — {$lineCount} baris (termasuk header).");
+
+            if (empty($lines) || $lineCount <= 1) {
+                Log::info("clearLeases: " . basename($filePath) . " kosong atau hanya header, skip.");
                 continue;
             }
 
@@ -419,10 +431,14 @@ class DhcpConfigService
                 }
 
                 if ($matches) {
+                    // Hanya hitung jika IP belum pernah ditemukan sebelumnya (hindari double count)
+                    if (!isset($clearedIps[$ip])) {
+                        $clearedCount++;
+                        Log::info("clearLeases: HAPUS lease IP {$ip} (subnet_id={$rowSubId}) dari " . basename($filePath));
+                    }
                     $clearedIps[$ip] = true;
                     // Pastikan dihapus dari daftar preservasi (bahkan jika ada catatan lama di file .completed/.2)
                     unset($preservedLinesByIp[$ip]);
-                    $clearedCount++;
                 } else {
                     // Hanya pertahankan jika IP ini TIDAK pernah ditandai untuk dihapus
                     if (!isset($clearedIps[$ip])) {
@@ -431,6 +447,8 @@ class DhcpConfigService
                 }
             }
         }
+
+        Log::info("clearLeases: Total dihapus={$clearedCount}, dipertahankan=" . count($preservedLinesByIp) . " lease untuk subnet {$subnet->name} (ID: {$subnetId}).");
 
         if (!$headerLine) {
             $headerLine = $defaultHeader;
@@ -648,11 +666,9 @@ class DhcpConfigService
     public function stopKeaService(): void
     {
         // 1. Coba via Docker Engine Socket API
-        if ($this->callDockerSocketApi('/containers/radius_dhcp/stop?t=10', 'POST')) {
-            return;
-        }
+        $this->callDockerSocketApi('/containers/radius_dhcp/stop?t=10', 'POST');
 
-        // 2. Fallback CLI
+        // 2. Fallback CLI jika socket gagal atau container belum berhenti
         try {
             if (trim(shell_exec('which docker 2>/dev/null') ?? '')) {
                 shell_exec('docker stop --time=10 radius_dhcp 2>/dev/null');
@@ -660,10 +676,28 @@ class DhcpConfigService
                 shell_exec('sudo systemctl stop kea-dhcp4-server 2>/dev/null');
             } else {
                 shell_exec('pkill kea-dhcp4 2>/dev/null');
-                sleep(2);
             }
         } catch (\Throwable $e) {
             Log::warning("Gagal stop Kea service: " . $e->getMessage());
+        }
+
+        // 3. Polling: tunggu sampai container benar-benar berhenti (max 15 detik)
+        $maxWait = 15;
+        $waited  = 0;
+        while ($waited < $maxWait) {
+            sleep(1);
+            $waited++;
+            try {
+                $state = trim(shell_exec(
+                    "docker inspect --format='{{.State.Running}}' radius_dhcp 2>/dev/null"
+                ) ?? '');
+                if ($state === 'false' || $state === '') {
+                    Log::info("stopKeaService: container radius_dhcp confirmed stopped after {$waited}s.");
+                    break;
+                }
+            } catch (\Throwable $e) {
+                break; // jika docker tidak ada, skip polling
+            }
         }
     }
 
