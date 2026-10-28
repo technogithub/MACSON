@@ -361,33 +361,22 @@ class DhcpConfigService
             return 0;
         }
 
-        $startLong = (!empty($subnet->pool_start)) ? ip2long(trim($subnet->pool_start)) : false;
-        $endLong   = (!empty($subnet->pool_end))   ? ip2long(trim($subnet->pool_end))   : false;
+        // 1. HENTIKAN Kea DHCP DULU agar seluruh lease di memori (RAM) ter-flush sempurna ke disk!
+        Log::info("clearLeases: Menghentikan Kea DHCP sebelum membaca dan memodifikasi file leases...");
+        $this->stopKeaService();
+        sleep(2);
 
-        $networkLong   = false;
-        $broadcastLong = false;
-        if (!empty($subnet->subnet) && str_contains($subnet->subnet, '/')) {
-            [$baseIpStr, $prefixStr] = explode('/', trim($subnet->subnet), 2);
-            $baseLong = ip2long(trim($baseIpStr));
-            $prefix   = (int)trim($prefixStr);
-            if ($baseLong !== false && $prefix >= 8 && $prefix <= 30) {
-                $mask          = $prefix === 0 ? 0 : (-1 << (32 - $prefix));
-                $networkLong   = $baseLong & $mask;
-                $broadcastLong = $networkLong | (~$mask & 0xFFFFFFFF);
-            }
-        }
-
-        // 1. Kumpulkan seluruh baris dari SEMUA file leases Kea (.completed, .2, dan file utama .csv)
-        // Karena proses LFC (Lease File Cleanup) Kea sering merotasi lease aktif ke .completed atau .2
+        // 2. Kumpulkan baris dari file terbaru ke terlama (.csv utama, .2, lalu .completed)
         $potentialFiles = [
-            $this->leasesPath . '.completed',
-            $this->leasesPath . '.2',
             $this->leasesPath,
+            $this->leasesPath . '.2',
+            $this->leasesPath . '.completed',
         ];
 
-        $headerLine = null;
+        $headerLine         = null;
         $preservedLinesByIp = [];
-        $clearedCount = 0;
+        $clearedIps         = [];
+        $clearedCount       = 0;
 
         foreach ($potentialFiles as $filePath) {
             if (!file_exists($filePath)) {
@@ -414,31 +403,29 @@ class DhcpConfigService
                     continue;
                 }
 
-                $ip = ($addrIdx !== false && isset($cols[$addrIdx])) ? trim($cols[$addrIdx]) : '';
+                $ip       = ($addrIdx !== false && isset($cols[$addrIdx])) ? trim($cols[$addrIdx]) : '';
                 $rowSubId = ($subIdx !== false && isset($cols[$subIdx])) ? (int)trim($cols[$subIdx]) : 0;
 
+                if (empty($ip)) {
+                    continue;
+                }
+
+                // Cek apakah IP atau Subnet ID cocok dengan subnet yang ingin dibersihkan
                 $matches = false;
-                // Cocokkan berdasarkan Subnet ID di Kea
-                if ($rowSubId === $subnetId) {
+                if ($rowSubId === (int)$subnet->id) {
                     $matches = true;
-                } elseif (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
-                    // Cocokkan berdasarkan Range IP Pool atau CIDR Network
-                    $ipLong = ip2long($ip);
-                    if ($startLong !== false && $endLong !== false
-                        && $ipLong >= min($startLong, $endLong)
-                        && $ipLong <= max($startLong, $endLong)) {
-                        $matches = true;
-                    } elseif ($networkLong !== false && $broadcastLong !== false
-                        && $ipLong >= $networkLong && $ipLong <= $broadcastLong) {
-                        $matches = true;
-                    }
+                } elseif (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    $matches = $subnet->containsIp($ip);
                 }
 
                 if ($matches) {
+                    $clearedIps[$ip] = true;
+                    // Pastikan dihapus dari daftar preservasi (bahkan jika ada catatan lama di file .completed/.2)
+                    unset($preservedLinesByIp[$ip]);
                     $clearedCount++;
                 } else {
-                    // PERTAHANKAN BARIS ASLI DARI SUBNET LAIN TANPA DIUBAH
-                    if (!empty($ip)) {
+                    // Hanya pertahankan jika IP ini TIDAK pernah ditandai untuk dihapus
+                    if (!isset($clearedIps[$ip])) {
                         $preservedLinesByIp[$ip] = $rawLine;
                     }
                 }
@@ -450,18 +437,6 @@ class DhcpConfigService
         }
 
         $preservedLines = array_values($preservedLinesByIp);
-
-        if ($clearedCount === 0) {
-            Log::info("clearLeases: Tidak ada lease yang cocok untuk Subnet ID {$subnetId}.");
-            return 0;
-        }
-
-        // 2. STOP Kea DHCP container SEBELUM memodifikasi file CSV!
-        Log::info("clearLeases: Menghentikan Kea DHCP sebelum modifikasi CSV (Subnet ID {$subnetId}, membersihkan {$clearedCount} baris lease, mempertahankan " . count($preservedLines) . " baris lease)...");
-        $this->stopKeaService();
-
-        // Beri jeda 3 detik agar Kea selesai flush memori ke disk
-        sleep(3);
 
         // 3. Tulis data baru: header asli + baris lease subnet lain yang dipertahankan
         $newContent = $headerLine . "\n";
@@ -478,7 +453,7 @@ class DhcpConfigService
         }
 
         // 4. NYALAKAN KEMBALI container radius_dhcp
-        Log::info("clearLeases: Menyalakan kembali Kea DHCP setelah mengosongkan {$clearedCount} active dynamic leases untuk Subnet ID {$subnetId}.");
+        Log::info("clearLeases: Menyalakan kembali Kea DHCP setelah mengosongkan {$clearedCount} dynamic leases untuk Subnet {$subnet->name} (ID: {$subnetId}).");
         $this->startKeaService();
 
         return $clearedCount;
