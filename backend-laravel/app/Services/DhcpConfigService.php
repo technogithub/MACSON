@@ -361,17 +361,21 @@ class DhcpConfigService
             return 0;
         }
 
-        // 1. HENTIKAN Kea DHCP DULU agar seluruh lease di memori (RAM) ter-flush sempurna ke disk!
+        // ── LANGKAH 0: Kirim lease4-wipe via Control Socket (hapus langsung dari RAM Kea) ──
+        $wipeRes = $this->sendKeaControlCommand([
+            'command'   => 'lease4-wipe',
+            'arguments' => ['subnet-id' => (int)$subnet->id],
+        ]);
+        Log::info("clearLeases: lease4-wipe via socket untuk Subnet ID {$subnet->id} result: " . ($wipeRes ?: 'null/skip'));
+
+        // Chmod folder dan file dari sisi Laravel
+        @chmod(dirname($this->leasesPath), 0777);
+        @chmod($this->leasesPath, 0666);
+
+        // ── LANGKAH 1: Stop Kea (polling sampai benar-benar mati) ──
         Log::info("clearLeases: Menghentikan Kea DHCP sebelum membaca dan memodifikasi file leases...");
         $this->stopKeaService();
-        // stopKeaService sudah polling sampai container benar-benar berhenti.
-        // Tambahan 1 detik ekstra untuk memastikan semua write ke disk selesai (fsync).
         sleep(1);
-
-        // Hapus file .1 (LFC interim output) SEBELUM membaca file lain,
-        // agar tidak ada kemungkinan race-condition saat file .1 sedang ditulis Kea saat shutdown.
-        // File .1 ini jika dibiarkan akan di-rename menjadi .csv oleh Kea saat startup berikutnya!
-        $this->removeKeaLeaseFile($this->leasesPath . '.1');
 
         // 2. Kumpulkan baris dari file terbaru ke terlama (.csv utama, .2, lalu .completed)
         $potentialFiles = [
@@ -545,9 +549,10 @@ class DhcpConfigService
     /**
      * Tulis ke file kea-leases4.csv secara aman.
      *
-     * Metode 1: File::put langsung (jika file masih milik www-data)
-     * Metode 2: chmod via Docker API exec (root di radius_laravel_app) → File::put
-     * Metode 3: Tulis konten via Docker API exec (root) langsung ke file
+     * Metode 1: File::put langsung (jika file sudah chmod 666 oleh pre-stop step)
+     * Metode 2: chmod via docker exec CLI (shell_exec) → File::put
+     * Metode 3: chmod via Docker API exec root → File::put
+     * Metode 4: Tulis konten via Docker API exec root langsung ke file
      */
     private function writeKeaLeasesFile(string $content): void
     {
@@ -567,20 +572,32 @@ class DhcpConfigService
             Log::warning("writeKeaLeasesFile: File::put gagal ({$bytes} bytes): " . $e->getMessage());
         }
 
-        // Metode 2: chmod via Docker exec root → lalu File::put
-        Log::info("writeKeaLeasesFile: Mencoba chmod via Docker exec root...");
+        // Metode 2: chmod via docker exec CLI (radius_laravel_app selalu running)
+        Log::info("writeKeaLeasesFile: Mencoba chmod via docker exec CLI...");
+        shell_exec("docker exec -u 0 radius_laravel_app chmod 666 " . escapeshellarg($containerPath) . " 2>/dev/null");
+        try {
+            File::put($this->leasesPath, $content);
+            @chmod($this->leasesPath, 0666);
+            Log::info("writeKeaLeasesFile: OK via docker-exec-CLI chmod + File::put ({$bytes} bytes).");
+            return;
+        } catch (\Throwable $e) {
+            Log::warning("writeKeaLeasesFile: Setelah docker-exec-CLI chmod, File::put masih gagal: " . $e->getMessage());
+        }
+
+        // Metode 3: chmod via Docker API exec root → lalu File::put
+        Log::info("writeKeaLeasesFile: Mencoba chmod via Docker API exec root...");
         $this->dockerExecAsRoot(['chmod', '777', $containerPath]);
 
         try {
             File::put($this->leasesPath, $content);
             @chmod($this->leasesPath, 0666);
-            Log::info("writeKeaLeasesFile: OK via chmod-root + File::put ({$bytes} bytes).");
+            Log::info("writeKeaLeasesFile: OK via API-chmod-root + File::put ({$bytes} bytes).");
             return;
         } catch (\Throwable $e) {
             Log::warning("writeKeaLeasesFile: Setelah chmod-root, File::put masih gagal: " . $e->getMessage());
         }
 
-        // Metode 3: Tulis langsung via Docker exec root (base64 untuk menghindari masalah escaping)
+        // Metode 4: Tulis langsung via Docker API exec root (base64 untuk menghindari masalah escaping)
         Log::info("writeKeaLeasesFile: Mencoba tulis via Docker exec root langsung...");
         $b64     = base64_encode($content);
         $writeCmd = "echo " . escapeshellarg($b64) . " | base64 -d > {$containerPath} && chmod 666 {$containerPath}";
@@ -599,18 +616,44 @@ class DhcpConfigService
     {
         if (!file_exists($filePath)) return;
 
-        // Coba hapus langsung (jika file milik www-data)
+        // Metode 1: Hapus langsung via unlink (berhasil jika file sudah chmod 666)
         @chmod($filePath, 0666);
         if (@unlink($filePath)) {
+            Log::info("removeKeaLeaseFile: OK unlink " . basename($filePath));
             return;
         }
 
-        // Fallback: chmod dulu via Docker exec root, lalu hapus
+        // Metode 2: chmod + rm via docker exec CLI
         $containerPath = '/var/www/html/storage/dhcp/leases/' . basename($filePath);
+        shell_exec("docker exec -u 0 radius_laravel_app rm -f " . escapeshellarg($containerPath) . " 2>/dev/null");
+        if (!file_exists($filePath)) {
+            Log::info("removeKeaLeaseFile: OK docker exec CLI " . basename($filePath));
+            return;
+        }
+
+        // Metode 3: Hapus via Docker API exec root
         $this->dockerExecAsRoot(['rm', '-f', $containerPath]);
-        Log::info("removeKeaLeaseFile: Hapus " . basename($filePath) . " via Docker exec root.");
+        Log::info("removeKeaLeaseFile: Hapus " . basename($filePath) . " via Docker API exec root.");
     }
 
+
+    /**
+     * Cek apakah container docker sedang berjalan via Docker Engine Socket
+     */
+    public function isContainerRunning(string $container = 'radius_dhcp'): ?bool
+    {
+        $sock = '/var/run/docker.sock';
+        if (!file_exists($sock)) return null;
+
+        $out = shell_exec("curl -s --unix-socket {$sock} 'http://localhost/containers/{$container}/json' 2>/dev/null");
+        if (empty($out)) return null;
+
+        $json = json_decode($out, true);
+        if (isset($json['State']['Running'])) {
+            return (bool)$json['State']['Running'];
+        }
+        return null;
+    }
 
     /**
      * Panggil Docker Engine API via Unix Socket /var/run/docker.sock
@@ -643,6 +686,9 @@ class DhcpConfigService
             }
             if ($httpCode > 0) {
                 Log::warning("Docker API curl-shell {$method} {$path} response {$httpCode}");
+            } else {
+                $err = trim(shell_exec("curl -s -X {$m} --unix-socket {$sock} 'http://localhost{$path}' 2>&1") ?? '');
+                Log::warning("Docker API curl-shell {$method} {$path} gagal total (HTTP 0): {$err}. Pastikan /var/run/docker.sock memiliki akses rw (sudo chmod 666 /var/run/docker.sock)!");
             }
         } catch (\Throwable $e) {
             Log::warning("Docker API curl-shell gagal: " . $e->getMessage());
@@ -657,6 +703,7 @@ class DhcpConfigService
             curl_setopt($ch, CURLOPT_TIMEOUT, 15);
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
             curl_close($ch);
 
             if ($httpCode >= 200 && $httpCode < 300) {
@@ -668,6 +715,8 @@ class DhcpConfigService
             }
             if ($httpCode > 0) {
                 Log::warning("Docker API PHP-curl {$method} {$path} response code {$httpCode}: {$response}");
+            } elseif (!empty($curlErr)) {
+                Log::warning("Docker API PHP-curl {$method} {$path} error: {$curlErr}");
             }
         } catch (\Throwable $e) {
             Log::warning("Gagal call Docker API via PHP curl: " . $e->getMessage());
@@ -703,16 +752,20 @@ class DhcpConfigService
         while ($waited < $maxWait) {
             sleep(1);
             $waited++;
-            try {
-                $state = trim(shell_exec(
-                    "docker inspect --format='{{.State.Running}}' radius_dhcp 2>/dev/null"
-                ) ?? '');
-                if ($state === 'false' || $state === '') {
-                    Log::info("stopKeaService: container radius_dhcp confirmed stopped after {$waited}s.");
-                    break;
-                }
-            } catch (\Throwable $e) {
-                break; // jika docker tidak ada, skip polling
+            $running = $this->isContainerRunning('radius_dhcp');
+            if ($running === false) {
+                Log::info("stopKeaService: container radius_dhcp confirmed stopped after {$waited}s.");
+                break;
+            } elseif ($running === null) {
+                // Socket tidak merespon, coba CLI
+                try {
+                    $state = trim(shell_exec("docker inspect --format='{{.State.Running}}' radius_dhcp 2>/dev/null") ?? '');
+                    if ($state === 'false') {
+                        Log::info("stopKeaService: container radius_dhcp confirmed stopped via CLI after {$waited}s.");
+                        break;
+                    }
+                } catch (\Throwable $e) {}
+                if ($waited >= 3) break;
             }
         }
     }
