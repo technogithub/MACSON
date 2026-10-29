@@ -165,9 +165,10 @@
         <table class="table ssid-table align-middle mb-0">
             <thead>
                 <tr>
-                    <th style="width:25%;">SSID Name</th>
-                    <th style="width:16%;">IEEE 802.1Q VLAN</th>
-                    <th style="width:41%;">Description</th>
+                    <th style="width:23%;">SSID Name</th>
+                    <th style="width:15%;">IEEE 802.1Q VLAN</th>
+                    <th style="width:16%;">Policy Mode</th>
+                    <th style="width:28%;">Description</th>
                     <th style="width:8%;">Status</th>
                     <th style="width:10%;" class="text-center">Actions</th>
                 </tr>
@@ -191,6 +192,17 @@
                                 <span class="text-muted small fst-italic">Untagged</span>
                             @endif
                         </td>
+                        <td>
+                            @if(($ssid->auth_mode ?? 'whitelist') === 'blacklist')
+                                <span class="badge" style="background:rgba(244,63,94,0.15); border:1px solid rgba(244,63,94,0.3); color:#fb7185; font-size:0.75rem;">
+                                    <i class="fa-solid fa-ban me-1"></i>Blacklist (Guest)
+                                </span>
+                            @else
+                                <span class="badge" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; font-size:0.75rem;">
+                                    <i class="fa-solid fa-shield-check me-1"></i>Whitelist (Staff)
+                                </span>
+                            @endif
+                        </td>
                         <td class="text-secondary small">{{ $ssid->description ?? '—' }}</td>
                         <td>
                             @if($ssid->status === 'active')
@@ -208,6 +220,7 @@
                                     data-id="{{ $ssid->id }}"
                                     data-name="{{ $ssid->ssid_name }}"
                                     data-vlan="{{ $ssid->vlan_id }}"
+                                    data-mode="{{ $ssid->auth_mode ?? 'whitelist' }}"
                                     data-description="{{ $ssid->description }}"
                                     data-status="{{ $ssid->status }}">
                                     <i class="fa-solid fa-pen-to-square"></i>
@@ -269,6 +282,14 @@
                             <div class="form-text">Default VLAN for all devices connecting to this SSID. Can be overridden per-MAC in MAC Devices.</div>
                         </div>
                         <div class="col-12">
+                            <label class="form-label">Policy Autentikasi / Keamanan *</label>
+                            <select name="auth_mode" class="form-select form-control-dark">
+                                <option value="whitelist" selected>🛡️ Whitelist (Staff / Kantor — Hanya perangkat terdaftar)</option>
+                                <option value="blacklist">🚫 Blacklist (Tamu / Guest — Semua boleh konek kecuali diblokir)</option>
+                            </select>
+                            <div class="form-text">Pilih 'Blacklist' jika ini adalah SSID Guest/Voucher agar tamu otomatis diizinkan kecuali MAC-nya masuk daftar Blacklist.</div>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">Description <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="text" name="description" class="form-control form-control-dark" placeholder="e.g. Corporate staff high-speed network">
                         </div>
@@ -309,6 +330,13 @@
                             <input type="number" name="vlan_id" id="editVlanId" class="form-control form-control-dark" placeholder="Leave empty = untagged" min="1" max="4094">
                         </div>
                         <div class="col-12">
+                            <label class="form-label">Policy Autentikasi / Keamanan *</label>
+                            <select name="auth_mode" id="editAuthMode" class="form-select form-control-dark">
+                                <option value="whitelist">🛡️ Whitelist (Staff / Kantor — Hanya perangkat terdaftar)</option>
+                                <option value="blacklist">🚫 Blacklist (Tamu / Guest — Semua boleh konek kecuali diblokir)</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">Description <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="text" name="description" id="editDescription" class="form-control form-control-dark">
                         </div>
@@ -342,6 +370,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('editSsidForm').action = `/ssids/${id}`;
             document.getElementById('editSsidName').value   = this.dataset.name || '';
             document.getElementById('editVlanId').value     = this.dataset.vlan || '';
+            document.getElementById('editAuthMode').value   = this.dataset.mode || 'whitelist';
             document.getElementById('editDescription').value = this.dataset.description || '';
             document.getElementById('editStatus').value     = this.dataset.status || 'active';
 

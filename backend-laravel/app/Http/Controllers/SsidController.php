@@ -35,7 +35,8 @@ class SsidController extends Controller
             'ssid_name' => 'required|string|max:64|unique:ssids,ssid_name',
             'vlan_id' => 'nullable|integer|between:1,4094',
             'description' => 'nullable|string|max:255',
-            'status' => 'required|in:active,inactive'
+            'status' => 'required|in:active,inactive',
+            'auth_mode' => 'nullable|in:whitelist,blacklist',
         ]);
 
         Ssid::create([
@@ -43,6 +44,7 @@ class SsidController extends Controller
             'vlan_id' => $request->vlan_id,
             'description' => $request->description,
             'status' => $request->status,
+            'auth_mode' => $request->input('auth_mode', 'whitelist'),
         ]);
 
         return redirect()->back()->with('success', "SSID '{$request->ssid_name}' successfully added!");
@@ -59,7 +61,8 @@ class SsidController extends Controller
             'ssid_name' => "required|string|max:64|unique:ssids,ssid_name,{$id}",
             'vlan_id' => 'nullable|integer|between:1,4094',
             'description' => 'nullable|string|max:255',
-            'status' => 'required|in:active,inactive'
+            'status' => 'required|in:active,inactive',
+            'auth_mode' => 'nullable|in:whitelist,blacklist',
         ]);
 
         $ssid->update([
@@ -67,6 +70,7 @@ class SsidController extends Controller
             'vlan_id' => $request->vlan_id,
             'description' => $request->description,
             'status' => $request->status,
+            'auth_mode' => $request->input('auth_mode', $ssid->auth_mode ?? 'whitelist'),
         ]);
 
         return redirect()->back()->with('success', "SSID '{$ssid->ssid_name}' successfully updated!");

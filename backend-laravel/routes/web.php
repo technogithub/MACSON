@@ -9,6 +9,7 @@ use App\Http\Controllers\LogController;
 
 use App\Http\Controllers\VoucherController;
 use App\Http\Controllers\DhcpController;
+use App\Http\Controllers\GuestBlacklistController;
 
 use App\Http\Middleware\EnsureSuperAdmin;
 
@@ -47,6 +48,10 @@ Route::middleware('auth')->group(function () {
         // Suggest free IP in subnet
         Route::get('/devices/suggest-ip', [DeviceController::class, 'suggestIp'])->name('devices.suggest-ip');
         Route::resource('devices', DeviceController::class);
+
+        // Guest Blacklist Management Routes
+        Route::patch('blacklist/{id}/toggle', [GuestBlacklistController::class, 'toggle'])->name('blacklist.toggle');
+        Route::resource('blacklist', GuestBlacklistController::class)->only(['index', 'store', 'destroy']);
 
         // Multi-SSID Management Routes
         Route::resource('ssids', SsidController::class)->except(['create', 'edit', 'show']);

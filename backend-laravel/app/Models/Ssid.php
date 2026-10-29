@@ -17,6 +17,7 @@ class Ssid extends Model
         'vlan_id',
         'description',
         'status',
+        'auth_mode',
     ];
 
     /**

@@ -560,6 +560,10 @@
                             <i class="fa-solid fa-laptop-code"></i>
                             <span>MAC Devices</span>
                         </a>
+                        <a class="nav-item-macson {{ request()->routeIs('blacklist.*') ? 'active' : '' }}" href="{{ route('blacklist.index') }}">
+                            <i class="fa-solid fa-ban text-danger"></i>
+                            <span>Blacklist Guest</span>
+                        </a>
                         <a class="nav-item-macson {{ request()->routeIs('ssids.*') ? 'active' : '' }}" href="{{ route('ssids.index') }}">
                             <i class="fa-solid fa-wifi"></i>
                             <span>SSID & VLAN</span>
@@ -598,6 +602,10 @@
                             <a class="nav-item-macson {{ request()->routeIs('devices.*') ? 'active' : '' }}" href="{{ route('devices.index') }}">
                                 <i class="fa-solid fa-laptop-code"></i>
                                 <span>MAC Devices</span>
+                            </a>
+                            <a class="nav-item-macson {{ request()->routeIs('blacklist.*') ? 'active' : '' }}" href="{{ route('blacklist.index') }}">
+                                <i class="fa-solid fa-ban text-danger"></i>
+                                <span>Blacklist Guest</span>
                             </a>
                             <a class="nav-item-macson {{ request()->routeIs('ssids.*') ? 'active' : '' }}" href="{{ route('ssids.index') }}">
                                 <i class="fa-solid fa-wifi"></i>

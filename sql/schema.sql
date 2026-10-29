@@ -12,6 +12,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ------------------------------------------------------------------------------
 -- Drop tables in correct dependency order (children first)
 -- ------------------------------------------------------------------------------
+DROP TABLE IF EXISTS `guest_blacklists`;
 DROP TABLE IF EXISTS `device_ssids`;
 DROP TABLE IF EXISTS `audit_logs`;
 DROP TABLE IF EXISTS `radius_log`;
@@ -33,10 +34,12 @@ CREATE TABLE `ssids` (
   `vlan_id` INT UNSIGNED NULL COMMENT 'Dynamic IEEE 802.1Q VLAN Tag ID (1-4094)',
   `description` VARCHAR(255) NULL COMMENT 'SSID usage notes and zone assignment',
   `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `auth_mode` ENUM('whitelist', 'blacklist') NOT NULL DEFAULT 'whitelist' COMMENT 'whitelist = corp/staff, blacklist = guest/tamu',
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_ssid_status` (`ssid_name`, `status`),
-  INDEX `idx_vlan_id` (`vlan_id`)
+  INDEX `idx_vlan_id` (`vlan_id`),
+  INDEX `idx_auth_mode` (`auth_mode`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
@@ -74,6 +77,24 @@ CREATE TABLE `device_ssids` (
   FOREIGN KEY (`ssid_id`) REFERENCES `ssids` (`id`) ON DELETE CASCADE,
   INDEX `idx_device_id` (`device_id`),
   INDEX `idx_ssid_id` (`ssid_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------------------------
+-- 3b. Table: guest_blacklists (Banned / Blacklisted MAC Addresses for Guest SSIDs)
+-- ------------------------------------------------------------------------------
+CREATE TABLE `guest_blacklists` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `mac_address` VARCHAR(17) NOT NULL UNIQUE COMMENT 'Sanitized MAC: AA:BB:CC:DD:EE:FF',
+  `device_name` VARCHAR(100) NULL COMMENT 'Device brand / hostname if detected',
+  `reason` VARCHAR(255) NULL COMMENT 'Reason for blacklisting / ban',
+  `blocked_by` BIGINT UNSIGNED NULL COMMENT 'User ID who blocked this device',
+  `blocked_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` TIMESTAMP NULL DEFAULT NULL COMMENT 'NULL = Permanent block',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_mac_active` (`mac_address`, `is_active`),
+  INDEX `idx_expires_at` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------

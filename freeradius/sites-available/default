@@ -67,45 +67,94 @@ server default {
             reject
         }
 
-        # 4. Query Database `devices` and `ssids` tables for Normalized MAC & SSID matching
+        # 4. Check Target SSID Auth Policy Mode (whitelist vs blacklist)
         update request {
-            Tmp-String-4 := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON ds.ssid_id = s.id WHERE d.mac_address = '%{request:Tmp-String-3}' AND d.status = 'active' AND (d.ssid = '%{request:Tmp-String-1}' OR d.ssid = 'ALL' OR s.ssid_name = '%{request:Tmp-String-1}') ORDER BY CASE WHEN d.ssid = '%{request:Tmp-String-1}' THEN 1 WHEN s.ssid_name = '%{request:Tmp-String-1}' THEN 2 WHEN d.ssid = 'ALL' THEN 3 ELSE 4 END LIMIT 1}"
-            Tmp-String-5 := "%{sql: SELECT COALESCE(d.vlan_id, s.vlan_id, 0) FROM devices d LEFT JOIN ssids s ON s.ssid_name = '%{request:Tmp-String-1}' WHERE d.mac_address = '%{request:Tmp-String-3}' AND d.status = 'active' AND (d.ssid = '%{request:Tmp-String-1}' OR d.ssid = 'ALL' OR EXISTS (SELECT 1 FROM device_ssids ds2 JOIN ssids s2 ON ds2.ssid_id = s2.id WHERE ds2.device_id = d.id AND s2.ssid_name = '%{request:Tmp-String-1}')) ORDER BY CASE WHEN d.vlan_id IS NOT NULL THEN 0 WHEN s.vlan_id IS NOT NULL THEN 1 ELSE 2 END LIMIT 1}"
+            Tmp-String-7 := "%{sql: SELECT auth_mode FROM ssids WHERE ssid_name = '%{request:Tmp-String-1}' AND status = 'active' LIMIT 1}"
         }
 
-        # 5. Enforce Access Policy & Dynamic VLAN Assignment
-        if ("%{request:Tmp-String-4}" == "active") {
-            # Device Found & Active for Target SSID -> ACCEPT
-            update control {
-                Auth-Type := Accept
+        # ----------------------------------------------------------------------
+        # POLICY BRANCH A: BLACKLIST MODE (Guest / Tamu SSID)
+        # All MACs are ALLOWED by default, EXCEPT those listed in guest_blacklists
+        # ----------------------------------------------------------------------
+        if ("%{request:Tmp-String-7}" == "blacklist") {
+            # Check if this MAC is in guest_blacklists table and actively blocking
+            update request {
+                Tmp-String-8 := "%{sql: SELECT id FROM guest_blacklists WHERE mac_address = '%{request:Tmp-String-3}' AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1}"
             }
 
-            # Inject Dynamic IEEE 802.1Q VLAN reply attributes if VLAN ID > 0
-            if ("%{request:Tmp-String-5}" != "0" && "%{request:Tmp-String-5}" != "") {
-                update reply {
-                    Tunnel-Type := VLAN
-                    Tunnel-Medium-Type := IEEE-802
-                    Tunnel-Private-Group-Id := "%{request:Tmp-String-5}"
+            if ("%{request:Tmp-String-8}" != "") {
+                # Device is BLACKLISTED -> REJECT immediately (Layer 2 Kick, 0 IP)
+                update request {
+                    Tmp-String-6 := "Guest MAC is Blacklisted"
+                    Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Guest MAC is Blacklisted')}"
+                }
+                reject
+            } else {
+                # Device is NOT in blacklist -> ACCEPT (Allowed to connect & access voucher portal)
+                update control {
+                    Auth-Type := Accept
+                }
+
+                # Dynamic VLAN assignment if Guest SSID has vlan_id defined
+                update request {
+                    Tmp-String-5 := "%{sql: SELECT COALESCE(vlan_id, 0) FROM ssids WHERE ssid_name = '%{request:Tmp-String-1}' AND status = 'active' LIMIT 1}"
+                }
+                if ("%{request:Tmp-String-5}" != "0" && "%{request:Tmp-String-5}" != "") {
+                    update reply {
+                        Tunnel-Type := VLAN
+                        Tunnel-Medium-Type := IEEE-802
+                        Tunnel-Private-Group-Id := "%{request:Tmp-String-5}"
+                    }
+                }
+
+                update request {
+                    Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'ACCEPT', 'Guest MAC Authorized (Blacklist Policy)')}"
                 }
             }
-
-            update request {
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}"
-            }
-        } elsif ("%{request:Tmp-String-4}" == "inactive") {
-            # Device Found but Inactive -> REJECT
-            update request {
-                Tmp-String-6 := "Device Status Inactive"
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Device Inactive for SSID')}"
-            }
-            reject
         } else {
-            # Device Not Authorized for this SSID -> REJECT
+            # ------------------------------------------------------------------
+            # POLICY BRANCH B: WHITELIST MODE (Staff / Corporate SSID)
+            # Only explicitly registered and active MACs in devices table are ALLOWED
+            # ------------------------------------------------------------------
             update request {
-                Tmp-String-6 := "MAC Not Authorized for SSID: %{request:Tmp-String-1}"
-                Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'MAC Not Authorized for SSID')}"
+                Tmp-String-4 := "%{sql: SELECT d.status FROM devices d LEFT JOIN device_ssids ds ON ds.device_id = d.id LEFT JOIN ssids s ON ds.ssid_id = s.id WHERE d.mac_address = '%{request:Tmp-String-3}' AND d.status = 'active' AND (d.ssid = '%{request:Tmp-String-1}' OR d.ssid = 'ALL' OR s.ssid_name = '%{request:Tmp-String-1}') ORDER BY CASE WHEN d.ssid = '%{request:Tmp-String-1}' THEN 1 WHEN s.ssid_name = '%{request:Tmp-String-1}' THEN 2 WHEN d.ssid = 'ALL' THEN 3 ELSE 4 END LIMIT 1}"
+                Tmp-String-5 := "%{sql: SELECT COALESCE(d.vlan_id, s.vlan_id, 0) FROM devices d LEFT JOIN ssids s ON s.ssid_name = '%{request:Tmp-String-1}' WHERE d.mac_address = '%{request:Tmp-String-3}' AND d.status = 'active' AND (d.ssid = '%{request:Tmp-String-1}' OR d.ssid = 'ALL' OR EXISTS (SELECT 1 FROM device_ssids ds2 JOIN ssids s2 ON ds2.ssid_id = s2.id WHERE ds2.device_id = d.id AND s2.ssid_name = '%{request:Tmp-String-1}')) ORDER BY CASE WHEN d.vlan_id IS NOT NULL THEN 0 WHEN s.vlan_id IS NOT NULL THEN 1 ELSE 2 END LIMIT 1}"
             }
-            reject
+
+            # Enforce Access Policy & Dynamic VLAN Assignment
+            if ("%{request:Tmp-String-4}" == "active") {
+                # Device Found & Active for Target SSID -> ACCEPT
+                update control {
+                    Auth-Type := Accept
+                }
+
+                # Inject Dynamic IEEE 802.1Q VLAN reply attributes if VLAN ID > 0
+                if ("%{request:Tmp-String-5}" != "0" && "%{request:Tmp-String-5}" != "") {
+                    update reply {
+                        Tunnel-Type := VLAN
+                        Tunnel-Medium-Type := IEEE-802
+                        Tunnel-Private-Group-Id := "%{request:Tmp-String-5}"
+                    }
+                }
+
+                update request {
+                    Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'ACCEPT', 'MAC & Multi-SSID Authorized')}"
+                }
+            } elsif ("%{request:Tmp-String-4}" == "inactive") {
+                # Device Found but Inactive -> REJECT
+                update request {
+                    Tmp-String-6 := "Device Status Inactive"
+                    Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'Device Inactive for SSID')}"
+                }
+                reject
+            } else {
+                # Device Not Authorized for this SSID -> REJECT
+                update request {
+                    Tmp-String-6 := "MAC Not Authorized for SSID: %{request:Tmp-String-1}"
+                    Tmp-String-9 := "%{sql: INSERT INTO radius_log (log_date, mac_address, ssid, username, nas_ip, nas_port, auth_result, reason) VALUES (NOW(), '%{request:Tmp-String-3}', '%{request:Tmp-String-1}', '%{User-Name}', '%{NAS-IP-Address}', '%{NAS-Port}', 'REJECT', 'MAC Not Authorized for SSID')}"
+                }
+                reject
+            }
         }
     }
 
