@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  database:
+    image: mariadb:10.11
+    container_name: radius_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: RootPassword123!
+      MYSQL_DATABASE: radius
+      MYSQL_USER: radius_user
+      MYSQL_PASSWORD: RadiusPassword123!
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+    networks:
+      - radius_net
+
+  freeradius:
+    build: 
+      context: ./docker/freeradius
+    container_name: radius_server
+    restart: always
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - ./freeradius/clients.conf:/etc/freeradius/3.0/clients.conf
+      - ./freeradius/mods-available/sql:/etc/freeradius/3.0/mods-available/sql
+      - ./freeradius/sites-available/default:/etc/freeradius/3.0/sites-available/default
+    depends_on:
+      - database
+    networks:
+      - radius_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: radius_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - radius_net
+
+  web:
+    build:
+      context: ./docker/web
+    container_name: radius_web
+    restart: always
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend-laravel:/var/www/html
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - database
+      - redis
+    networks:
+      - radius_net
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: radius_pma
+    restart: always
+    environment:
+      PMA_HOST: database
+      MYSQL_ROOT_PASSWORD: RootPassword123!
+    ports:
+      - "8080:80"
+    depends_on:
+      - database
+    networks:
+      - radius_net
+
+volumes:
+  db_data:
+
+networks:
+  radius_net:
+    driver: bridge
