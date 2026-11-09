@@ -97,6 +97,79 @@
     </div>
 </div>
 
+<!-- Server Health Widget (Mini) -->
+<div class="macson-card p-3 mb-4" id="server-health-widget">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold font-outfit text-light mb-0 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-server text-info"></i>
+            <span>Server Health</span>
+            <span class="badge rounded-pill ms-1" id="widget-live-badge" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.68rem;">
+                <i class="fa-solid fa-circle" style="font-size:7px;animation:pulse-emerald 2s infinite;"></i> LIVE
+            </span>
+        </h6>
+        <a href="{{ route('server-monitor.index') }}" class="small text-info text-decoration-none fw-semibold">
+            Detail <i class="fa-solid fa-arrow-right ms-1" style="font-size:11px;"></i>
+        </a>
+    </div>
+    <div class="row g-3">
+        <!-- CPU -->
+        <div class="col-6 col-md-3">
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="small text-secondary"><i class="fa-solid fa-microchip me-1 text-info"></i>CPU</span>
+                    <span class="fw-bold small text-light" id="w-cpu-pct">—%</span>
+                </div>
+                <div class="progress" style="height:5px;background:rgba(255,255,255,0.07);border-radius:4px;">
+                    <div class="progress-bar" id="w-cpu-bar" role="progressbar" style="width:0%;background:var(--macson-primary);border-radius:4px;transition:width 0.6s ease;"></div>
+                </div>
+            </div>
+        </div>
+        <!-- RAM -->
+        <div class="col-6 col-md-3">
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="small text-secondary"><i class="fa-solid fa-memory me-1 text-warning"></i>RAM</span>
+                    <span class="fw-bold small text-light" id="w-ram-pct">—%</span>
+                </div>
+                <div class="progress" style="height:5px;background:rgba(255,255,255,0.07);border-radius:4px;">
+                    <div class="progress-bar" id="w-ram-bar" role="progressbar" style="width:0%;border-radius:4px;transition:width 0.6s ease;"></div>
+                </div>
+                <span class="text-secondary" style="font-size:0.68rem;" id="w-ram-detail">— / — MB</span>
+            </div>
+        </div>
+        <!-- Disk -->
+        <div class="col-6 col-md-3">
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="small text-secondary"><i class="fa-solid fa-hard-drive me-1 text-purple" style="color:#c084fc;"></i>Disk</span>
+                    <span class="fw-bold small text-light" id="w-disk-pct">—%</span>
+                </div>
+                <div class="progress" style="height:5px;background:rgba(255,255,255,0.07);border-radius:4px;">
+                    <div class="progress-bar" id="w-disk-bar" role="progressbar" style="width:0%;background:#c084fc;border-radius:4px;transition:width 0.6s ease;"></div>
+                </div>
+                <span class="text-secondary" id="w-disk-detail" style="font-size:0.68rem;">— / — GB</span>
+            </div>
+        </div>
+        <!-- Network -->
+        <div class="col-6 col-md-3">
+            <div class="d-flex flex-column gap-1">
+                <span class="small text-secondary"><i class="fa-solid fa-network-wired me-1 text-success"></i>Network</span>
+                <div class="d-flex flex-column gap-0">
+                    <span class="text-light fw-semibold" style="font-size:0.78rem;">↑ <span id="w-net-tx">—</span></span>
+                    <span class="text-light fw-semibold" style="font-size:0.78rem;">↓ <span id="w-net-rx">—</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Docker Mini Status -->
+    <div class="mt-3 pt-2" style="border-top:1px solid rgba(255,255,255,0.05);">
+        <div class="d-flex flex-wrap gap-2 align-items-center" id="w-docker-list">
+            <span class="text-secondary small"><i class="fa-brands fa-docker me-1"></i>Containers:</span>
+            <span class="text-secondary small">Loading...</span>
+        </div>
+    </div>
+</div>
+
 <!-- Graph & Log Activity Row -->
 <div class="row g-4">
     <!-- Chart Column -->
@@ -166,6 +239,70 @@
 
 @push('scripts')
 <script>
+    // ── Server Health Widget SSE ─────────────────────────────────────────
+    (function () {
+        const sse = new EventSource("{{ route('server-monitor.stream') }}");
+
+        function colorBar(pct) {
+            if (pct >= 85) return '#f43f5e';
+            if (pct >= 65) return '#f59e0b';
+            return '#10b981';
+        }
+
+        sse.onmessage = function (e) {
+            const d = JSON.parse(e.data);
+
+            // CPU
+            const cpu = d.cpu?.percent ?? 0;
+            document.getElementById('w-cpu-pct').textContent = cpu + '%';
+            const cpuBar = document.getElementById('w-cpu-bar');
+            cpuBar.style.width = cpu + '%';
+            cpuBar.style.background = colorBar(cpu);
+
+            // RAM
+            const ram = d.ram?.percent ?? 0;
+            document.getElementById('w-ram-pct').textContent = ram + '%';
+            const ramBar = document.getElementById('w-ram-bar');
+            ramBar.style.width = ram + '%';
+            ramBar.style.background = colorBar(ram);
+            document.getElementById('w-ram-detail').textContent =
+                (d.ram?.used_mb ?? '—') + ' / ' + (d.ram?.total_mb ?? '—') + ' MB';
+
+            // Disk
+            const disk = d.disk?.percent ?? 0;
+            document.getElementById('w-disk-pct').textContent = disk + '%';
+            const diskBar = document.getElementById('w-disk-bar');
+            diskBar.style.width = disk + '%';
+            diskBar.style.background = colorBar(disk);
+            document.getElementById('w-disk-detail').textContent =
+                (d.disk?.used_gb ?? '—') + ' / ' + (d.disk?.total_gb ?? '—') + ' GB';
+
+            // Network
+            document.getElementById('w-net-tx').textContent = d.network?.tx_human ?? '—';
+            document.getElementById('w-net-rx').textContent = d.network?.rx_human ?? '—';
+
+            // Docker
+            const dockerEl = document.getElementById('w-docker-list');
+            if (d.docker && d.docker.length > 0) {
+                let html = '<span class="text-secondary small"><i class="fa-brands fa-docker me-1"></i>Containers:</span>';
+                d.docker.forEach(c => {
+                    const color = c.running ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)';
+                    const textColor = c.running ? '#34d399' : '#fb7185';
+                    const border = c.running ? 'rgba(16,185,129,0.3)' : 'rgba(244,63,94,0.3)';
+                    const icon = c.running ? '●' : '○';
+                    html += `<span class="badge" style="background:${color};color:${textColor};border:1px solid ${border};font-size:0.7rem;padding:3px 8px;border-radius:6px;">${icon} ${c.name}</span>`;
+                });
+                dockerEl.innerHTML = html;
+            }
+        };
+
+        sse.onerror = function () {
+            document.getElementById('widget-live-badge').style.opacity = '0.4';
+        };
+    })();
+</script>
+<script>
+    // ── Auth Chart ───────────────────────────────────────────────────────
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('authChart').getContext('2d');
 

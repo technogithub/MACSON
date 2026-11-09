@@ -582,6 +582,10 @@
                             <i class="fa-solid fa-list-check"></i>
                             <span>Audit Access Logs</span>
                         </a>
+                        <a class="nav-item-macson {{ request()->routeIs('server-monitor.*') ? 'active' : '' }}" href="{{ route('server-monitor.index') }}">
+                            <i class="fa-solid fa-server"></i>
+                            <span>Server Monitor</span>
+                        </a>
                     @endif
                 </nav>
             </aside>
@@ -624,6 +628,10 @@
                             <a class="nav-item-macson {{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.index') }}">
                                 <i class="fa-solid fa-list-check"></i>
                                 <span>Audit Access Logs</span>
+                            </a>
+                            <a class="nav-item-macson {{ request()->routeIs('server-monitor.*') ? 'active' : '' }}" href="{{ route('server-monitor.index') }}">
+                                <i class="fa-solid fa-server"></i>
+                                <span>Server Monitor</span>
                             </a>
                         @endif
                     </nav>

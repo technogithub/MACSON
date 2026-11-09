@@ -10,6 +10,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\VoucherController;
 use App\Http\Controllers\DhcpController;
 use App\Http\Controllers\GuestBlacklistController;
+use App\Http\Controllers\ServerMonitorController;
 
 use App\Http\Middleware\EnsureSuperAdmin;
 
@@ -78,5 +79,9 @@ Route::middleware('auth')->group(function () {
         // RADIUS & Audit Access Log Routes
         Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
         Route::delete('/logs/clear', [LogController::class, 'clear'])->name('logs.clear');
+
+        // Server Monitor Routes
+        Route::get('/server-monitor', [ServerMonitorController::class, 'index'])->name('server-monitor.index');
+        Route::get('/server-monitor/stream', [ServerMonitorController::class, 'stream'])->name('server-monitor.stream');
     });
 });
