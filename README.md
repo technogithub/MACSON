@@ -1,6 +1,6 @@
 # 🛡️ SANTAFE NAC (Santos Advanced Network Traffic & Access Filtering Engine)
 
-> **Enterprise Multi-SSID RADIUS (MAB / 802.1X), Dynamic 802.1Q VLAN Steering, Kea DHCPv4 Management & UniFi Hotspot Voucher System for Ubiquiti UniFi & Enterprise Networks**
+> **Enterprise Multi-SSID RADIUS (MAB / 802.1X), Dynamic 802.1Q VLAN Steering, Kea DHCPv4 Management, Guest Blacklist Policy & UniFi Hotspot Voucher System for Ubiquiti UniFi & Enterprise Networks**
 
 ![Release](https://img.shields.io/github/v/release/technogithub/MACSON?color=green&label=Release)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20%7C%2022.04%20LTS-orange?logo=ubuntu)
@@ -18,23 +18,26 @@
 1. [Tentang SANTAFE](#-tentang-santafe)
 2. [Fitur Unggulan](#-fitur-unggulan)
 3. [Arsitektur Sistem](#-arsitektur-sistem)
-4. [Standar Segmen Jaringan & VLAN (Contoh Standar)](#-standar-segmen-jaringan--vlan-contoh-standar)
-5. [Modul Aplikasi Web](#-modul-aplikasi-web)
+4. [Docker Microservices](#-docker-microservices)
+5. [Standar Segmen Jaringan & VLAN (Contoh Standar)](#-standar-segmen-jaringan--vlan-contoh-standar)
+6. [Modul Aplikasi Web](#-modul-aplikasi-web)
    - [Dashboard & Real-time Analytics](#1-dashboard--real-time-analytics)
-   - [Manajemen MAC Address & Device](#2-manajemen-mac-address--device)
-   - [Multi-SSID & Dynamic VLAN Tagging](#3-multi-ssid--dynamic-vlan-tagging)
-   - [DHCP Server Management (Kea DHCPv4)](#4-dhcp-server-management-kea-dhcpv4)
-   - [UniFi Hotspot Voucher System](#5-unifi-hotspot-voucher-system)
-   - [RADIUS Authentication Audit Logs](#6-radius-authentication-audit-logs)
-   - [Multi-Theme UI & Interactive Table Sorting](#7-multi-theme-ui--interactive-table-sorting)
-6. [Role-Based Access Control (RBAC)](#-role-based-access-control-rbac)
-7. [Panduan Format CSV Import & Export](#-panduan-format-csv-import--export)
-8. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
-9. [Konfigurasi Ubiquiti UniFi Controller](#-konfigurasi-ubiquiti-unifi-controller)
-10. [Struktur Direktori Proyek](#-struktur-direktori-proyek)
-11. [Pengujian & Verifikasi](#-pengujian--verifikasi)
-12. [Pemeliharaan & Operasional](#-pemeliharaan--operasional)
-13. [Author & Lisensi](#-author--lisensi)
+   - [Server Monitor (Realtime SSE)](#2-server-monitor-realtime-sse)
+   - [Manajemen MAC Address & Device](#3-manajemen-mac-address--device)
+   - [Guest Blacklist Policy](#4-guest-blacklist-policy)
+   - [Multi-SSID & Dynamic VLAN Tagging](#5-multi-ssid--dynamic-vlan-tagging)
+   - [DHCP Server Management (Kea DHCPv4)](#6-dhcp-server-management-kea-dhcpv4)
+   - [UniFi Hotspot Voucher System](#7-unifi-hotspot-voucher-system)
+   - [RADIUS Authentication Audit Logs](#8-radius-authentication-audit-logs)
+   - [Multi-Theme UI & Interactive Table Sorting](#9-multi-theme-ui--interactive-table-sorting)
+7. [Role-Based Access Control (RBAC)](#-role-based-access-control-rbac)
+8. [Panduan Format CSV Import & Export](#-panduan-format-csv-import--export)
+9. [Panduan Instalasi & Deployment](#-panduan-instalasi--deployment)
+10. [Konfigurasi Ubiquiti UniFi Controller](#-konfigurasi-ubiquiti-unifi-controller)
+11. [Struktur Direktori Proyek](#-struktur-direktori-proyek)
+12. [Pengujian & Verifikasi](#-pengujian--verifikasi)
+13. [Pemeliharaan & Operasional](#-pemeliharaan--operasional)
+14. [Author & Lisensi](#-author--lisensi)
 
 ---
 
@@ -42,7 +45,7 @@
 
 **SANTAFE NAC** (**S**antos **A**dvanced **N**etwork **T**raffic & **A**ccess **F**iltering **E**ngine) adalah sistem **Network Access Control (NAC)** komprehensif tingkat enterprise yang dirancang khusus untuk ekosistem **Ubiquiti UniFi** (AP, Switch, Gateway) dan jaringan nirkabel perusahaan berskala besar.
 
-SANTAFE mengintegrasikan autentikasi berbasis MAC Address (MAB), penyaringan multi-SSID, pembagian VLAN dinamis IEEE 802.1Q, server DHCP berkinerja tinggi (Kea DHCPv4), sistem voucher hotspot tamu, serta visualisasi audit log ke dalam satu antarmuka modern bernuansa *dark glassmorphism*.
+SANTAFE mengintegrasikan autentikasi berbasis MAC Address (MAB), penyaringan multi-SSID, pembagian VLAN dinamis IEEE 802.1Q, server DHCP berkinerja tinggi (Kea DHCPv4), sistem voucher hotspot tamu, kebijakan blacklist tamu, monitoring resource server secara realtime, serta visualisasi audit log ke dalam satu antarmuka modern bernuansa *dark glassmorphism*.
 
 ---
 
@@ -53,8 +56,10 @@ SANTAFE mengintegrasikan autentikasi berbasis MAC Address (MAB), penyaringan mul
 | 🔐 **RADIUS MAC Authentication (MAB)** | Otentikasi perangkat otomatis berdasarkan MAC Address melalui FreeRADIUS v3 tanpa memerlukan software client tambahan (supplicant). Mendukung auto-sanitasi format MAC (`AA:BB:CC:DD:EE:FF`, `AA-BB-CC-DD-EE-FF`, `aabbccddeeff`). |
 | 🏷️ **Dynamic 802.1Q VLAN Steering** | Memetakan perangkat secara otomatis ke VLAN tujuan (`Tunnel-Private-Group-Id`) berdasarkan konfigurasi device atau profil SSID yang terhubung. |
 | 📡 **Multi-SSID Filtering** | Mengatur izin akses perangkat hanya ke SSID tertentu (e.g. `CORP-WIFI`, `GUEST-WIFI`, `IOT-WIFI`) atau `ALL` untuk akses universal. |
+| 🚫 **Guest Blacklist Policy** | Kebijakan dual-mode per SSID: **Whitelist** (hanya MAC terdaftar yang boleh konek) atau **Blacklist** (semua boleh konek kecuali MAC yang diblokir). Ideal untuk jaringan tamu semi-terbuka. |
 | 🌐 **Kea DHCPv4 Integration** | Manajemen multi-subnet DHCP pool, reservasi IP static, monitoring dynamic leases aktif secara real-time, dan fitur *Clear Leases* yang terisolasi aman per-subnet. |
 | 🎫 **UniFi Hotspot Voucher Engine** | Generate batch voucher WiFi tamu langsung tersinkronisasi ke UniFi Controller API, lengkap dengan opsi cetak thermal slip (58mm/80mm) & format A4 grid. |
+| 🖥️ **Server Monitor Realtime** | Monitoring resource server secara realtime via Server-Sent Events (SSE): CPU, RAM, Disk, Network I/O, dan status seluruh Docker container. Widget ringkas di dashboard + halaman dedicated dengan sparkline chart. |
 | 🎨 **Multi-Theme Engine** | Pilihan tema visual interaktif: **Cyber Blue** (Default), **Emerald Shield**, **Crimson Protocol**, dan **Purple Void** yang tersimpan di LocalStorage per pengguna. |
 | 🔄 **Interactive Table Sorting** | Kemampuan pengurutan kolom tabel (ASC/DESC) interaktif pada seluruh tabel: MAC Devices, DHCP Subnets, Static Leases, Dynamic Leases (dengan polling live), dan Vouchers. |
 | 📊 **Real-time Analytics** | Visualisasi grafik autentikasi per jam (Accept vs Reject) menggunakan Chart.js dan ringkasan metrik kesehatan jaringan. |
@@ -73,7 +78,7 @@ SANTAFE mengintegrasikan autentikasi berbasis MAC Address (MAB), penyaringan mul
                                            |                                 |
                                            | Dynamic 802.1Q VLAN             | 1. Sanitize MAC Delimiter
                                            | Tagging Reply                   | 2. Extract SSID from Called-Station-Id
-                                           v                                 | 3. Query Device Authorization
+                                           v                                 | 3. Query Whitelist / Blacklist Policy
                                 +-----------------------+                    | 4. Return Access-Accept + VLAN ID
                                 |      Kea DHCPv4       | <------------------+
                                 |  (Pools & Static IP)  |
@@ -84,7 +89,47 @@ SANTAFE mengintegrasikan autentikasi berbasis MAC Address (MAB), penyaringan mul
                                 |   SANTAFE Web UI      | -----> |   UniFi Controller    |
                                 | (Laravel 11 / Nginx)  |  API   |  (Hotspot & Vouchers) |
                                 +-----------------------+        +-----------------------+
+                                           |
+                                           | SSE Stream (Realtime)
+                                           v
+                                +-----------------------+
+                                |   Server Monitor      |
+                                | CPU/RAM/Disk/Network  |
+                                | Docker Container List |
+                                +-----------------------+
 ```
+
+---
+
+## 🐳 Docker Microservices
+
+SANTAFE berjalan sebagai kumpulan microservices Docker yang saling terhubung:
+
+| Container | Image / Build | Peran | Port |
+|---|---|---|:---:|
+| `radius_laravel_app` | `php:8.3-fpm-alpine` (custom) | Aplikasi web Laravel utama (PHP-FPM) | — |
+| `radius_nginx` | `nginx:alpine` | Web server & reverse proxy ke PHP-FPM | `80`, `443` |
+| `radius_freeradius` | Custom FreeRADIUS build | Server autentikasi RADIUS (MAB + VLAN) | `1812/udp`, `1813/udp` |
+| `radius_dhcp` | `joyzoursky/kea-dhcp` | Server Kea DHCPv4 (IP pool + static lease) | `67/udp` |
+| `radius_mariadb` | `mariadb:10.11` | Database utama (devices, logs, SSIDs, dll) | `3306` |
+| `radius_redis` | `redis:7-alpine` | Cache session & message broker antrian job | `6379` |
+| `radius_queue_worker` | Same as laravel_app | Eksekutor background job Laravel (sync voucher, dll) | — |
+| `radius_phpmyadmin` | `phpmyadmin/phpmyadmin` | GUI manajemen database via web (opsional) | `8080` |
+
+### Alur Komunikasi Antar Container
+
+```
+Browser ──► radius_nginx ──► radius_laravel_app ──► radius_mariadb
+                                     │                radius_redis
+                                     │
+                              radius_queue_worker (background jobs)
+
+UniFi AP ──► radius_freeradius ──► radius_mariadb
+
+Client Device ──► radius_dhcp (IP assignment)
+```
+
+> **Catatan:** Mount `/var/run/docker.sock` pada container `radius_laravel_app` diperlukan agar fitur **Server Monitor** dapat membaca status container secara realtime.
 
 ---
 
@@ -107,20 +152,46 @@ SANTAFE menggunakan standar pengalamatan privat RFC 1918 yang fleksibel dan dapa
 - **Metrik Utama**: Total device aktif/nonaktif, log autentikasi 24 jam terakhir, persentase keberhasilan autentikasi.
 - **Grafik Interaktif**: Line chart real-time per jam (Accept vs Reject).
 - **Live Activity Feed**: 8 aktivitas autentikasi terbaru dengan indikator badge MAC, SSID, dan status koneksi.
+- **Server Health Widget**: Widget ringkasan CPU, RAM, Disk, Network I/O, dan status Docker container langsung di dashboard via SSE.
 
-### 2. Manajemen MAC Address & Device
+### 2. Server Monitor (Realtime SSE)
+- **Halaman Dedicated** dengan 4 card metrik besar: CPU Usage, RAM Usage, Disk Usage, Network I/O.
+- **Sparkline Chart Realtime**: Grafik histori 30 titik terakhir untuk CPU, RAM, dan Network I/O.
+- **Docker Container Table**: Tabel status seluruh container (`Running`/`Stopped`) beserta detail status.
+- **Server Uptime**: Durasi server berjalan sejak terakhir restart.
+- **Teknologi**: Server-Sent Events (SSE) — data di-push dari server ke browser tanpa polling, efisien dan ringan.
+- **Metrik yang dipantau**:
+  | Metrik | Sumber Data | Interval |
+  |---|---|:---:|
+  | CPU % | `/proc/stat` | 2 detik |
+  | RAM (used/total/free) | `/proc/meminfo` | 2 detik |
+  | Disk (used/total/free) | `df -B1 /` | 2 detik |
+  | Network I/O (↑↓) | `/proc/net/dev` | 2 detik |
+  | Docker containers | `docker ps -a` | 2 detik |
+  | Server uptime | `/proc/uptime` | 2 detik |
+
+### 3. Manajemen MAC Address & Device
 - **Registrasi Cepat**: Tambah device dengan validasi MAC instan, pemilihan SSID target (`ALL` atau SSID spesifik), penamaan, lokasi, dan VLAN ID override.
 - **Reservasi IP Terintegrasi**: Pilihan untuk langsung mengalokasikan Static IP DHCP pada saat mendaftarkan device baru, dilengkapi tombol **"Saran IP"** otomatis.
 - **Pencarian & Filter Multi-Kriteria**: Cari berdasarkan MAC, nama, lokasi, deskripsi, atau filter via Tab Navigasi SSID.
 - **Quick Action**: Toggle status aktif/nonaktif dalam 1 klik tanpa memuat ulang form.
 - **Sorting Kolom**: Urutkan kolom Device, MAC, SSID, VLAN, dan Status secara ascending/descending.
 
-### 3. Multi-SSID & Dynamic VLAN Tagging
+### 4. Guest Blacklist Policy
+- **Dual-Mode Policy per SSID**:
+  - **Whitelist Mode** (default): Hanya MAC address terdaftar yang diizinkan konek — cocok untuk jaringan korporat.
+  - **Blacklist Mode**: Semua device boleh konek kecuali MAC yang masuk daftar blokir — cocok untuk jaringan tamu semi-terbuka.
+- **Manajemen Blacklist**: Tambah, hapus, aktifkan/nonaktifkan entri blacklist dengan antarmuka yang bersih.
+- **Statistik**: Jumlah total blacklist, aktif, dan nonaktif ditampilkan dalam card.
+- **Integrasi FreeRADIUS**: Policy diterapkan langsung pada level autentikasi RADIUS via query SQL dinamis.
+
+### 5. Multi-SSID & Dynamic VLAN Tagging
 - Pengelolaan daftar SSID yang diakui oleh pengontrol RADIUS.
 - Pemetaan otomatis VLAN ID default untuk setiap SSID.
+- Konfigurasi **Auth Mode** (Whitelist/Blacklist) per SSID.
 - Perangkat dapat dikunci hanya pada satu SSID atau diizinkan ke beberapa SSID sekaligus dengan VLAN ID yang terisolasi.
 
-### 4. DHCP Server Management (Kea DHCPv4)
+### 6. DHCP Server Management (Kea DHCPv4)
 Terintegrasi secara native dengan **Kea DHCPv4 engine**:
 - **Manajemen Subnet / Pool**: Tambah dan atur subnet CIDR, range IP dynamic pool, router gateway, DNS server, dan durasi lease.
 - **Reservasi Static IP**: Ikat alamat IP permanen ke MAC Address tertentu. Dilengkapi searchable picker device dan auto-detect subnet.
@@ -128,7 +199,7 @@ Terintegrasi secara native dengan **Kea DHCPv4 engine**:
 - **Subnet-Isolated Clear Leases**: Fitur penghapusan lease dinamis yang aman — membersihkan IP sewa aktif hanya pada subnet yang dipilih tanpa mengganggu lease di subnet lainnya.
 - **Sinkronisasi Konfigurasi Kea**: Konfigurasi diexport ke format JSON terstruktur Kea dan di-reload secara mulus ke container daemon.
 
-### 5. UniFi Hotspot Voucher System
+### 7. UniFi Hotspot Voucher System
 - **Generator Batch**: Buat voucher dengan parameter durasi waktu (jam/hari), kuota bandwidth upload/download (Kbps), kuota data (MB), dan limit pemakaian (single/multi-use).
 - **Template Cetak Fleksibel**:
   - Slip Thermal (58mm / 80mm) siap cetak via printer thermal kasir/resepsionis.
@@ -136,12 +207,12 @@ Terintegrasi secara native dengan **Kea DHCPv4 engine**:
 - **Revoke & Batch Revoke**: Pencabutan akses voucher secara individual maupun massal dengan sinkronisasi langsung ke UniFi Controller.
 - **Offline Resilience Mode**: Jika koneksi ke UniFi Controller terputus, voucher tersimpan secara lokal dan otomatis masuk antrean sinkronisasi saat controller kembali online.
 
-### 6. RADIUS Authentication Audit Logs
+### 8. RADIUS Authentication Audit Logs
 - Pencatatan lengkap setiap request autentikasi: Timestamp, MAC Address, Target SSID, Status (`ACCEPT`/`REJECT`), NAS IP, dan Alasan Penolakan.
 - Filter tanggal kustom, pencarian bebas, dan tombol export ke format CSV.
 - Pembersihan log otomatis (auto-prune) via scheduled artisan job untuk menjaga performa database.
 
-### 7. Multi-Theme UI & Interactive Table Sorting
+### 9. Multi-Theme UI & Interactive Table Sorting
 - **Theme Switcher**: Pilih dari 4 tema elegan (Cyber Blue, Emerald Shield, Crimson Protocol, Purple Void). Seluruh elemen UI, badge, tombol aksen, dan background berpindah warna secara konsisten.
 - **Interaktivitas Tabel**: Seluruh tabel data dilengkapi indikator panah sort (`▲`/`▼`) interaktif yang memudahkan penelusuran data dalam jumlah besar.
 
@@ -151,7 +222,7 @@ Terintegrasi secara native dengan **Kea DHCPv4 engine**:
 
 | Role | Hak Akses | Deskripsi |
 |---|:---:|---|
-| **Super Admin** | 👑 Penuh | Akses seluruh modul: Dashboard, Devices, SSIDs, DHCP Server, Logs, Vouchers, dan Konfigurasi Integrasi UniFi. |
+| **Super Admin** | 👑 Penuh | Akses seluruh modul: Dashboard, Server Monitor, Devices, Blacklist, SSIDs, DHCP Server, Logs, Vouchers, dan Konfigurasi Integrasi UniFi. |
 | **Operator** | 🎫 Terbatas | Dikhususkan untuk staf resepsionis/kasir: Hanya dapat membuka modul Voucher (Generate, Cetak, dan Revoke voucher tamu). |
 
 ---
@@ -219,12 +290,29 @@ cd /opt/macson
 cp backend-laravel/.env.example backend-laravel/.env
 
 # 3. Jalankan container microservices
-docker compose -f docker/docker-compose.yml up -d --build
+docker compose up -d --build
 
 # 4. Generate application key dan jalankan migrasi database
 docker exec radius_laravel_app php artisan key:generate
 docker exec radius_laravel_app php artisan migrate --force
 docker exec radius_laravel_app php artisan db:seed --force
+```
+
+### Aktifkan Fitur Server Monitor
+
+Pastikan Docker socket ter-mount ke container Laravel agar fitur Server Monitor dapat membaca status container:
+
+```yaml
+# docker-compose.yml — bagian service radius_laravel_app
+volumes:
+  - ./backend-laravel:/var/www/html
+  - /var/run/docker.sock:/var/run/docker.sock   # ← wajib untuk Server Monitor
+```
+
+Pastikan juga `docker-cli` terinstall di dalam container:
+```bash
+# Jika image berbasis Alpine
+docker exec -u root radius_laravel_app apk add --no-cache docker-cli
 ```
 
 ---
@@ -257,18 +345,21 @@ SANTAFE/
 ├── backend-laravel/                 # Aplikasi Laravel 11 (Glassmorphism Dark UI & API)
 │   ├── app/
 │   │   ├── Http/Controllers/        # Controller: Auth, Dashboard, Devices, DHCP, Logs, SSIDs, Vouchers
+│   │   │                            #             GuestBlacklist, ServerMonitor
 │   │   ├── Models/                  # Model Eloquent: Device, DhcpSubnet, DhcpStaticLease, RadiusLog, dll.
 │   │   └── Services/                # Service Kea DHCP Config Generator & UniFi API Client
 │   ├── resources/views/             # Blade Views (Master Layouts, Modals, Print Previews)
+│   │   ├── server-monitor/          # Halaman Server Monitor (SSE Realtime)
+│   │   └── guest-blacklist/         # Halaman Guest Blacklist Management
 │   ├── database/migrations/         # Migrasi Database
 │   └── routes/web.php               # Routing Aplikasi Web
 ├── freeradius/                      # Konfigurasi FreeRADIUS v3
 │   ├── clients.conf                 # Definisi Client NAS / AP Subnet
 │   ├── queries.conf                 # Query SQL Autentikasi MAB & VLAN Tagging
-│   └── sites-available/default      # Virtual Server & Unlang Logic
+│   └── sites-available/default      # Virtual Server & Unlang Logic (Whitelist + Blacklist dual-policy)
 ├── docker/                          # Definisi Docker & Microservices
-│   ├── docker-compose.yml           # Compose file (Nginx, PHP, MariaDB, FreeRADIUS, Kea, phpMyAdmin)
-│   ├── Dockerfile                   # PHP 8.3 FPM Image Build
+│   ├── docker-compose.yml           # Compose file (Nginx, PHP, MariaDB, FreeRADIUS, Kea, Redis, phpMyAdmin)
+│   ├── Dockerfile                   # PHP 8.3 FPM Alpine Image Build
 │   └── freeradius.Dockerfile        # FreeRADIUS Container Build
 ├── scripts/                         # Script Otomasi & Pemeliharaan
 │   ├── install.sh                   # Script instalasi Ubuntu otomatis
@@ -298,6 +389,18 @@ Received Access-Accept Id 1 from 127.0.0.1:1812 in 2ms
         Tunnel-Private-Group-Id:0 = "10"
 ```
 
+### Verifikasi Server Monitor:
+```bash
+# Cek SSE endpoint aktif
+curl -N http://localhost/server-monitor/stream
+
+# Cek docker CLI tersedia di dalam container
+docker exec radius_laravel_app docker --version
+
+# Cek /proc/meminfo terbaca dari dalam container
+docker exec radius_laravel_app cat /proc/meminfo | head -5
+```
+
 ---
 
 ## 🔧 Pemeliharaan & Operasional
@@ -306,7 +409,9 @@ Received Access-Accept Id 1 from 127.0.0.1:1812 in 2ms
 ```bash
 cd /opt/macson
 git pull origin main
-docker compose -f docker/docker-compose.yml restart
+docker exec radius_laravel_app php artisan route:clear
+docker exec radius_laravel_app php artisan view:clear
+docker exec radius_laravel_app php artisan cache:clear
 docker exec radius_laravel_app php artisan migrate --force
 ```
 
@@ -319,6 +424,18 @@ docker exec radius_laravel_app php artisan radius:prune-logs --days=30
 ### Cek Kesehatan Layanan:
 ```bash
 sudo bash /opt/macson/scripts/health_check.sh
+```
+
+### Monitoring Resource Server via CLI:
+```bash
+# Lihat lease DHCP aktif per subnet
+docker exec radius_dhcp grep "10\.14\." /var/lib/kea/kea-leases4.csv
+
+# Pantau log DHCP realtime
+docker logs -f radius_dhcp | grep --line-buffered "10\.14\."
+
+# Status semua container
+docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.State}}"
 ```
 
 ---
